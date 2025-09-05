@@ -1,0 +1,47 @@
+# CONTEXT:queue
+OK : Ouvrir le menu
+↑ ↓ : Naviguer dans la liste
+→ long: Lire la piste selectionné
+← : Revenir sur la piste en cours de lecture
+← long: Rafraîchir la liste de lecture
+Info : Afficher l'aide
+↵ : Ecran lecture en cours
+↵ long : Ecran navigation librairie
+
+# CONTEXT:menu
+OK : Valider action/option
+↑ ↓ : Naviguer dans le menu
+← : Fermer le menu
+← long: Annuler / Retour file d’attente
+
+# CONTEXT:random_menu
+OK : Valider action/option
+↑ ↓ : Naviguer dans le menu
+ch +/- : Modifier la valeur
+← : Fermer le menu
+← long: Annuler / Retour file d’attente
+
+# CONTEXT:genres
+OK : Selectionner un genre
+↑ ↓ : Naviguer dans le menu
+← : Appliquer les genres sélectionnés
+← long: Ne pas modifier les genres et le nom
+
+# CONTEXT:playlist
+OK : Valider
+↑ ↓ : Choisir une playlist
+← : Fermer le menu
+→ : Voir le contenu de la playlist
+← long: Retour à la file d’attente
+
+# CONTEXT:playlist_view
+↑ ↓ : Naviguer dans la playlist
+← : Revenir à la selection de playlist
+← long: Retour à la file d’attente
+
+# CONTEXT:rename_screen
+OK : Valider
+← → : Déplacer le curseur
+↑ ↓ : Choisir caractères
+#CH - : Supprimer un caractère
+← long: Annuler le renommage (utiliser l'ancien nom)

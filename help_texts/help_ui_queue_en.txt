@@ -1,0 +1,47 @@
+# CONTEXT:queue
+OK: Open menu
+↑ ↓: Navigate the list
+→ long: Play the selected track
+←: Return to the currently playing track
+← long: Refresh the playlist
+Info: Display help
+↵: Now playing screen
+↵ long: Library navigation screen
+
+# CONTEXT:menu
+OK: Confirm action/option
+↑ ↓: Navigate the menu
+←: Close the menu
+← long: Cancel / Return to queue
+
+# CONTEXT:random_menu
+OK: Confirm action/option
+↑ ↓: Navigate the menu
+ch +/-: Change the value
+←: Close the menu
+← long: Cancel / Return to queue
+
+# CONTEXT:genres
+OK: Select a genre
+↑ ↓: Navigate in Menu
+←: Apply selected genres
+← long: Do not change genres or name
+
+# CONTEXT:playlist
+OK: Validate
+↑ ↓: Select a playlist
+←: Close the menu
+→: View the playlist contents
+← long: Return to the queue
+
+# CONTEXT:playlist_view
+↑ ↓: Navigate the playlist
+←: Return to playlist selection
+← long: Return to the queue
+
+# CONTEXT:rename_screen
+OK: Validate
+← →: Move the cursor
+↑ ↓: Select characters
+#CH -: Delete a character
+← long: Cancel renaming (use the old name)
