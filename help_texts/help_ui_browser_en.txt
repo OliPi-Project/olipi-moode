@@ -1,0 +1,41 @@
+# CONTEXT:library
+OK: Open Play menu / Confirm destination
+Long OK: Open Tools menu
+↑ ↓: Navigate the list
+←: Go back
+Long ←: Cancel / Return Home
+→: Enter a folder
+CH +: Add to selection
+CH -: Remove from selection
+Info: Show this help
+↵: Now Playing screen
+↵ long: Playlist screen
+
+# CONTEXT:search
+OK: Open Play menu
+Long OK: Open Tools menu
+↑ ↓: Navigate the list
+←: Go back
+← long: Return to library root
+→: Enter a folder
+CH +: Add to playlist
+CH -: Remove from playlist
+Info: Show this help
+↵: Now Playing screen
+↵ long: Playlist screen
+
+# CONTEXT:menu
+OK: Confirm Action/Option
+↑ ↓: Navigate the menu
+←: Cancel / Close the menu
+← long: Cancel / Return Home
+CH -: Delete a saved search
+
+# CONTEXT:search_screen
+OK: Start the search
+← →: Move the cursor
+↑ ↓: Select characters
+→ long: Select Accent
+← long: Return to library root
+CH +: Add a space
+CH -: Delete a character

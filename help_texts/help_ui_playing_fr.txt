@@ -1,0 +1,19 @@
+# CONTEXT:nowplaying_mode
+OK : Ouvrir menu
+OK long: Ouvrir menu Outils
+← long: Annuler / Retour Acceuil
+CH + : Ajouter Favoris / SongLog si radio
+CH - : Retirer piste en cours de la Queue
+↑ ↓ : Augmenter/baisser le volume
+← → : Piste Précédante/suivante
+← → long: Reculer/avancer de 10sec
+↵ : Ecran Liste de lecture
+↵ long: Ecran navigation librairie
+power : Redémarrer
+power long: Eteindre
+Info : Afficher/fermer l'aide
+# CONTEXT:menu
+OK : Valider action/option
+↑ ↓ : Naviguer dans le menu
+← : Annuler / Fermer le menu
+← long: Annuler / Retour Acceuil

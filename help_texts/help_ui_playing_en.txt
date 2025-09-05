@@ -1,0 +1,20 @@
+# CONTEXT:nowplaying_mode
+OK: Open menu
+OK long: Open Tools menu
+← long: Cancel / Back Home
+CH +: Add Favorites / SongLog if radio
+CH -: Remove current track from Queue
+↑ ↓: Increase/Decrease Volume
+← →: Previous/Next Track
+← → long: Go back/forward 10 seconds
+↵: Playlist screen
+↵ long: Library navigation screen
+power: Restart
+power long: Turn off
+Info: Show/Close Help
+
+# CONTEXT:menu
+OK: Confirm action/option
+↑ ↓: Navigate menu
+←: Cancel/Close menu
+← long: Cancel/Back Home

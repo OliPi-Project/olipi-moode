@@ -1,0 +1,41 @@
+# CONTEXT:library
+OK : Ouvrir menu Play / Valider destination
+OK long: Ouvrir menu Outils
+↑ ↓ : Naviguer dans la liste
+← : Revenir en arrière
+← long: Annuler / Retour Acceuil
+→ : Entrer dans un dossier
+CH + : Ajouter à la sélection
+CH - : Retirer de la sélection
+Info : Afficher cette aide
+↵ : Ecran Lecture en cours
+↵ long: Ecran Liste de lecture
+
+# CONTEXT:search
+OK : Ouvrir menu Play
+OK long: Ouvrir menu Outils
+↑ ↓ : Naviguer dans la liste
+← : Revenir en arrière
+← long: Retour racine bibliothèque
+→ : Entrer dans un dossier
+CH + : Ajouter à la sélection
+CH - : Retirer de la sélection
+Info : Afficher cette aide
+↵ : Ecran Lecture en cours
+↵ long: Ecran Liste de lecture
+
+# CONTEXT:menu
+OK : Valider action/option
+↑ ↓ : Naviguer dans le menu
+← : Annuler / Fermer le menu
+← long: Annuler / Retour Acceuil
+CH - : Supprimer une recherche sauvegardée
+
+# CONTEXT:search_screen
+OK : Lancer la recherche
+← → : Déplacer le curseur
+↑ ↓ : Choisir caractères
+→ long: Choix Accentuation
+← long: Retour racine bibliothèque
+CH + : Ajouter un espace
+CH - : Supprimer un caractère
