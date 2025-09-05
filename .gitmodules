@@ -1,0 +1,3 @@
+[submodule "olipi_core"]
+	path = olipi_core
+	url = https://github.com/OliPi-Project/olipi_core.git
