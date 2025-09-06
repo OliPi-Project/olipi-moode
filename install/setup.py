@@ -19,10 +19,15 @@ APT_DEPENDENCIES = [
 
 LOW_RAM_THRESHOLD_MB = 512
 ZRAM_RECOMMENDED_MB = 256
+
 REQUIRED_MOODE_VERSION = "9.3.7"
+OLIPI_CORE_REPO = "https://github.com/OliPi-Project/olipi-core.git"
+OLIPI_CORE_BRANCH = "main"
+OLIPI_MOODE_REPO = "https://github.com/OliPi-Project/olipi-moode.git"
+OLIPI_MOODE_BRANCH = "main"
+
 lang = "en"
 
-OLIPI_CORE_REPO = "https://github.com/OliPi-Project/olipi-core.git"
 INSTALL_DIR = os.path.dirname(os.path.abspath(__file__))  # directory containing setup.py
 OLIPI_MOODE_DIR = os.path.dirname(INSTALL_DIR)  # parent → olipi-moode
 OLIPI_CORE_DIR = os.path.join(OLIPI_MOODE_DIR, "olipi_core")
@@ -169,17 +174,93 @@ def load_settings():
             log_line(error=f"Failed to load settings: {e}", context="load_settings")
     return {}
 
+def get_latest_release_tag(path_or_repo: str, branch: str = "main") -> str:
+    """
+    Return the latest tag/release on the specified branch.
+    path_or_repo can be a local repo path or the remote URL for cloning.
+    """
+    if Path(path_or_repo).exists():  # local repo
+        run_command(f"git -C {path_or_repo} fetch --tags origin", log_out=True, show_output=True)
+        rc = subprocess.run(
+            f"git -C {path_or_repo} tag --sort=-creatordate --merged origin/{branch} | head -n 1",
+            shell=True, capture_output=True, text=True
+        )
+    else:  # remote repo
+        rc = subprocess.run(
+            f"git ls-remote --tags --refs {path_or_repo} {branch} | awk -F/ '{{print $3}}' | sort -V | tail -n1",
+            shell=True, capture_output=True, text=True
+        )
+
+    if rc.returncode == 0:
+        return rc.stdout.strip()
+    return ""
+
+def install_repo(repo_name: str, repo_url: str, local_dir: Path, branch: str, settings_keys: dict):
+    """
+    Install or update a Git repository to the latest release on the specified branch.
+
+    repo_name: Display name for logging (e.g., "OliPi Core")
+    repo_url: URL of the remote repo
+    local_dir: Path where the repo should be cloned
+    branch: Branch to track
+    settings_keys: dict mapping keys for settings JSON
+        e.g., {"branch": "branch_olipi_core", "local_tag": "local_tag_core", "remote_tag": "remote_tag_core"}
+    """
+    print(SETUP[f"install_{repo_name.lower()}"][lang])
+
+    if local_dir.exists():
+        print(SETUP[f"{repo_name.lower()}_exists"][lang].format(local_dir))
+        latest_tag = get_latest_release_tag(local_dir, branch=branch) or "none"
+    else:
+        # Get latest release tag on the branch
+        latest_tag = get_latest_release_tag(repo_url, branch=branch)
+        if latest_tag:
+            clone_ref = f"--branch {latest_tag}"
+        else:
+            latest_tag = "tag not found"
+            print(f"⚠️ Could not detect latest release on branch {branch}, cloning branch directly.")
+            log_line(msg=f"⚠️ Could not detect latest release on branch {branch}", context=f"install_{repo_name.lower()}")
+            clone_ref = f"--branch {branch}"
+
+        # Clone the repo
+        run_command(f"git clone {clone_ref} {repo_url} {local_dir}", log_out=True, show_output=True, check=True)
+        print(SETUP[f"{repo_name.lower()}_cloned"][lang].format(local_dir))
+        log_line(msg=f"{repo_name} cloned successfully. branch:{branch} tag:{latest_tag}", context=f"install_{repo_name.lower()}")
+
+    # Save local version in settings
+    settings = load_settings()
+    settings[settings_keys["branch"]] = branch
+    settings[settings_keys["local_tag"]] = latest_tag
+    settings[settings_keys["remote_tag"]] = latest_tag
+    save_settings(settings)
+
+    return local_dir
+
 def install_olipi_core():
-    print(SETUP["install_core"][lang])
+    return install_repo(
+        repo_name="Core",
+        repo_url=OLIPI_CORE_REPO,
+        local_dir=OLIPI_CORE_DIR,
+        branch=OLIPI_CORE_BRANCH,
+        settings_keys={
+            "branch": "branch_olipi_core",
+            "local_tag": "local_tag_core",
+            "remote_tag": "remote_tag_core"
+        }
+    )
 
-    if os.path.exists(OLIPI_CORE_DIR):
-        print(SETUP["core_exists"][lang].format(OLIPI_CORE_DIR))
-        return OLIPI_CORE_DIR
-
-    # critical: clone must succeed
-    run_command(f"git clone {OLIPI_CORE_REPO} {OLIPI_CORE_DIR}", log_out=True, show_output=True, check=True)
-    print(SETUP["core_cloned"][lang].format(OLIPI_CORE_DIR))
-    return OLIPI_CORE_DIR
+def install_olipi_moode():
+    return install_repo(
+        repo_name="Moode",
+        repo_url=OLIPI_MOODE_REPO,
+        local_dir=OLIPI_MOODE_DIR,
+        branch=OLIPI_MOODE_BRANCH,
+        settings_keys={
+            "branch": "branch_olipi_moode",
+            "local_tag": "local_tag_moode",
+            "remote_tag": "remote_tag_moode"
+        }
+    )
 
 def install_apt_dependencies():
     print(SETUP["install_apt"][lang])
@@ -894,6 +975,7 @@ if __name__ == "__main__":
     try:
         choose_language()
         check_moode_version()
+        install_olipi_moode()
         install_olipi_core()
         install_apt_dependencies()
         configure_screen(OLIPI_MOODE_DIR, OLIPI_CORE_DIR)
