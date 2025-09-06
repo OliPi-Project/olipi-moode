@@ -22,12 +22,13 @@ ZRAM_RECOMMENDED_MB = 256
 REQUIRED_MOODE_VERSION = "9.3.7"
 lang = "en"
 
-OLIPI_CORE_REPO = "https://github.com/OliPi-Project/olipi_core.git"
+OLIPI_CORE_REPO = "https://github.com/OliPi-Project/olipi-core.git"
 INSTALL_DIR = os.path.dirname(os.path.abspath(__file__))  # directory containing setup.py
 OLIPI_MOODE_DIR = os.path.dirname(INSTALL_DIR)  # parent → olipi-moode
 OLIPI_CORE_DIR = os.path.join(OLIPI_MOODE_DIR, "olipi_core")
 DEFAULT_VENV_PATH = os.path.expanduser("~/.olipi-moode-venv")
 INSTALL_LIRC_REMOTE_PATH = os.path.join(INSTALL_DIR, "install_lirc_remote.py")
+SETTINGS_FILE = Path(INSTALL_DIR) / ".setup-settings.json"
 TMP_LOG_FILE = Path("/tmp/setup.log")
 
 _LOG_INITIALIZED = False
@@ -148,6 +149,25 @@ def check_moode_version():
         print(SETUP["moode_too_old"][lang].format(current))
         safe_exit(1)
     print(SETUP["moode_ok"][lang].format(current))
+
+def save_settings(settings: dict):
+    """Save setup settings to a JSON file for later use (update/uninstall)."""
+    try:
+        with SETTINGS_FILE.open("w", encoding="utf-8") as fh:
+            json.dump(settings, fh, indent=2)
+        log_line(msg=f"Saved settings: {settings}", context="save_settings")
+    except Exception as e:
+        log_line(error=f"Failed to save settings: {e}", context="save_settings")
+
+def load_settings():
+    """Load settings from JSON file if it exists."""
+    if SETTINGS_FILE.exists():
+        try:
+            with SETTINGS_FILE.open("r", encoding="utf-8") as fh:
+                return json.load(fh)
+        except Exception as e:
+            log_line(error=f"Failed to load settings: {e}", context="load_settings")
+    return {}
 
 def install_olipi_core():
     print(SETUP["install_core"][lang])
@@ -884,6 +904,13 @@ if __name__ == "__main__":
         run_install_services(venv_path, user)
         update_ready_script()
         append_to_profile()
+        settings = {
+            "venv_path": str(venv_path),
+            "project_dir": str(OLIPI_MOODE_DIR),
+            "core_dir": str(OLIPI_CORE_DIR),
+            "install_date": time.strftime("%Y-%m-%d %H:%M:%S"),
+        }
+        save_settings(settings)
         install_done()
 
     except KeyboardInterrupt:
