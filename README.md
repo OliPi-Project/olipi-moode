@@ -1,3 +1,7 @@
+ ![License](https://img.shields.io/github/license/OliPi-Project/olipi-moode)
+![Python](https://img.shields.io/badge/python-3.9+-blue)
+![Platform](https://img.shields.io/badge/platform-Raspberry%20Pi-red)
+
 # OliPi MoOde
 
 OliPi MoOde is an user interface for OLED/LCD screens >= 128x64 for [Moode Audio](https://moodeaudio.org/) with control via IR remote control and/or GPIO buttons.
@@ -9,6 +13,25 @@ OliPi MoOde is an user interface for OLED/LCD screens >= 128x64 for [Moode Audio
 
 Video presentation:
 [https://youtu.be/9Y13UeyyT7k?si=hkOkiP9gk0rjxlB8](https://youtu.be/9Y13UeyyT7k?si=hkOkiP9gk0rjxlB8)
+
+---
+
+## 📚 Table of Contents
+
+- [Features](#-features)
+- [System requirements](#-system-requirements)
+- [Installation](#-installation)
+- [Services](#-services)
+- [IR remote configuration](#-ir-remote-configuration)
+- [GPIO and rotary encoder support](#-gpio-and-rotary-encoder-support)
+- [Key configuration](#-key-configuration)
+- [Configuration via tools menu](#-configuration-via-tools-menu-in-uiplaying)
+- [ZRAM](#-zram-on-low-memory-devices)
+- [Moode configuration reminder](#-moode-configuration-reminder)
+- [Uninstall](#-uninstall)
+- [Contributing](#-contributing)
+- [License](#-license)
+- [Disclaimer](#-disclaimer)
 
 ---
 
@@ -29,6 +52,34 @@ Video presentation:
 - **Operating system**: Moode Audio Player ≥ 9.3.7 required.
 
 - **Hardware**: Raspberry Pi (Zero 2W, 3, 4, 5) + I2C or SPI screen. An IR receiver type TSOP38 and/or push buttons and/or rotary encoder with or without push
+  
+  Screens supported:
+  
+  | Screen      | Resolution | Diag (") | PPI | Color      | Script                       |
+  | ----------- | ---------- | -------- | --- | ---------- | ---------------------------- |
+  | SSD1309     | 128×64     | 2.49     | 58  | Monochrome | SSD1306.py (To be confirmed) |
+  | SSD1306     | 128×64     | 0.96     | 149 | Monochrome | SSD1306.py                   |
+  | SSD1315     | 128×64     | 0.96     | 149 | Monochrome | SSD1306.py                   |
+  | SSD1351     | 128×128    | 1.5      | 120 | RGB        | SSD1351.py                   |
+  | ST7735R     | 128×160    | 1.77     | 116 | BGR        | ST7735R.py                   |
+  | ST7789 1.9" | 170×320    | 1.9      | 191 | RGB        | ST7789W.py                   |
+  | ST7789 2"   | 240×320    | 2.0      | 200 | RGB        | ST7789V.py                   |
+  
+  Below 150 PPI font size are fixed.
+  Above 150 PPI font size are scaled by (ppi / 150) x 1.2 caped at x1.6
+  
+  ⚠️ SPI Pin Info:
+  
+  - You can use any free GPIO for CS, RST, DC, BLK for your screen.
+  - CE0 / CE1 are the Raspberry Pi hardware SPI chip-select pins.
+  - If you want to use CE0/CE1 for wiring your screen or as normal GPIOs:
+      • They must be disabled in the system (otherwise conflicts may occur).
+      • Only do this if you have no other SPI devices using them.
+      • can learn more here => [SPI Sensors &amp; Devices | CircuitPython Libraries on Linux and Raspberry Pi | Adafruit Learning System](https://learn.adafruit.com/circuitpython-on-raspberrypi-linux/spi-sensors-devices)
+  - Plan your wiring carefully: OliPi-Moode uses several GPIOs for buttons, IR and audio control if you use I2s DAC.
+  
+  
+  
 
 - **APT dependencies** (installed automatically):
   
@@ -238,9 +289,13 @@ In **Moode > System Config**:
 
 ## 🔧 Uninstall
 
-You can uninstall all with the following command (Can use with --dry-run to check without changing anything) :
+You can uninstall all without leaving any residue with the following command:
 
 `sudo bash ~/olipi-moode/install/uninstall-olipi-moode.sh`
+
+(Can use with --dry-run to check without changing anything):
+
+`sudo bash ~/olipi-moode/install/uninstall-olipi-moode.sh --dry-run`
 
 ---
 
