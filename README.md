@@ -3,10 +3,9 @@
 OliPi MoOde is an user interface for OLED/LCD screens >= 128x64 for [Moode Audio](https://moodeaudio.org/) with control via IR remote control and/or GPIO buttons.
 
 <p align="center">
-  <img src="https://github.com/Trachou2Bois/olipi-moode/blob/main/docs/screenshots/olipimoode_demo.gif" alt="OliPi MoOde Demo">
+  <img src="https://github.com/OliPi-Project/olipi-moode/blob/main/docs/screenshots/TFT_demo.gif" alt="All Screens Demo">
+  <img src="https://github.com/OliPi-Project/olipi-moode/blob/main/docs/screenshots/SSD1306_demo.gif" alt="Menus Demo">
 </p>
-
-Screenshots: [https://trachou2bois.github.io/olipi-moode/screenshots/](https://trachou2bois.github.io/olipi-moode/screenshots/)
 
 Video presentation:
 [https://youtu.be/9Y13UeyyT7k?si=hkOkiP9gk0rjxlB8](https://youtu.be/9Y13UeyyT7k?si=hkOkiP9gk0rjxlB8)
@@ -84,12 +83,12 @@ Video presentation:
 
 The following systemd services are created during installation:
 
-| Service      | Description                  |
-| ------------ | ---------------------------- |
-| `ui_playing` | Displays "Now Playing" screen|
-| `ui_browser` | Music library navigation     |
-| `ui_queue`   | Playback queue display       |
-| `ui_off`     | Turns off screen at shutdown |
+| Service      | Description                   |
+| ------------ | ----------------------------- |
+| `ui_playing` | Displays "Now Playing" screen |
+| `ui_browser` | Music library navigation      |
+| `ui_queue`   | Playback queue display        |
+| `ui_off`     | Turns off screen at shutdown  |
 
 Switch between the 3 main display scripts using the `KEY_BACK` button.
 
@@ -159,18 +158,18 @@ pin_btn = 24
 
 These keys are **required** to navigate and control all interfaces:
 
-| Key                  | Generic role                                      | Specific usage in `ui_playing`                                |
-| -------------------- | ------------------------------------------------- | ---------------------------------------------------------- |
-| **KEY_UP**           | Move up                                           | Volume + if outside menu                                   |
-| **KEY_DOWN**         | Move down                                         | Volume - if outside menu                                   |
-| **KEY_LEFT**         | Move left                                         | Previous / Seek -10s (long press) if outside menu          |
-| **KEY_RIGHT**        | Move right                                        | Next / Seek +10s (long press) if outside menu              |
-| **KEY_OK**           | Open menu / Tools menu (long press) / Confirm     | Same                                                       |
-| **KEY_BACK**         | Switch to `ui_browser`/`ui_queue`/`ui_playing`           | Switch to `ui_browser` (short) / `ui_queue` (long)             |
-| **KEY_INFO**         | Show contextual help                              | Same                                                       |
-| **KEY_CHANNELUP**    | Context action                                    | Add/Remove favorites, if radio: add to songlog             |
-| **KEY_CHANNELDOWN**  | Context action                                    | Remove from queue                                          |
-| **KEY_PLAY**         | If outside menu: Play/Pause / Shutdown (long press)| Same                                                       |
+| Key                 | Generic role                                        | Specific usage in `ui_playing`                     |
+| ------------------- | --------------------------------------------------- | -------------------------------------------------- |
+| **KEY_UP**          | Move up                                             | Volume + if outside menu                           |
+| **KEY_DOWN**        | Move down                                           | Volume - if outside menu                           |
+| **KEY_LEFT**        | Move left                                           | Previous / Seek -10s (long press) if outside menu  |
+| **KEY_RIGHT**       | Move right                                          | Next / Seek +10s (long press) if outside menu      |
+| **KEY_OK**          | Open menu / Tools menu (long press) / Confirm       | Same                                               |
+| **KEY_BACK**        | Switch to `ui_browser`/`ui_queue`/`ui_playing`      | Switch to `ui_browser` (short) / `ui_queue` (long) |
+| **KEY_INFO**        | Show contextual help                                | Same                                               |
+| **KEY_CHANNELUP**   | Context action                                      | Add/Remove favorites, if radio: add to songlog     |
+| **KEY_CHANNELDOWN** | Context action                                      | Remove from queue                                  |
+| **KEY_PLAY**        | If outside menu: Play/Pause / Shutdown (long press) | Same                                               |
 
 These keys must be configured either via LIRC (`python3 ~/olipi-moode/install/install_lirc_remote.py`) or via GPIO (`[buttons]` section in `config.ini`).
 
@@ -178,17 +177,17 @@ These keys must be configured either via LIRC (`python3 ~/olipi-moode/install/in
 
 Recommended if available on your remote, but **not mandatory**:
 
-| Key               | Action                             |
-| ----------------- | ---------------------------------- |
-| **KEY_STOP**      | Stop playback                      |
-| **KEY_NEXT**      | Next / Seek +10s (long press)      |
-| **KEY_PREVIOUS**  | Previous / Seek -10s (long press)  |
-| **KEY_FORWARD**   | Seek +10s                          |
-| **KEY_REWIND**    | Seek -10s                          |
-| **KEY_VOLUMEUP**  | Volume +                           |
-| **KEY_VOLUMEDOWN**| Volume -                           |
-| **KEY_MUTE**      | Mute                               |
-| **KEY_POWER**     | Restart / Shutdown (long press)    |
+| Key                | Action                            |
+| ------------------ | --------------------------------- |
+| **KEY_STOP**       | Stop playback                     |
+| **KEY_NEXT**       | Next / Seek +10s (long press)     |
+| **KEY_PREVIOUS**   | Previous / Seek -10s (long press) |
+| **KEY_FORWARD**    | Seek +10s                         |
+| **KEY_REWIND**     | Seek -10s                         |
+| **KEY_VOLUMEUP**   | Volume +                          |
+| **KEY_VOLUMEDOWN** | Volume -                          |
+| **KEY_MUTE**       | Mute                              |
+| **KEY_POWER**      | Restart / Shutdown (long press)   |
 
 > **Note:** In `ui_playing`, navigation keys (`UP`, `DOWN`, `LEFT`, `RIGHT`) can replace optional media keys if they are not present.
 
@@ -251,9 +250,9 @@ This project is neither affiliated with nor endorsed by the official Moode Audio
 The software and other items in this repository are distributed under the [GNU General Public License Version 3](https://github.com/Trachou2Bois/olipi-moode/blob/main/LICENSE), which includes the following disclaimer:
 
 > 15. Disclaimer of Warranty.  
-> THERE IS NO WARRANTY FOR THE PROGRAM, TO THE EXTENT PERMITTED BY APPLICABLE LAW. EXCEPT WHEN OTHERWISE STATED IN WRITING THE COPYRIGHT HOLDERS AND/OR OTHER PARTIES PROVIDE THE PROGRAM "AS IS" WITHOUT WARRANTY OF ANY KIND, EITHER EXPRESSED OR IMPLIED, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE. THE ENTIRE RISK AS TO THE QUALITY AND PERFORMANCE OF THE PROGRAM IS WITH YOU. SHOULD THE PROGRAM PROVE DEFECTIVE, YOU ASSUME THE COST OF ALL NECESSARY SERVICING, REPAIR OR CORRECTION.
+>     THERE IS NO WARRANTY FOR THE PROGRAM, TO THE EXTENT PERMITTED BY APPLICABLE LAW. EXCEPT WHEN OTHERWISE STATED IN WRITING THE COPYRIGHT HOLDERS AND/OR OTHER PARTIES PROVIDE THE PROGRAM "AS IS" WITHOUT WARRANTY OF ANY KIND, EITHER EXPRESSED OR IMPLIED, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE. THE ENTIRE RISK AS TO THE QUALITY AND PERFORMANCE OF THE PROGRAM IS WITH YOU. SHOULD THE PROGRAM PROVE DEFECTIVE, YOU ASSUME THE COST OF ALL NECESSARY SERVICING, REPAIR OR CORRECTION.
 > 
 > 16. Limitation of Liability.  
-> IN NO EVENT UNLESS REQUIRED BY APPLICABLE LAW OR AGREED TO IN WRITING WILL ANY COPYRIGHT HOLDER, OR ANY OTHER PARTY WHO MODIFIES AND/OR CONVEYS THE PROGRAM AS PERMITTED ABOVE, BE LIABLE TO YOU FOR DAMAGES, INCLUDING ANY GENERAL, SPECIAL, INCIDENTAL OR CONSEQUENTIAL DAMAGES ARISING OUT OF THE USE OR INABILITY TO USE THE PROGRAM (INCLUDING BUT NOT LIMITED TO LOSS OF DATA OR DATA BEING RENDERED INACCURATE OR LOSSES SUSTAINED BY YOU OR THIRD PARTIES OR A FAILURE OF THE PROGRAM TO OPERATE WITH ANY OTHER PROGRAMS), EVEN IF SUCH HOLDER OR OTHER PARTY HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.
+>     IN NO EVENT UNLESS REQUIRED BY APPLICABLE LAW OR AGREED TO IN WRITING WILL ANY COPYRIGHT HOLDER, OR ANY OTHER PARTY WHO MODIFIES AND/OR CONVEYS THE PROGRAM AS PERMITTED ABOVE, BE LIABLE TO YOU FOR DAMAGES, INCLUDING ANY GENERAL, SPECIAL, INCIDENTAL OR CONSEQUENTIAL DAMAGES ARISING OUT OF THE USE OR INABILITY TO USE THE PROGRAM (INCLUDING BUT NOT LIMITED TO LOSS OF DATA OR DATA BEING RENDERED INACCURATE OR LOSSES SUSTAINED BY YOU OR THIRD PARTIES OR A FAILURE OF THE PROGRAM TO OPERATE WITH ANY OTHER PROGRAMS), EVEN IF SUCH HOLDER OR OTHER PARTY HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.
 
 This means the user of this software is responsible for any damage resulting from its use, regardless of whether it is caused by misuse or by a bug in the software.
