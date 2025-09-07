@@ -116,7 +116,7 @@ Video presentation:
    git clone https://github.com/OliPi-Project/olipi-moode
    ```
 
-2. Run the setup script (Can use with --dry-run to check without changing anything):
+2. Run the setup script:
    
    ```bash
    python3 ~/olipi-moode/install/setup.py
