@@ -8,12 +8,18 @@ import subprocess
 import shutil
 import time
 import stat
+import json
+import traceback
+import argparse
+import urllib.request
+import urllib.error
+import re
 from pathlib import Path
 from lang import SETUP
 
 # --- Constants ---
 APT_DEPENDENCIES = [
-    "python3-pil", "python3-venv", "python3-pip", "python3-tk", "libasound2-dev", "libatlas-base-dev",
+    "git", "python3-pil", "python3-venv", "python3-pip", "python3-tk", "libasound2-dev", "libatlas-base-dev",
     "i2c-tools", "libgpiod-dev", "python3-libgpiod", "python3-lgpio", "python3-setuptools"
 ]
 
@@ -22,9 +28,9 @@ ZRAM_RECOMMENDED_MB = 256
 
 REQUIRED_MOODE_VERSION = "9.3.7"
 OLIPI_CORE_REPO = "https://github.com/OliPi-Project/olipi-core.git"
-OLIPI_CORE_BRANCH = "main"
 OLIPI_MOODE_REPO = "https://github.com/OliPi-Project/olipi-moode.git"
-OLIPI_MOODE_BRANCH = "main"
+OLIPI_MOODE_DEV_BRANCH = "dev"
+OLIPI_CORE_DEV_BRANCH = "moode"
 
 lang = "en"
 
@@ -37,40 +43,44 @@ SETTINGS_FILE = Path(INSTALL_DIR) / ".setup-settings.json"
 TMP_LOG_FILE = Path("/tmp/setup.log")
 
 _LOG_INITIALIZED = False
+DRY_RUN = False  # set by CLI args
 
+# -----------------------
+# Logging & shell helpers
+# -----------------------
 def finalize_log(exit_code=0):
     """Move the temporary log file to INSTALL_DIR/logs with status."""
-    if TMP_LOG_FILE.exists():
-        status = "success" if exit_code == 0 else "aborted" if exit_code == 130 else "error"
-        timestamp = time.strftime("%Y-%m-%d")
-        dest = Path(INSTALL_DIR) / "logs" / f"setup_{timestamp}_{status}.log"
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        try:
+    try:
+        if TMP_LOG_FILE.exists():
+            status = "success" if exit_code == 0 else "aborted" if exit_code == 130 else "error"
+            timestamp = time.strftime("%Y-%m-%d")
+            dest = Path(INSTALL_DIR) / "logs" / f"setup_{timestamp}_{status}.log"
+            dest.parent.mkdir(parents=True, exist_ok=True)
             shutil.move(str(TMP_LOG_FILE), dest)
             print(f"Setup log saved to {dest}")
-        except Exception:
-            pass
+    except Exception:
+        pass
 
 def safe_exit(code=1, error=None):
     """Exit safely, log error if any, and finalize log."""
-    if error is not None:
-        try:
+    try:
+        if error is not None:
             with TMP_LOG_FILE.open("a", encoding="utf-8") as fh:
                 fh.write(f"+++++++++\n[ERROR] {time.strftime('%Y-%m-%d %H:%M:%S')}: {repr(error)}\n")
                 fh.write(traceback.format_exc())
-        except Exception:
-            pass
+    except Exception:
+        pass
     finalize_log(exit_code=code)
     sys.exit(code)
 
 def log_line(msg=None, error=None, context=None):
     """Append a short message to TMP_LOG_FILE."""
-    prefix = "INFO" if msg else "ERROR"
-    log_text = msg if msg else error
-    sep = "-" * 30
-    timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
-    header = f"\n{sep}\n[-- {timestamp}] Logging {context}\n\n"
     try:
+        prefix = "INFO" if msg else "ERROR"
+        log_text = msg if msg else error
+        sep = "-" * 30
+        timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
+        header = f"\n{sep}\n[-- {timestamp}] Logging {context}\n\n"
         TMP_LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
         with TMP_LOG_FILE.open("a", encoding="utf-8") as fh:
             fh.write(header)
@@ -79,32 +89,35 @@ def log_line(msg=None, error=None, context=None):
         pass
 
 def run_command(cmd, log_out=True, show_output=False, check=False):
-    global _LOG_INITIALIZED
+    """Run a shell command with logging and optional output display."""
+    global _LOG_INITIALIZED, DRY_RUN
 
     sep = "-" * 60
     timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
     header = f"\n{sep}\n[--- {timestamp}] Running: {cmd}\n\n"
 
     TMP_LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
-    if not _LOG_INITIALIZED:
-        with TMP_LOG_FILE.open("w", encoding="utf-8") as fh:
-            fh.write(header)
-        _LOG_INITIALIZED = True
-    else:
+    mode = "w" if not _LOG_INITIALIZED else "a"
+    with TMP_LOG_FILE.open(mode, encoding="utf-8") as fh:
+        fh.write(header)
+    _LOG_INITIALIZED = True
+
+    if DRY_RUN:
+        # In dry-run mode we only log the command
         with TMP_LOG_FILE.open("a", encoding="utf-8") as fh:
-            fh.write(header)
+            fh.write("[DRY-RUN] " + cmd + "\n")
+        print(f"[DRY-RUN] {cmd}")
+        # Return a successful CompletedProcess-like object
+        fake = subprocess.CompletedProcess(args=cmd, returncode=0, stdout="", stderr="")
+        return fake
 
     process = subprocess.Popen(
-        cmd,
-        shell=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        bufsize=1
+        cmd, shell=True,
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+        text=True, bufsize=1
     )
 
     stdout_lines = []
-
     with TMP_LOG_FILE.open("a", encoding="utf-8") as logfh:
         for line in process.stdout:
             stdout_lines.append(line)
@@ -119,7 +132,7 @@ def run_command(cmd, log_out=True, show_output=False, check=False):
         args=cmd,
         returncode=rc,
         stdout="".join(stdout_lines),
-        stderr=""  # stderr fusionné dans stdout
+        stderr=""
     )
 
     if check and result.returncode != 0:
@@ -129,15 +142,18 @@ def run_command(cmd, log_out=True, show_output=False, check=False):
 
     return result
 
+# -----------------------
+# Utilities
+# -----------------------
 def choose_language():
     global lang
-    print(SETUP["choose_language"][lang])
-    print(SETUP["language_options"][lang])
+    print(SETUP.get("choose_language", {}).get(lang, "Please choose your language:"))
+    print(SETUP.get("language_options", {}).get(lang, "[1] English\n[2] Français"))
     choice = input(" > ").strip()
     if choice == "2":
         lang = "fr"
     elif choice != "1":
-        print(SETUP["invalid_choice"][lang])
+        print(SETUP.get("invalid_choice", {}).get(lang, "Invalid choice. Defaulting to English."))
 
 def get_moode_version():
     res = run_command("moodeutl --mooderel", log_out=True, show_output=False, check=False)
@@ -148,119 +164,12 @@ def get_moode_version():
 def check_moode_version():
     current = get_moode_version()
     if not current:
-        print(SETUP["moode_detect_fail"][lang])
+        print(SETUP.get("moode_detect_fail", {}).get(lang, "❌ Could not detect Moode version."))
         safe_exit(1)
     if tuple(map(int, current.split("."))) < tuple(map(int, REQUIRED_MOODE_VERSION.split("."))):
-        print(SETUP["moode_too_old"][lang].format(current))
+        print(SETUP.get("moode_too_old", {}).get(lang, "Moode too old.").format(current))
         safe_exit(1)
-    print(SETUP["moode_ok"][lang].format(current))
-
-def save_settings(settings: dict):
-    """Save setup settings to a JSON file for later use (update/uninstall)."""
-    try:
-        with SETTINGS_FILE.open("w", encoding="utf-8") as fh:
-            json.dump(settings, fh, indent=2)
-        log_line(msg=f"Saved settings: {settings}", context="save_settings")
-    except Exception as e:
-        log_line(error=f"Failed to save settings: {e}", context="save_settings")
-
-def load_settings():
-    """Load settings from JSON file if it exists."""
-    if SETTINGS_FILE.exists():
-        try:
-            with SETTINGS_FILE.open("r", encoding="utf-8") as fh:
-                return json.load(fh)
-        except Exception as e:
-            log_line(error=f"Failed to load settings: {e}", context="load_settings")
-    return {}
-
-def get_latest_release_tag(path_or_repo: str, branch: str = "main") -> str:
-    """
-    Return the latest tag/release on the specified branch.
-    path_or_repo can be a local repo path or the remote URL for cloning.
-    """
-    if Path(path_or_repo).exists():  # local repo
-        run_command(f"git -C {path_or_repo} fetch --tags origin", log_out=True, show_output=True)
-        rc = subprocess.run(
-            f"git -C {path_or_repo} tag --sort=-creatordate --merged origin/{branch} | head -n 1",
-            shell=True, capture_output=True, text=True
-        )
-    else:  # remote repo
-        rc = subprocess.run(
-            f"git ls-remote --tags --refs {path_or_repo} {branch} | awk -F/ '{{print $3}}' | sort -V | tail -n1",
-            shell=True, capture_output=True, text=True
-        )
-
-    if rc.returncode == 0:
-        return rc.stdout.strip()
-    return ""
-
-def install_repo(repo_name: str, repo_url: str, local_dir: Path, branch: str, settings_keys: dict):
-    """
-    Install or update a Git repository to the latest release on the specified branch.
-
-    repo_name: Display name for logging (e.g., "OliPi Core")
-    repo_url: URL of the remote repo
-    local_dir: Path where the repo should be cloned
-    branch: Branch to track
-    settings_keys: dict mapping keys for settings JSON
-        e.g., {"branch": "branch_olipi_core", "local_tag": "local_tag_core", "remote_tag": "remote_tag_core"}
-    """
-    print(SETUP[f"install_{repo_name.lower()}"][lang])
-
-    if local_dir.exists():
-        print(SETUP[f"{repo_name.lower()}_exists"][lang].format(local_dir))
-        latest_tag = get_latest_release_tag(local_dir, branch=branch) or "none"
-    else:
-        # Get latest release tag on the branch
-        latest_tag = get_latest_release_tag(repo_url, branch=branch)
-        if latest_tag:
-            clone_ref = f"--branch {latest_tag}"
-        else:
-            latest_tag = "tag not found"
-            print(f"⚠️ Could not detect latest release on branch {branch}, cloning branch directly.")
-            log_line(msg=f"⚠️ Could not detect latest release on branch {branch}", context=f"install_{repo_name.lower()}")
-            clone_ref = f"--branch {branch}"
-
-        # Clone the repo
-        run_command(f"git clone {clone_ref} {repo_url} {local_dir}", log_out=True, show_output=True, check=True)
-        print(SETUP[f"{repo_name.lower()}_cloned"][lang].format(local_dir))
-        log_line(msg=f"{repo_name} cloned successfully. branch:{branch} tag:{latest_tag}", context=f"install_{repo_name.lower()}")
-
-    # Save local version in settings
-    settings = load_settings()
-    settings[settings_keys["branch"]] = branch
-    settings[settings_keys["local_tag"]] = latest_tag
-    settings[settings_keys["remote_tag"]] = latest_tag
-    save_settings(settings)
-
-    return local_dir
-
-def install_olipi_core():
-    return install_repo(
-        repo_name="Core",
-        repo_url=OLIPI_CORE_REPO,
-        local_dir=OLIPI_CORE_DIR,
-        branch=OLIPI_CORE_BRANCH,
-        settings_keys={
-            "branch": "branch_olipi_core",
-            "local_tag": "local_tag_core",
-            "remote_tag": "remote_tag_core"
-        }
-    )
-
-def install_olipi_moode():
-    return install_repo(
-        repo_name="Moode",
-        repo_url=OLIPI_MOODE_REPO,
-        local_dir=OLIPI_MOODE_DIR,
-        branch=OLIPI_MOODE_BRANCH,
-        settings_keys={
-            "branch": "branch_olipi_moode",
-            "local_tag": "local_tag_moode",
-            "remote_tag": "remote_tag_moode"
-        }
-    )
+    print(SETUP.get("moode_ok", {}).get(lang, "✅ Moode version {} detected — OK.").format(current))
 
 def install_apt_dependencies():
     print(SETUP["install_apt"][lang])
@@ -275,6 +184,282 @@ def install_apt_dependencies():
         # critical: apt install must succeed -> use check=True but hide verbose apt output
         run_command(f"sudo apt-get update", log_out=False, show_output=True, check=True)
         run_command(f"sudo apt-get install -y {' '.join(missing)}", log_out=True, show_output=True, check=True)
+
+    print(SETUP["apt_ok"][lang])
+
+def save_settings(settings: dict):
+    """Save setup settings to a JSON file for later use (update/uninstall)."""
+    try:
+        with SETTINGS_FILE.open("w", encoding="utf-8") as fh:
+            json.dump(settings, fh, indent=2)
+        log_line(msg=f"Saved settings: {settings}", context="save_settings")
+    except Exception as e:
+        log_line(error=f"Failed to save settings: {e}", context="save_settings")
+
+def load_settings():
+    if SETTINGS_FILE.exists():
+        try:
+            with SETTINGS_FILE.open("r", encoding="utf-8") as fh:
+                return json.load(fh)
+        except Exception:
+            log_line(msg="Failed to load settings, initializing empty", context="load_settings")
+            return {}
+    return {}
+
+def copytree_safe(src, dst):
+    def ignore_special_files(_, names):
+        ignore = []
+        for name in names:
+            path = Path(src) / name
+            # Ignore named pipes, sockets, block/char devices
+            if path.is_fifo() or path.is_socket() or path.is_block_device() or path.is_char_device():
+                ignore.append(name)
+            # Ignore Python cache folders
+            elif path.is_dir() and name == "__pycache__":
+                ignore.append(name)
+        return ignore
+    shutil.copytree(src, dst, dirs_exist_ok=True, ignore=ignore_special_files)
+
+def repo_url_to_slug(repo_url: str) -> str:
+    """Convert 'https://github.com/owner/repo.git' -> 'owner/repo'"""
+    # Accept either ssh or https
+    if repo_url.startswith("git@github.com:"):
+        slug = repo_url[len("git@github.com:"):].rstrip(".git")
+    else:
+        # strip https://github.com/
+        slug = repo_url.replace("https://github.com/", "").replace("http://github.com/", "").rstrip(".git")
+    return slug
+
+def github_get_releases(slug: str):
+    """Return list of releases (raw JSON) for a repo from GitHub API, or [] on error."""
+    url = f"https://api.github.com/repos/{slug}/releases"
+    headers = {"User-Agent": "OliPi-Setup-Script"}
+    try:
+        req = urllib.request.Request(url, headers=headers)
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = resp.read().decode("utf-8")
+            return json.loads(data)
+    except urllib.error.HTTPError as e:
+        log_line(error=f"GitHub API HTTPError: {e}", context="github_get_releases")
+    except Exception as e:
+        log_line(error=f"GitHub API error: {e}", context="github_get_releases")
+    return []
+
+def get_latest_release_tag(path_or_repo: str, branch: str = "main", include_prerelease: bool = True) -> str:
+    """
+    Return the latest release tag for the branch.
+    - If path_or_repo is a local path and exists, inspect local repo tags reachable from branch.
+    - If remote URL, call GitHub API and pick a release associated with the branch (or fallback).
+    """
+    # Local repo case
+    if Path(path_or_repo).exists():
+        # try to fetch tags and branch from origin
+        run_command(f"git -C {path_or_repo} fetch --tags origin", log_out=True, show_output=False)
+        run_command(f"git -C {path_or_repo} fetch origin {branch}", log_out=True, show_output=False)
+        rc = subprocess.run(
+            f"git -C {path_or_repo} tag --sort=-creatordate --merged origin/{branch} | head -n 1",
+            shell=True, capture_output=True, text=True
+        )
+        if rc.returncode == 0:
+            tag = rc.stdout.strip()
+            return tag if tag else ""
+        return ""
+
+    # Remote repo case -> use GitHub API
+    slug = repo_url_to_slug(path_or_repo)
+    releases = github_get_releases(slug)
+    if not releases:
+        return ""
+
+    # iterate releases in API order (most recent first)
+    for rel in releases:
+        if rel.get("draft"):
+            continue
+        if not include_prerelease and rel.get("prerelease"):
+            continue
+        # If branch is not main, prefer releases that target that branch or whose tag contains branch
+        target = rel.get("target_commitish", "") or ""
+        tag = rel.get("tag_name", "") or ""
+        if branch == "main":
+            # accept the first suitable release
+            return tag
+        else:
+            # prefer releases specifically targeting the branch or having branch in tag
+            if target == branch or (branch in tag):
+                return tag
+    # fallback: return first non-draft (maybe prerelease) if nothing matched
+    for rel in releases:
+        if not rel.get("draft"):
+            if not include_prerelease and rel.get("prerelease"):
+                continue
+            return rel.get("tag_name", "") or ""
+    return ""
+
+def parse_semver_prefix(tag: str):
+    """Extract numeric prefix from tag like v1.2.3 or 1.2.3-moode -> returns (1,2,3)."""
+    if not tag:
+        return ()
+    # match leading digits and dots
+    m = re.match(r"v?(\d+(?:\.\d+)*)", tag)
+    if not m:
+        return ()
+    parts = tuple(int(p) for p in m.group(1).split("."))
+    return parts
+
+def version_is_newer(local: str, remote: str) -> bool:
+    """Return True if remote > local according to semantic-ish compare."""
+    try:
+        lp = parse_semver_prefix(local)
+        rp = parse_semver_prefix(remote)
+        if not rp:
+            return False
+        if not lp:
+            return True
+        # compare lexicographically
+        return rp > lp
+    except Exception:
+        return False
+
+# -----------------------
+# Repo install/update flow
+# -----------------------
+def install_repo(repo_name: str, repo_url: str, local_dir: Path, branch: str, settings_keys: dict,
+                 dev_mode: bool = False, force: bool = False):
+    """
+    Install or update a repo.
+    - dev_mode: clone/checkout latest commit on branch (no release).
+    - force: force re-clone / overwrite
+    """
+    msg_install = SETUP.get(f"install_{repo_name.lower()}", {}).get(lang,
+        f"Installing {repo_name}...")
+    print(msg_install)
+
+    local_dir = Path(local_dir)
+    remote_tag = "dev" if dev_mode else (get_latest_release_tag(repo_url, branch=branch) or "tag not found")
+    local_tag = "unknown"
+
+    # Case: local exists
+    if local_dir.exists():
+        if not (local_dir / ".git").exists():
+            # Not a git repo: interactive decision
+            message = SETUP.get("repo_not_git_moode", {}).get(lang,
+                        "⚠️ Folder {} exists but is not a Git repository. Force clone (F) or Stop (S)?").format(local_dir)
+            ans = input(message + " [F/S] ").strip().lower()
+            if ans != "f":
+                print(SETUP.get("install_abort", {}).get(lang, "Installation aborted."))
+                safe_exit(1)
+            force = True
+        else:
+            # local is git — compute its current tag (if any)
+            local_tag = get_latest_release_tag(str(local_dir), branch=branch) or "tag not found"
+            print(SETUP.get(f"{repo_name.lower()}_exists", {}).get(lang, "{} already present.").format(local_dir))
+
+            # If not forcing, compare local and remote and ask interactive if update needed
+            if not force and not dev_mode and remote_tag and remote_tag != "tag not found":
+                if version_is_newer(local_tag, remote_tag):
+                    upd_msg = SETUP.get("update_prompt", {}).get(lang, "✅ A newer release ({}) is available. Update now? [Y/n] ").format(local_tag, remote_tag)
+                elif local_tag == remote_tag:
+                    upd_msg = SETUP.get("already_uptodate", {}).get(lang, "✅ Already up-to-date (local {}, remote {}. Force Update? [Y/n]).").format(local_tag, remote_tag)
+                ans = input(upd_msg).strip().lower()
+                if ans in ("", "y", "o"):
+                    force = True
+                    # Ask user if backup should be made before update
+                    if repo_name.lower() == "moode" and local_dir.exists():
+                        backup_ans = input(SETUP.get("repo_backup_prompt", {}).get(lang, "⚠️ Folder {} already exists. Keep a backup before overwriting? [Y/n] ").format(local_dir)).strip().lower()
+                        if backup_ans in ("", "y", "o"):
+                            timestamp = time.strftime("%Y%m%d_%H%M%S")
+                            backup_dir = local_dir.parent / f"{local_dir.name}_backup_{timestamp}"
+                            copytree_safe(local_dir, backup_dir)
+                            print(SETUP.get("repo_backup", {}).get(lang, "📦 Existing folder {} copied to {} before cloning.").format(local_dir, backup_dir))
+
+            elif not force and dev_mode:
+                ans = input(SETUP.get("dev_pull_prompt", {}).get(lang,
+                    "🔄 Development mode: Pull latest changes from branch {}? [Y/n] ").format(branch)).strip().lower()
+                if ans in ("", "y", "o"):
+                    run_command(f"git -C {local_dir} fetch origin {branch}", log_out=True, show_output=True, check=True)
+                    run_command(f"git -C {local_dir} checkout {branch}", log_out=True, show_output=True, check=True)
+                    run_command(f"git -C {local_dir} reset --hard origin/{branch}", log_out=True, show_output=True, check=True)
+                    local_tag = "dev"
+                    log_line(msg=f"{repo_name} updated in-place (dev branch {branch})", context=f"install_{repo_name.lower()}")
+                else:
+                    print(SETUP.get("skipping_update", {}).get(lang, "Skipping update."))
+    else:
+        # not present => we will clone
+        force = True
+        local_dir.mkdir(parents=True, exist_ok=True)
+
+    # Clone or update
+    if force:
+        clone_branch = branch
+        temp_dir = local_dir.parent / (local_dir.name + "_tmp_clone")
+        if temp_dir.exists():
+            shutil.rmtree(temp_dir)
+
+        clone_cmd = f"git clone --branch {clone_branch} {repo_url} {temp_dir}"
+        run_command(clone_cmd, log_out=True, show_output=True, check=True)
+
+        if not dev_mode and remote_tag and remote_tag != "tag not found":
+            run_command(f"git -C {temp_dir} fetch --tags origin", log_out=True, show_output=False, check=False)
+            run_command(f"git -C {temp_dir} checkout {remote_tag}", log_out=True, show_output=False, check=False)
+
+        # Clear old folder contents before moving new files
+        for item in local_dir.iterdir():
+            try:
+                if item.is_dir():
+                    shutil.rmtree(item)
+                else:
+                    item.unlink()
+            except Exception as e:
+                log_line(error=f"Failed to remove {item}: {e}", context="install_repo_cleanup")
+
+        # Move cloned files into place
+        print(SETUP.get("moving_files", {}).get(lang, "📦 Moving cloned files...").format(temp_dir, local_dir))
+        for item in temp_dir.iterdir():
+            shutil.move(str(item), str(local_dir))
+        temp_dir.rmdir()
+        print(SETUP.get("clone_done", {}).get(lang, "✅ Clone completed.").format(temp_dir))
+
+        local_tag = "dev" if dev_mode else (get_latest_release_tag(str(local_dir), branch=branch) or "tag not found")
+        log_line(msg=f"{repo_name} cloned successfully. branch:{branch} tag:{local_tag}", context=f"install_{repo_name.lower()}")
+
+    # Save settings
+    settings = load_settings()
+    settings[settings_keys["branch"]] = branch
+    settings[settings_keys["local_tag"]] = local_tag
+    settings[settings_keys["remote_tag"]] = remote_tag
+    save_settings(settings)
+
+    return local_dir
+
+def install_olipi_core(dev_mode=False, force=False):
+    return install_repo(
+        repo_name="Core",
+        repo_url=OLIPI_CORE_REPO,
+        local_dir=Path(OLIPI_CORE_DIR),
+        branch=(OLIPI_CORE_DEV_BRANCH if dev_mode else "main"),
+        settings_keys={
+            "branch": "branch_olipi_core",
+            "local_tag": "local_tag_core",
+            "remote_tag": "remote_tag_core"
+        },
+        dev_mode=dev_mode,
+        force=force
+    )
+
+def install_olipi_moode(dev_mode=False, force=False):
+    return install_repo(
+        repo_name="Moode",
+        repo_url=OLIPI_MOODE_REPO,
+        local_dir=Path(OLIPI_MOODE_DIR),
+        branch=(OLIPI_MOODE_DEV_BRANCH if dev_mode else "main"),
+        settings_keys={
+            "branch": "branch_olipi_moode",
+            "local_tag": "local_tag_moode",
+            "remote_tag": "remote_tag_moode"
+        },
+        dev_mode=dev_mode,
+        force=force
+    )
 
 def check_i2c():
     print(SETUP["i2c_check"][lang])
@@ -971,29 +1156,139 @@ def install_done():
     else:
         print(SETUP["reboot_cancelled"][lang])
 
-if __name__ == "__main__":
+
+# -----------------------
+# Command-line entry
+# -----------------------
+def main():
+    global DRY_RUN
+    parser = argparse.ArgumentParser(description="OliPi setup (install / update / develop)")
+    parser.add_argument("cmd", nargs="?", choices=["install", "update", "develop"], default=None,
+                        help="Action to run. If omitted, an interactive flow decides install or update.")
+    parser.add_argument("--dev", action="store_true", help="Developer mode: use branches/latest commits instead of releases")
+    parser.add_argument("--force", action="store_true", help="Force reinstall / overwrite")
+    parser.add_argument("--dry-run", action="store_true", help="Do not perform destructive actions; print what would be done")
+    args = parser.parse_args()
+
+    DRY_RUN = args.dry_run
+
+    choose_language()
+    check_moode_version()
+    install_apt_dependencies()
+
+    # Decide mode: dev or prod
+    dev_mode = args.dev
+
+    # Interactive default behavior: if cmd omitted, ask to install/update
+    cmd = args.cmd
+    settings = load_settings()
+    moode_present = Path(OLIPI_MOODE_DIR).exists() and (Path(OLIPI_MOODE_DIR) / ".git").exists()
+    core_present = Path(OLIPI_CORE_DIR).exists() and (Path(OLIPI_CORE_DIR) / ".git").exists()
+
+    if cmd is None:
+        print("cmd is none")
+        # interactive: propose install or update
+        if moode_present and core_present:
+            ans = input(SETUP.get("interactive_update_prompt", {}).get(lang,
+                        "⚙️ Do you want to update (U), force reinstall (F), or skip (S)? [U/F/S] ")).strip().lower()
+            if ans in ("u", ""):
+                cmd = "update"
+            elif ans == "f":
+                cmd = "install"
+                force = True
+            else:
+                print(SETUP.get("interactive_abort", {}).get(lang))
+                safe_exit(0)
+        else:
+            ans = input(SETUP.get("interactive_install_prompt", {}).get(lang,
+                        "⚙️ Do you want to install (I) or abort (A)? [I/A] ")).strip().lower()
+            if ans in ("i", ""):
+                cmd = "install"
+            else:
+                print(SETUP.get("interactive_abort", {}).get(lang))
+                safe_exit(0)
+
+    # Run chosen command
+    force = args.force
     try:
-        choose_language()
-        check_moode_version()
-        install_olipi_moode()
-        install_olipi_core()
-        install_apt_dependencies()
-        configure_screen(OLIPI_MOODE_DIR, OLIPI_CORE_DIR)
-        check_ram()
-        venv_path = check_virtualenv()
-        setup_virtualenv(venv_path)
-        user = detect_user()
-        run_install_services(venv_path, user)
-        update_ready_script()
-        append_to_profile()
-        settings = {
-            "venv_path": str(venv_path),
-            "project_dir": str(OLIPI_MOODE_DIR),
-            "core_dir": str(OLIPI_CORE_DIR),
-            "install_date": time.strftime("%Y-%m-%d %H:%M:%S"),
-        }
-        save_settings(settings)
-        install_done()
+        if cmd == "install":
+            # install both repos
+            install_olipi_moode(dev_mode=dev_mode, force=force)
+            install_olipi_core(dev_mode=dev_mode, force=force)
+            settings = load_settings()
+            configure_screen(OLIPI_MOODE_DIR, OLIPI_CORE_DIR)
+            check_ram()
+            venv_path = check_virtualenv()
+            setup_virtualenv(venv_path)
+            user = detect_user()
+            run_install_services(venv_path, user)
+            update_ready_script()
+            append_to_profile()
+            settings.update({
+                "venv_path": str(venv_path),
+                "project_dir": str(OLIPI_MOODE_DIR),
+                "core_dir": str(OLIPI_CORE_DIR),
+                "install_date": time.strftime("%Y-%m-%d %H:%M:%S"),
+            })
+            save_settings(settings)
+            install_done()
+
+        elif cmd == "update":
+            # update flow: if present in .git do fetch/checkout, else install
+            install_olipi_moode(dev_mode=dev_mode, force=force)
+            install_olipi_core(dev_mode=dev_mode, force=force)
+            settings = load_settings()
+            #venv_path = settings.get("venv_path") or
+            venv_path = check_virtualenv()
+            setup_virtualenv(venv_path)
+            user = detect_user()
+            run_install_services(venv_path, user)
+            update_ready_script()
+            append_to_profile()
+            settings.update({
+                "venv_path": str(venv_path),
+                "project_dir": str(OLIPI_MOODE_DIR),
+                "core_dir": str(OLIPI_CORE_DIR),
+                "install_date": time.strftime("%Y-%m-%d %H:%M:%S"),
+            })
+            save_settings(settings)
+            print(SETUP.get("update_done", {}).get(lang, "✅ Update complete."))
+            with TMP_LOG_FILE.open("a", encoding="utf-8") as fh:
+                    fh.write(f"+++++++++\n[SUCCESS] ✅ Update finished successfully")
+            finalize_log(0)
+            reboot = input(SETUP["reboot_prompt"][lang]).strip().lower()
+            if reboot in ["", "o", "y"]:
+                run_command("sudo reboot", log_out=True, show_output=True, check=False)
+            else:
+                print(SETUP["reboot_cancelled"][lang])
+
+        elif cmd == "develop":
+            # develop == dev mode install/update
+            install_olipi_moode(dev_mode=True, force=force)
+            install_olipi_core(dev_mode=True, force=force)
+            configure_screen(OLIPI_MOODE_DIR, OLIPI_CORE_DIR)
+            check_ram()
+            settings = load_settings()
+            #venv_path = settings.get("venv_path") or
+            venv_path = check_virtualenv()
+            setup_virtualenv(venv_path)
+            user = detect_user()
+            run_install_services(venv_path, user)
+            update_ready_script()
+            append_to_profile()
+            settings.update({
+                "venv_path": str(venv_path),
+                "project_dir": str(OLIPI_MOODE_DIR),
+                "core_dir": str(OLIPI_CORE_DIR),
+                "install_date": time.strftime("%Y-%m-%d %H:%M:%S"),
+            })
+            save_settings(settings)
+            install_done()
+            print(SETUP.get("develop_done", {}).get(lang, "✅ Development mode setup complete."))
+
+        else:
+            print("Unknown command")
+            safe_exit(1)
 
     except KeyboardInterrupt:
         with TMP_LOG_FILE.open("a", encoding="utf-8") as fh:
@@ -1003,4 +1298,8 @@ if __name__ == "__main__":
 
     except Exception as e:
         print(f"❌ Unexpected error: {e}")
+        log_line(error=str(e), context="main")
         safe_exit(1, error=e)
+
+if __name__ == "__main__":
+    main()
