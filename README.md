@@ -257,7 +257,7 @@ A small on-screen configuration menu allows you to change:
 - Local stream quality (radio favorites)  
 - Language (currently English and French)  
 - Enable/disable debug mode  
-- Change color theme__
+- Change color theme
 
 ---
 
@@ -292,9 +292,9 @@ You can uninstall all without leaving any residue with the following command:
 ---
 
 
-## ❓ Troubleshooting
+## ❓ Troubleshooting and FAQ
 
-If you encounter issues (black screen, IR remote not detected, GPIO not working, etc.), please check the [FAQ & Troubleshooting guide](./TROUBLESHOOTING.md).
+If you want to learn more about OliPi Moode or if you encounter issues (black screen, IR remote not detected, GPIO not working, etc.), please check the [FAQ & Troubleshooting guide](./TROUBLESHOOTING.md).
 
 ---
 
@@ -304,6 +304,8 @@ Contributions and feature suggestions are welcome!
 Possible future improvements:
 
 - Support for additional displays.
+- Offers more themes color
+- Show other infos on display (covers, screensaver with picture from web/local or animation, etc...)
 - Translation into more languages.
 - Documentation improvements.
 
