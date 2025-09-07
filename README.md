@@ -73,9 +73,9 @@ Video presentation:
   - You can use any free GPIO for CS, RST, DC, BLK for your screen.
   - CE0 / CE1 are the Raspberry Pi hardware SPI chip-select pins.
   - If you want to use CE0/CE1 for wiring your screen or as normal GPIOs:
-      • They must be disabled in the system (otherwise conflicts may occur).
-      • Only do this if you have no other SPI devices using them.
-      • can learn more here => [SPI Sensors &amp; Devices | CircuitPython Libraries on Linux and Raspberry Pi | Adafruit Learning System](https://learn.adafruit.com/circuitpython-on-raspberrypi-linux/spi-sensors-devices)
+      - They must be disabled in the system (otherwise conflicts may occur).
+      - Only do this if you have no other SPI devices using them.
+      - can learn more here => [SPI Sensors &amp; Devices | CircuitPython Libraries on Linux and Raspberry Pi | Adafruit Learning System](https://learn.adafruit.com/circuitpython-on-raspberrypi-linux/spi-sensors-devices)
   - Plan your wiring carefully: OliPi-Moode uses several GPIOs for buttons, IR and audio control if you use I2s DAC.
   
   
