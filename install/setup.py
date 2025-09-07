@@ -1279,7 +1279,6 @@ def main():
             settings.update({
                 "venv_path": str(venv_path),
                 "project_dir": str(OLIPI_MOODE_DIR),
-                "core_dir": str(OLIPI_CORE_DIR),
                 "install_date": time.strftime("%Y-%m-%d %H:%M:%S"),
             })
             save_settings(settings)

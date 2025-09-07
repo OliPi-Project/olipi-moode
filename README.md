@@ -28,12 +28,12 @@ Video presentation:
 
 - **Operating system**: Moode Audio Player ≥ 9.3.7 required.
 
-- **Hardware**: Raspberry Pi (Zero 2W, 3, 4, 5) + Oled ssd1306/1315 i2c. And IR receiver type TSOP38 or similar (if used).
+- **Hardware**: Raspberry Pi (Zero 2W, 3, 4, 5) + I2C or SPI screen. An IR receiver type TSOP38 and/or push buttons and/or rotary encoder with or without push
 
 - **APT dependencies** (installed automatically):
   
   ```bash
-  python3-pil python3-venv python3-pip python3-tk
+  git python3-pil python3-venv python3-pip python3-tk libatlas-base-dev
   i2c-tools libgpiod-dev python3-libgpiod python3-lgpio python3-setuptools
   ```
 
@@ -41,13 +41,17 @@ Video presentation:
   
   ```txt
   Adafruit_Blinka~=8.55.0
+  adafruit_circuitpython_rgb_display~=3.14.1
   adafruit_circuitpython_ssd1306~=2.12.21
+  rpi_lgpio~=0.6
   Pillow~=11.3.0
   python_mpd2~=3.0.5
   PyYAML~=6.0.2
   Requests~=2.32.4
-  rpi_lgpio~=0.6
-  yt_dlp~=2025.7.21
+  yt_dlp>=2025.7.21
+  numpy~=2.3.2
+  pyalsaaudio~=0.11.0
+  scipy~=1.16.1
   ```
 
 ---
@@ -58,24 +62,33 @@ Video presentation:
    
    ```bash
    sudo apt update && sudo apt install git
-   git clone https://github.com/Trachou2Bois/olipi-moode.git
+   git clone https://github.com/OliPi-Project/olipi-moode
    ```
 
-2. Run the setup script:
+2. Run the setup script (Can use with --dry-run to check without changing anything):
    
    ```bash
    python3 ~/olipi-moode/install/setup.py
    ```
-   
-   - Detects Moode version.
-   - Installs APT and Python dependencies.
-   - Configures I²C if disabled.
-   - Creates a virtual environment (`~/.olipi-moode-venv` by default).
-   - Offers ZRAM configuration if <1 GB RAM detected.
-   - Installs systemd services.
-   - Offers LIRC installation.
 
 3. Follow the on-screen instructions.
+   
+       This script performs the following actions:
+       
+       - Detects Moode version.
+       - Installs APT and Python dependencies.
+       - Clone latest release from olipi-core
+       - Offers to select from supported screens
+       - Configures I²C or SPI if disabled.
+       - Offers to fill in the pins for the spi screens
+       - Offers ZRAM configuration if 512MB RAM and/or swap detected.
+       - Creates a virtual environment (`~/.olipi-moode-venv` by default).
+       - Installs systemd services.
+       - Modify ready script for starting ui_playing service after Moode boot
+       - Append some lines with useful commands to .profile
+       - Create file with versions and paths in install dir.
+       
+       It can be reused for update OliPi Moode or force reinstall
 
 ---
 
@@ -131,7 +144,7 @@ KEY_NEXT = KEY_NEXTSONG
 
 ## ⌨ GPIO and rotary encoder support
 
-OliPi MoOde uses `rpi_lgpio`, you can configure GPIO buttons or rotary encoders in `config.ini`. You can use `gpioinfo` to check which pins are free.
+OliPi MoOde uses `rpi_lgpio`, you can configure GPIO buttons or rotary encoders in `config.ini`. Be careful not to use pins that are used for other things. Check your hardware before enabling "use_gpio" and "use_rotary""
 
 Example:
 
@@ -201,14 +214,15 @@ A small on-screen configuration menu allows you to change:
 - Local stream quality (radio favorites)  
 - Language (currently English and French)  
 - Enable/disable debug mode  
+- Change color theme__
 
 ---
 
 ## 🧠 ZRAM on low-memory devices
 
-If the Raspberry Pi has less than **1 GB RAM** (e.g., Zero 2W):
+If your Raspberry Pi has **512MB RAM** (e.g., Zero 2W or 3 A+):
 
-- The installer offers to install `zram-tools` and configure ZRAM (280 MB, lz4).
+- The installer offers to install `zram-tools` and configure ZRAM (256 MB, lz4).
 - Completely disables swap.
 
 ---
@@ -219,6 +233,14 @@ In **Moode > System Config**:
 
 - Enable **Ready Script** (System).
 - Enable **LCD Updater** (Peripherals).
+
+---
+
+## 🔧 Uninstall
+
+You can uninstall all with the following command (Can use with --dry-run to check without changing anything) :
+
+`sudo bash ~/olipi-moode/install/uninstall-olipi-moode.sh`
 
 ---
 
