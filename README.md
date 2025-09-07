@@ -29,6 +29,7 @@ Video presentation:
 - [ZRAM](#-zram-on-low-memory-devices)
 - [Moode configuration reminder](#-moode-configuration-reminder)
 - [Uninstall](#-uninstall)
+- [Troubleshooting](#-troubleshooting)
 - [Contributing](#-contributing)
 - [License](#-license)
 - [Disclaimer](#-disclaimer)
@@ -297,6 +298,13 @@ You can uninstall all without leaving any residue with the following command:
 (Can use with --dry-run to check without changing anything):
 
 `sudo bash ~/olipi-moode/install/uninstall-olipi-moode.sh --dry-run`
+
+---
+
+
+## ❓ Troubleshooting
+
+If you encounter issues (black screen, IR remote not detected, GPIO not working, etc.), please check the [Troubleshooting guide](./TROUBLESHOOTING.md).
 
 ---
 
