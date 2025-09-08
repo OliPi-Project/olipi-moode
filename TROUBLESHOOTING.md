@@ -60,7 +60,7 @@ This guide covers common problems and their solutions when using OliPi MoOde.
 
 ## 🔹 Can OliPi MoOde be used without Moode?
 
-- Not directly. OliPi MoOde is tightly integrated with Moode’s MPD server and ready scripts.
+- Not directly. OliPi MoOde is tightly integrated with Moode’s API and scripts.
 
 - For more generic use cases, check [OliPi-Core](https://github.com/OliPi-Project/olipi-core).
 
