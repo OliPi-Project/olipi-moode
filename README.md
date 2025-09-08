@@ -1,6 +1,10 @@
  ![License](https://img.shields.io/github/license/OliPi-Project/olipi-moode)
 ![Python](https://img.shields.io/badge/python-3.9+-blue)
 ![Platform](https://img.shields.io/badge/platform-Raspberry%20Pi-red)
+![Discord](https://img.shields.io/discord/1410910825870266391?logo=discord&label=Discord)
+
+
+
 
 # OliPi MoOde
 
