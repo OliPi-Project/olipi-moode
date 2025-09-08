@@ -29,8 +29,8 @@ ZRAM_RECOMMENDED_MB = 256
 REQUIRED_MOODE_VERSION = "9.3.7"
 OLIPI_CORE_REPO = "https://github.com/OliPi-Project/olipi-core.git"
 OLIPI_MOODE_REPO = "https://github.com/OliPi-Project/olipi-moode.git"
-OLIPI_MOODE_DEV_BRANCH = "dev"
-OLIPI_CORE_DEV_BRANCH = "moode"
+OLIPI_MOODE_DEV_BRANCH = "main"
+OLIPI_CORE_DEV_BRANCH = "main"
 
 lang = "en"
 
