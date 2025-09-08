@@ -4,7 +4,7 @@ This guide covers common problems and their solutions when using OliPi MoOde.
 
 ---
 
-## 🔹 Wiring / Screen does not turn on after installation
+## Wiring / Screen does not turn on after installation
 
 - Double-check the wiring:
   - For SPI screens:

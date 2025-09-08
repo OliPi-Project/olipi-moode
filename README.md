@@ -105,6 +105,10 @@ Video presentation:
 
 ## 🚀 Installation
 
+First of all, make sure you've wired your screen, buttons and IR receiver correctly.
+[See wiring guide](TROUBLESHOOTING.md#wiring--screen-does-not-turn-on-after-installation)
+
+
 1. Clone this repository:
    
    ```bash
