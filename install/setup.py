@@ -472,7 +472,6 @@ def check_i2c():
             run_command("sudo raspi-config nonint do_i2c 0", log_out=True, show_output=False, check=True)
             print(SETUP["i2c_enabled"][lang])
             print(SETUP["i2c_reboot_required"][lang])
-            safe_exit(0)
         else:
             print(SETUP["i2c_enable_failed"][lang])
             safe_exit(1)
@@ -509,7 +508,6 @@ def check_spi():
             run_command("sudo raspi-config nonint do_spi 0", log_out=True, show_output=False, check=True)
             print(SETUP["spi_enabled"][lang])
             print(SETUP["spi_reboot_required"][lang])
-            safe_exit(0)
         else:
             print(SETUP["spi_enable_failed"][lang])
             safe_exit(1)
@@ -618,12 +616,11 @@ def configure_screen(olipi_moode_dir, olipi_core_dir):
 
     # If SPI -> ask pins and save them
     if meta.get("type") == "spi":
-        print(SETUP.get("screen_spi_info", {}).get(lang,
-              "SPI screen selected — please provide the pin names (e.g. CE0, D23, D24)."))
-        cs = safe_input(SETUP.get("screen_cs_prompt", {}).get(lang, "CS pin (chip select)"), "CE0")
-        dc = safe_input(SETUP.get("screen_dc_prompt", {}).get(lang, "DC pin (data/command)"), "D23")
-        rst = safe_input(SETUP.get("screen_reset_prompt", {}).get(lang, "RESET pin"), "D24")
-        bl = safe_input(SETUP.get("screen_bl_prompt", {}).get(lang, "BL pin (backlight) — leave empty if none)"), "")
+        print(SETUP.get("screen_spi_info", {}).get(lang, "SPI screen selected — Enter the GPIO pin number (BCM)."))
+        cs = safe_input(SETUP.get("screen_cs_prompt", {}).get(lang, "CS pin (chip select)"))
+        dc = safe_input(SETUP.get("screen_dc_prompt", {}).get(lang, "DC pin (data/command)"))
+        rst = safe_input(SETUP.get("screen_reset_prompt", {}).get(lang, "RESET pin"))
+        bl = safe_input(SETUP.get("screen_bl_prompt", {}).get(lang, "BL pin (backlight) — leave empty if none)"))
 
         try:
             core_config.save_config("cs_pin", cs.upper(), section="screen", preserve_case=True)
@@ -1186,7 +1183,6 @@ def main():
     core_present = Path(OLIPI_CORE_DIR).exists() and (Path(OLIPI_CORE_DIR) / ".git").exists()
 
     if cmd is None:
-        print("cmd is none")
         # interactive: propose install or update
         if moode_present and core_present:
             ans = input(SETUP.get("interactive_update_prompt", {}).get(lang,

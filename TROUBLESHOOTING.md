@@ -14,8 +14,8 @@ This guide covers common problems and their solutions when using OliPi MoOde.
     - SDA => MOSI (GPIO 10)
     - RST, DC, CS can use any free GPIO (take care if your dac use pin for mute or if it has a built-in ir receiver)
     - BLK (backlight) must be connected to **3.3V** (not yet supported in software).
-    - CE0 / CE1 are the Raspberry Pi hardware SPI chip-select pins.
-    - If you want to use CE0/CE1 for wiring your screen or as normal GPIOs:
+    - CE0 / CE1 (GPIO 8/7) are the Raspberry Pi hardware SPI chip-select pins.
+    - If you want to use CE0/CE1 (GPIO 8/7) for wiring your screen or as normal GPIOs:
       - They must be disabled in the system (otherwise conflicts may occur).
       - Only do this if you have no other SPI devices using chip-select.
       - Can learn more here => [SPI Sensors &amp; Devices | CircuitPython Libraries on Linux and Raspberry Pi | Adafruit Learning System](https://learn.adafruit.com/circuitpython-on-raspberrypi-linux/spi-sensors-devices)
@@ -31,7 +31,7 @@ This guide covers common problems and their solutions when using OliPi MoOde.
 
 - Check the logs of the service:
   
-  `journalctl -u ui_playing -f`
+  `journalctl -u olipi-ui-playing -f`
 
 ---
 
