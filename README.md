@@ -1,7 +1,10 @@
  ![License](https://img.shields.io/github/license/OliPi-Project/olipi-moode)
 ![Python](https://img.shields.io/badge/python-3.9+-blue)
 ![Platform](https://img.shields.io/badge/platform-Raspberry%20Pi-red)
-![Discord](https://img.shields.io/discord/1410910825870266391?logo=discord&label=Discord)
+![Discord](https://img.shields.io/discord/1410910825870266391?logo=discord&logoColor=white&logoSize=auto&label=Discord&color=blue&link=https%3A%2F%2Fdiscord.gg%2Fpku67XsFEE)
+![GitHub Release](https://img.shields.io/github/v/release/OliPi-Project/olipi-moode?include_prereleases&sort=date&display_name=tag)
+
+
 
 
 
@@ -316,6 +319,8 @@ Possible future improvements:
 - Show other infos on display (covers, screensaver with picture from web/local or animation, etc...)
 - Translation into more languages.
 - Documentation improvements.
+
+Come [discuss it on Discord](https://discord.gg/pku67XsFEE)  or if you want, [you can get your hands dirty with the engine](./CONTRIBUTING.md).
 
 ---
 
