@@ -475,7 +475,13 @@ def check_i2c():
         else:
             print(SETUP["i2c_enable_failed"][lang])
             safe_exit(1)
-    result = run_command("i2cdetect -y 1", log_out=True, show_output=False, check=True)
+
+    for _ in range(3):
+        res = run_command("i2cdetect -y 1", log_out=True, show_output=False, check=True)
+        if res.stdout.strip():
+            break
+        time.sleep(1)
+
     detected_addresses = []
     for line in result.stdout.splitlines():
         if ":" in line:
@@ -511,9 +517,15 @@ def check_spi():
         else:
             print(SETUP["spi_enable_failed"][lang])
             safe_exit(1)
+
     # Detect /dev/spidev* entries (common device nodes for SPI)
     # Use a shell-friendly pattern and capture stdout
-    res = run_command("ls /dev/spidev* 2>/dev/null || true", log_out=True, show_output=False, check=False)
+    for _ in range(3):
+        res = run_command("ls /dev/spidev* 2>/dev/null || true", log_out=True, show_output=False, check=False)
+        if res.stdout.strip():
+            break
+        time.sleep(1)
+
     devices = []
     if res.returncode == 0 and res.stdout.strip():
         # split on whitespace in case multiple devices listed
