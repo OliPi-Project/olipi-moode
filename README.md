@@ -109,7 +109,9 @@ Video presentation:
 ## 🚀 Installation
 
 First of all, make sure you've wired your screen, buttons and IR receiver correctly.
-[See wiring guide](TROUBLESHOOTING.md#wiring--screen-does-not-turn-on-after-installation)
+[See wiring guide](TROUBLESHOOTING.md#wiring--screen-does-not-turn-on-after-installation).
+
+If you have [MoodeOled](https://github.com/Trachou2Bois/MoodeOled) installed, check [here](https://github.com/Trachou2Bois/MoodeOled/blob/main/README.md#moodeoled-has-grown) to uninstall it before install OliPi Moode.
 
 
 1. Clone this repository:
