@@ -104,8 +104,9 @@ Video presentation:
 ## 🚀 Installation
 
 ***Beware of performance issues on the Pi Zero2 W and Pi3a/B+ with higher resolutions like 170x320 or 240x320 (need to up the `spidev.bufsiz=131072` in /boot/firmware/cmdline.txt keep all text on 1 line, and set the `baudrate = 100000000` with a `refresh_interval = 0.01` in the config.ini )...
-For better smooth scrolling, I2C screens (like ssd1306) it's a good thing to increase the bauderate to 400k with `dtparam=i2c_baudrate=400000` in /boot/firmware/config.txt (400k seems to be compatible with DACs)
-I'm looking for a solution to use the Raspberry-Pi FBTFT overlays directly rather than going through the Adafruit libraries.***
+For better smooth scrolling, I2C screens (like ssd1306) it's a good thing to increase the bauderate to 400k with `dtparam=i2c_baudrate=400000` in /boot/firmware/config.txt (400k seems to be compatible with DACs)***
+
+***I'm looking for a solution to use the Raspberry-Pi FBTFT overlays directly rather than going through the Adafruit libraries.***
 
 First of all, make sure you've wired your screen, buttons and IR receiver correctly.
 [See wiring guide](TROUBLESHOOTING.md#wiring--screen-does-not-turn-on-after-installation).
