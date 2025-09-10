@@ -4,11 +4,6 @@
 ![Discord](https://img.shields.io/discord/1410910825870266391?logo=discord&logoColor=white&logoSize=auto&label=Discord&color=blue&link=https%3A%2F%2Fdiscord.gg%2Fpku67XsFEE)
 ![GitHub Release](https://img.shields.io/github/v/release/OliPi-Project/olipi-moode?include_prereleases&sort=date&display_name=tag)
 
-
-
-
-
-
 # OliPi MoOde
 
 OliPi MoOde is an user interface for OLED/LCD screens >= 128x64 for [Moode Audio](https://moodeaudio.org/) with control via IR remote control and/or GPIO buttons.
@@ -107,6 +102,9 @@ Video presentation:
 ---
 
 ## 🚀 Installation
+
+***Beware of performance issues on the Pi Zero2 W and Pi3a/B+ with higher resolutions like 170x320 or 240x320 (need to up the `spidev.bufsiz=131072` in /boot/firmware/cmdline.txt (keep all text on 1 line) and set the `baudrate = 100000000` with a `refresh_interval = 0.01` in the config.ini )...
+I'm looking for a solution to use the Raspberry-Pi FBTFT overlays directly rather than going through the Adafruit libraries.***
 
 First of all, make sure you've wired your screen, buttons and IR receiver correctly.
 [See wiring guide](TROUBLESHOOTING.md#wiring--screen-does-not-turn-on-after-installation).
