@@ -350,8 +350,7 @@ def install_repo(repo_name: str, repo_url: str, local_dir: Path, branch: str,
     repo_exists = local_dir.exists() and (local_dir / ".git").exists()
     if repo_exists:
         local_tag = get_latest_release_tag(str(local_dir), branch=branch) or "unknown"
-        print(SETUP.get(f"{repo_name.lower()}_exists", {}).get(lang,
-              f"{local_dir} already exists."))
+        print(SETUP.get(f"{repo_name.lower()}_exists", {}).get(lang, f"{local_dir} already exists.").format(local_dir))
 
     update_needed = False
     if mode == "install":
@@ -359,6 +358,7 @@ def install_repo(repo_name: str, repo_url: str, local_dir: Path, branch: str,
 
     elif mode == "update":
         if not repo_exists:
+            print(SETUP.get("repo_not_git", {}).get(lang, "⚠️ Folder {} exists but is not a Git repository. Update needed").format(local_dir))
             update_needed = True
         else:
             if version_is_newer(local_tag, remote_tag):
@@ -379,8 +379,7 @@ def install_repo(repo_name: str, repo_url: str, local_dir: Path, branch: str,
             timestamp = time.strftime("%Y%m%d_%H%M%S")
             backup_dir = local_dir.parent / f"{local_dir.name}_backup_{timestamp}"
             copytree_safe(local_dir, backup_dir)
-            print(SETUP.get("repo_backup", {}).get(lang,
-                  "📦 Existing folder {} copied to {} before cloning.").format(local_dir, backup_dir))
+            print(SETUP.get("repo_backup", {}).get(lang, "📦 Existing folder {} copied to {} before cloning.").format(local_dir, backup_dir))
 
     if not update_needed:
         log_line(msg=f"{repo_name} is already up-to-date (local {local_tag}, remote {remote_tag})", context="install_repo")
@@ -392,6 +391,7 @@ def install_repo(repo_name: str, repo_url: str, local_dir: Path, branch: str,
 
     clone_cmd = f"git clone --branch {branch} {repo_url} {temp_dir}"
     run_command(clone_cmd, log_out=True, show_output=True, check=True)
+    print(SETUP.get(f"{repo_name.lower()}_cloned", {}).get(lang, f"✅ {repo_name} has been cloned to {temp_dir}").format(temp_dir))
 
     if mode != "dev_mode" and remote_tag not in ("dev", "tag not found"):
         run_command(f"git -C {temp_dir} fetch --tags origin", log_out=True, show_output=False, check=False)
@@ -412,11 +412,11 @@ def install_repo(repo_name: str, repo_url: str, local_dir: Path, branch: str,
     else:
         local_dir.mkdir(parents=True, exist_ok=True)
 
-    print(SETUP.get("moving_files", {}).get(lang, "📦 Moving cloned files..."))
+    print(SETUP.get("moving_files", {}).get(lang, "📦 Moving cloned files from {} to {}...").format(temp_dir, local_dir))
     for item in temp_dir.iterdir():
         shutil.move(str(item), str(local_dir))
     temp_dir.rmdir()
-    print(SETUP.get("clone_done", {}).get(lang, "✅ Clone completed."))
+    print(SETUP.get("clone_done", {}).get(lang, "✅ Done! {} deleted.").format(temp_dir))
 
     log_line(msg=f"{repo_name} installed/updated. branch:{branch} tag:{local_tag}", context="install_repo")
 
@@ -1286,7 +1286,7 @@ def main():
     except KeyboardInterrupt:
         with TMP_LOG_FILE.open("a", encoding="utf-8") as fh:
             fh.write(f"+++++++++\n[ABORTED] ❌ Installation interrupted by user (Ctrl+C).\n")
-        print("❌ Installation interrupted by user (Ctrl+C).")
+        print(SETUP["install_abort"][lang])
         safe_exit(130)
 
     except Exception as e:
