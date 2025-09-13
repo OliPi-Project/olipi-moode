@@ -56,6 +56,11 @@ previous_blocking_render = False
 
 SCROLL_SPEED_NOWPLAYING = 0.05
 
+# For more information look at https://github.com/yt-dlp/yt-dlp?tab=readme-ov-file#filtering-formats
+yt_format_low = "bestaudio[abr<=96][protocol!=m3u8]"
+yt_format_standard = "bestaudio[ext=m4a][protocol!=m3u8]/bestaudio[protocol!=m3u8]"
+yt_format_hifi = "bestaudio[ext=webm][protocol!=m3u8]/bestaudio[protocol!=m3u8]"
+
 menu_active = False
 menu_options = [
     {"id": "remove_queue", "label": core.t("menu_remove_queue")},
@@ -157,9 +162,9 @@ sleep_timeout_labels = {0: "Off", 15: "15s", 30: "30s", 60: "1m", 300: "5m", 600
 stream_profile_menu_active = False
 stream_profile_menu_selection = 0
 stream_profile_menu_options = [
-    {"id": "low", "label": core.t("stream_low"), "yt_format": core.get_config("manual", "yt_format_low", fallback="bestaudio[abr<=96][protocol!=m3u8]", type=str), "ffmpeg_bitrate": "96k"},
-    {"id": "standard", "label": core.t("stream_standard"), "yt_format": core.get_config("manual", "yt_format_standard", fallback="bestaudio[ext=m4a][protocol!=m3u8]/bestaudio[protocol!=m3u8]", type=str), "ffmpeg_bitrate": "128k"},
-    {"id": "hifi", "label": core.t("stream_hifi"), "yt_format": core.get_config("manual", "yt_format_hifi", fallback="bestaudio[ext=webm][protocol!=m3u8]/bestaudio[protocol!=m3u8]", type=str), "ffmpeg_bitrate": "160k"}
+    {"id": "low", "label": core.t("stream_low"), "yt_format": yt_format_low, "ffmpeg_bitrate": "96k"},
+    {"id": "standard", "label": core.t("stream_standard"), "yt_format": yt_format_standard, "ffmpeg_bitrate": "128k"},
+    {"id": "hifi", "label": core.t("stream_hifi"), "yt_format": yt_format_hifi, "ffmpeg_bitrate": "160k"}
 ]
 language_menu_active = False
 language_menu_selection = 0

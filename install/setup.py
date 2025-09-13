@@ -31,6 +31,8 @@ OLIPI_CORE_REPO = "https://github.com/OliPi-Project/olipi-core.git"
 OLIPI_MOODE_REPO = "https://github.com/OliPi-Project/olipi-moode.git"
 OLIPI_MOODE_DEV_BRANCH = "dev"
 OLIPI_CORE_DEV_BRANCH = "dev"
+PRESERVE_FILES = ["config.ini"] # path relative to local_dir e.g. ["config/user_key.ini, config.ini"]
+CONFIG_FILES = ["config.ini"] # path relative to local_dir e.g. ["config/user_key.ini, config.ini"]
 
 lang = "en"
 
@@ -176,6 +178,129 @@ def install_apt_dependencies():
         run_command(f"sudo apt-get install -y {' '.join(missing)}", log_out=True, show_output=True, check=True)
 
     print(SETUP["apt_ok"][lang])
+
+def safe_cleanup(path: Path, preserve_files=None, base: Path = None):
+    """
+    Delete contents of a directory but preserve specific files (by relative path).
+    """
+    preserve_files = preserve_files or []
+    base = base or path
+
+    for item in path.iterdir():
+        rel_path = str(item.relative_to(base))
+        if item.is_dir():
+            safe_cleanup(item, preserve_files=preserve_files, base=base)
+            try:
+                item.rmdir()
+            except OSError as e:
+                log_line(error=f"Failed to remove {item}: {e}", context="install_repo_cleanup (safe_cleanup)")
+        else:
+            if rel_path in preserve_files:
+                continue
+            item.unlink()
+
+
+def move_contents(src: Path, dst: Path, preserve_files=None, base: Path = None):
+    """
+    Move all files/dirs from src into dst, preserving some files (by relative path).
+    """
+    preserve_files = preserve_files or []
+    base = base or src
+
+    for item in src.iterdir():
+        rel_path = str(item.relative_to(base))
+        target = dst / item.name
+        if item.is_dir():
+            target.mkdir(exist_ok=True)
+            move_contents(item, target, preserve_files, base=base)
+        else:
+            if rel_path in preserve_files and target.exists():
+                continue
+            shutil.move(str(item), str(target))
+
+
+def merge_ini_with_dist(user_file: Path, dist_file: Path, preserve_files=None, base: Path = None):
+    """
+    Merge dist file into user config file while preserving comments, formatting,
+    and existing values. Adds new keys and their comments if missing.
+    Skips merge if file is in preserve_files.
+    """
+    preserve_files = preserve_files or []
+    base = base or user_file.parent.parent
+    rel_path = str(user_file.relative_to(base))
+
+    if rel_path in preserve_files:
+        return
+
+    if not dist_file.exists():
+        return
+
+    if not user_file.exists():
+        user_file.write_text(dist_file.read_text(), encoding="utf-8")
+        return
+
+    user_lines = user_file.read_text(encoding="utf-8").splitlines()
+    dist_lines = dist_file.read_text(encoding="utf-8").splitlines()
+
+    existing_keys = set()
+    current_section = None
+    for line in user_lines:
+        striped = line.strip()
+        if striped.startswith("[") and striped.endswith("]"):
+            current_section = striped
+        elif striped and not striped.startswith(("#", ";")) and "=" in striped:
+            key = striped.split("=", 1)[0].strip()
+            existing_keys.add((current_section, key))
+
+    merged_lines = []
+    current_section = None
+    current_section_dist = None
+
+    for line in user_lines:
+        merged_lines.append(line)
+        striped = line.strip()
+        if striped.startswith("[") and striped.endswith("]"):
+            current_section = striped
+
+            # look in the dist to see if there are any missing keys to add for this section
+            dist_section_lines = []
+            current_section_dist = None
+            for idx, dline in enumerate(dist_lines):
+                dstrip = dline.strip()
+                if dstrip.startswith("[") and dstrip.endswith("]"):
+                    current_section_dist = dstrip
+                elif current_section_dist == current_section and "=" in dstrip and not dstrip.startswith(("#",";")):
+                    key = dstrip.split("=",1)[0].strip()
+                    if (current_section, key) not in existing_keys:
+                        # Add comments above the key
+                        comments_before = []
+                        j = idx-1
+                        while j>=0 and dist_lines[j].strip().startswith(("#",";")):
+                            comments_before.insert(0, dist_lines[j])
+                            j-=1
+                        dist_section_lines.extend(comments_before+[dline])
+            if dist_section_lines:
+                merged_lines.extend(dist_section_lines)
+
+    # Complete missing sections
+    existing_sections = {line.strip() for line in user_lines if line.strip().startswith("[") and line.strip().endswith("]")}
+    current_section_dist = None
+    missing_section_lines = []
+    for dline in dist_lines:
+        dstrip = dline.strip()
+        if dstrip.startswith("[") and dstrip.endswith("]"):
+            current_section_dist = dstrip
+            if current_section_dist not in existing_sections:
+                missing_section_lines.append("")
+                missing_section_lines.append(dline)
+        elif current_section_dist and current_section_dist not in existing_sections:
+            missing_section_lines.append(dline)
+
+    if missing_section_lines:
+        merged_lines.append("")
+        merged_lines.extend(missing_section_lines)
+
+    user_file.write_text("\n".join(merged_lines) + "\n", encoding="utf-8")
 
 def save_settings(settings: dict):
     """Save setup settings to a JSON file for later use (update/uninstall)."""
@@ -400,23 +525,40 @@ def install_repo(repo_name: str, repo_url: str, local_dir: Path, branch: str,
     else:
         local_tag = "dev"
 
+    cloned_settings_file = temp_dir / ".setup-settings.json"
+    if cloned_settings_file.exists():
+        with cloned_settings_file.open("r", encoding="utf-8") as fh:
+            cloned_settings = json.load(fh)
+        force_new_files = cloned_settings.get("force_new_files", {}).get(repo_name.lower(), [])
+    else:
+        force_new_files = []
+
     if local_dir.exists():
-        for item in local_dir.iterdir():
-            try:
-                if item.is_dir():
-                    shutil.rmtree(item)
-                else:
-                    item.unlink()
-            except Exception as e:
-                log_line(error=f"Failed to remove {item}: {e}", context="install_repo_cleanup")
+        safe_cleanup(local_dir, preserve_files=PRESERVE_FILES)
     else:
         local_dir.mkdir(parents=True, exist_ok=True)
 
     print(SETUP.get("moving_files", {}).get(lang, "📦 Moving cloned files from {} to {}...").format(temp_dir, local_dir))
-    for item in temp_dir.iterdir():
-        shutil.move(str(item), str(local_dir))
+    move_contents(temp_dir, local_dir, preserve_files=PRESERVE_FILES)
     temp_dir.rmdir()
     print(SETUP.get("clone_done", {}).get(lang, "✅ Done! {} deleted.").format(temp_dir))
+
+    # Merge sensitive config files or force new file
+    for cfg in CONFIG_FILES:
+        dist_file = local_dir / f"{cfg}.dist"
+        user_file = local_dir / cfg
+
+        # Backup if forced
+        if cfg in force_new_files and user_file.exists():
+            timestamp = time.strftime("%Y%m%d_%H%M%S")
+            backup_file = user_file.parent / f"{user_file.name}_backup_{timestamp}"
+            shutil.copy2(user_file, backup_file)
+            print(f"Backed up {user_file.name} → {backup_file}")
+            shutil.copy2(dist_file, user_file)
+            print(f"Overwritten {user_file.name} with {cfg}.dist")
+        elif dist_file.exists():
+            merge_ini_with_dist(user_file, dist_file)
+            print(f"Merged {cfg} with {cfg}.dist")
 
     log_line(msg=f"{repo_name} installed/updated. branch:{branch} tag:{local_tag}", context="install_repo")
 
@@ -1239,6 +1381,7 @@ def main():
                 "project_dir": str(OLIPI_MOODE_DIR),
                 "install_date": time.strftime("%Y-%m-%d %H:%M:%S"),
             })
+            settings.pop("force_new_files", None)
             save_settings(settings)
             install_done()
             print(SETUP.get("develop_done", {}).get(lang, "✅ Development mode setup complete."))
@@ -1261,6 +1404,7 @@ def main():
                 "core_dir": str(OLIPI_CORE_DIR),
                 "install_date": time.strftime("%Y-%m-%d %H:%M:%S"),
             })
+            settings.pop("force_new_files", None)
             save_settings(settings)
             install_done()
 
@@ -1273,6 +1417,7 @@ def main():
                 "project_dir": str(OLIPI_MOODE_DIR),
                 "core_dir": str(OLIPI_CORE_DIR)
             })
+            settings.pop("force_new_files", None)
             save_settings(settings)
             print(SETUP.get("update_done", {}).get(lang, "✅ Update complete."))
             with TMP_LOG_FILE.open("a", encoding="utf-8") as fh:

@@ -10,20 +10,7 @@ random_recent_album_custom_days = 30
 color_theme = autumn
 
 [screen]
-#current_screen = SSD1306
-#current_screen = SSD1351
-#current_screen = ST7735R
-#current_screen = ST7789V
-#current_screen = ST7789W
-
-# --- SPI Screens ---
-# See README for using GPIO 8 and 7 (CE0/CE1) else choose another empty GPIO
-cs_pin = 8
-dc_pin = 23
-reset_pin = 24
-#bl_pin = 22
-#baudrate = 14000000
-# --- All Screens ---
+current_screen =
 #rotation = 90
 #refresh_interval = 0.01
 
@@ -35,16 +22,17 @@ show_spectrum = False
 
 [spectrum]
 device = hw:Loopback,1,0
-num_bars = 36
-fmin = 20
-fmax = 17000
+num_bars = 30
+fmin = 25
+fmax = 20000
 # height or level
 gradient_mode = height
 spectrum_profile = {"win_s":2048, "hop_s":1024, "smoothing":0.65, "attack":0.55, "release":0.75, "agc_alpha":0.02, "noise_gate_db":-85, "rms_factor_gain":1}
-# Optional manual bands: comma-separated ranges "fmin-fmax". Modify num_bars to match.
 # leave empty to use auto (Mel) bands
 manual_bands =
-#manual_bands = 20-60, 55-100, 95-150, 140-200, 190-300, 280-400, 380-550, 520-700, 680-1000, 950-1400, 1350-2000, 1900-3000, 2800-4500, 4300-6500, 6300-10000, 9500-17000
+# Optional manual bands: comma-separated ranges "fmin-fmax" (manual_bands = 20-60, 55-100, etc). Modify num_bars to match.
+
+
 
 [manual]
 # Manual settings:
@@ -52,18 +40,8 @@ manual_bands =
 blacklist_audio_paths = OSDISK/Stereo Test/LRMonoPhase4.flac, OSDISK/System Sounds/ReadyChime.flac
 # Add or modify genres according to your preferences:
 genres = Varied, Relax, Rhythmic, Nocturne, Instru
-# you can modifiy audio format for streaming audio via yt-dlp:
-# Default values (work with recent yt-dlp versions: stable@2025.06.30):
-# yt_format_low      = bestaudio[abr<=96][protocol!=m3u8]
-# yt_format_standard = bestaudio[ext=m4a][protocol!=m3u8]/bestaudio[protocol!=m3u8]
-# yt_format_hifi     = bestaudio[ext=webm][protocol!=m3u8]/bestaudio[protocol!=m3u8]
-# For more information look at https://github.com/yt-dlp/yt-dlp?tab=readme-ov-file#filtering-formats
-yt_format_low = bestaudio[abr<=96][protocol!=m3u8]
-yt_format_standard = bestaudio[ext=m4a][protocol!=m3u8]/bestaudio[protocol!=m3u8]
-yt_format_hifi = bestaudio[ext=webm][protocol!=m3u8]/bestaudio[protocol!=m3u8]
-
 # Activate or deactivate inputs according to your configuration (true/false) and can use all at same time:
-# use_lirc is configured during lirc_setup.py. You'll need to activate it manually if you've installed LIRC yourself.
+# use_lirc is configured during lirc_setup.py. You'll can activate it manually if you've installed LIRC yourself.
 use_lirc = false
 # Configure GPIO pins before enabling these parameters:
 use_gpio = false
@@ -107,7 +85,6 @@ KEY_INFO = —
 KEY_CHANNELUP = —
 KEY_CHANNELDOWN = —
 KEY_PLAY = —
-
 # Optional keys (additional multimedia controls)
 KEY_STOP = —
 KEY_NEXT = —
