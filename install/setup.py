@@ -525,7 +525,7 @@ def install_repo(repo_name: str, repo_url: str, local_dir: Path, branch: str,
     else:
         local_tag = "dev"
 
-    cloned_settings_file = temp_dir / ".setup-settings.json"
+    cloned_settings_file = temp_dir / "install" / ".setup-settings.json"
     if cloned_settings_file.exists():
         with cloned_settings_file.open("r", encoding="utf-8") as fh:
             cloned_settings = json.load(fh)
