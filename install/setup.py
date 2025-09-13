@@ -1218,6 +1218,7 @@ def main():
     try:
         if cmd == "dev_mode":
             # full dev rolling install
+            print("Setup.py launched on dev mode...")
             install_olipi_moode(mode="dev_mode")
             install_olipi_core(mode="dev_mode")
             configure_screen(OLIPI_MOODE_DIR, OLIPI_CORE_DIR)
