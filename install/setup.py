@@ -1209,9 +1209,14 @@ def main():
                 print(SETUP.get("interactive_abort", {}).get(lang))
                 safe_exit(0)
         elif moode_present and core_present:
-            ans = input(SETUP.get("interactive_update_prompt", {}).get(lang,
-                        "⚙️ Do you want to update (U) or install fresh (I)? [U/I] ")).strip().lower()
-            cmd = "update" if ans in ("u", "") else "install"
+            ans = input(SETUP.get("interactive_update_prompt", {}).get(lang, "⚙️ Do you want to update (U), force fresh reinstall (F), or skip (S)? [U/F/S] ")).strip().lower()
+            if ans in ("u", ""):
+                cmd = "update"
+            elif ans == "f":
+                cmd = "install"
+            else:
+                print(SETUP.get("interactive_abort", {}).get(lang))
+                safe_exit(0)
         else:
             cmd = "install"
 
