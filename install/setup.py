@@ -540,7 +540,7 @@ def install_repo(repo_name: str, repo_url: str, local_dir: Path, branch: str,
 
     print(SETUP.get("moving_files", {}).get(lang, "📦 Moving cloned files from {} to {}...").format(temp_dir, local_dir))
     move_contents(temp_dir, local_dir, preserve_files=PRESERVE_FILES)
-    temp_dir.rmdir()
+    shutil.rmtree(temp_dir)
     print(SETUP.get("clone_done", {}).get(lang, "✅ Done! {} deleted.").format(temp_dir))
 
     # Merge sensitive config files or force new file
@@ -548,14 +548,15 @@ def install_repo(repo_name: str, repo_url: str, local_dir: Path, branch: str,
         dist_file = local_dir / f"{cfg}.dist"
         user_file = local_dir / cfg
 
-        # Backup if forced
-        if cfg in force_new_files and user_file.exists():
-            timestamp = time.strftime("%Y%m%d_%H%M%S")
-            backup_file = user_file.parent / f"{user_file.name}_backup_{timestamp}"
-            shutil.copy2(user_file, backup_file)
-            print(f"Backed up {user_file.name} → {backup_file}")
-            shutil.copy2(dist_file, user_file)
-            print(f"Overwritten {user_file.name} with {cfg}.dist")
+        if cfg in force_new_files:
+            if user_file.exists():
+                timestamp = time.strftime("%Y%m%d_%H%M%S")
+                backup_file = user_file.parent / f"{user_file.name}_backup_{timestamp}"
+                shutil.copy2(user_file, backup_file)
+                print(f"Backed up {user_file.name} → {backup_file}")
+            if dist_file.exists():
+                shutil.copy2(dist_file, user_file)
+                print(f"Overwritten {user_file.name} with {cfg}.dist")
         elif dist_file.exists():
             merge_ini_with_dist(user_file, dist_file)
             print(f"Merged {cfg} with {cfg}.dist")
