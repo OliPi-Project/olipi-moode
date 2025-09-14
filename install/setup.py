@@ -703,10 +703,16 @@ def insert_screen_overlay(lines, screen_type, screen_id, rst=None, dc=None, bl=N
     if screen_type == "i2c":
         new_lines = ["dtparam=i2c_baudrate=400000"]
     elif screen_type == "spi":
+        overlay_line = f"dtoverlay=fbtft,spi0-0,{screen_id},reset_pin={rst},dc_pin={dc}"
         if bl:
-            new_lines = [f"dtoverlay=fbtft,spi0-0,{screen_id},reset_pin={rst},dc_pin={dc},led_pin={bl},speed={speed},txbuflen={txbuflen}"]
-        else:
-            new_lines = [f"dtoverlay=fbtft,spi0-0,{screen_id},reset_pin={rst},dc_pin={dc},speed={speed},txbuflen={txbuflen}"]
+            overlay_line += f",led_pin={bl}"
+        if speed:
+            overlay_line += f",speed={speed}"
+        if txbuflen:
+            overlay_line += f",txbuflen={txbuflen}"
+        new_lines = [overlay_line]
+    elif screen_type == "provisional":
+        new_lines = ["#dtparam=spi=on"]
     else:
         return lines
     return update_olipi_section(lines, "screen overlay", new_lines)
