@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 # lang.py
 
 SETUP = {
@@ -12,6 +14,8 @@ SETUP = {
     "install_apt": {"en": "Checking system dependencies...", "fr": "Vérification des dépendances système..."},
     "apt_missing": {"en": "Installing missing dependencies: {}", "fr": "Installation des dépendances manquantes : {}"},
     "apt_ok": {"en": "✅ All APT dependencies are installed", "fr": "Toutes les dépendances APT sont installé"},
+    "backup_created": {"en": "🔒 Backup created: {}", "fr": "🔒 Sauvegarde créée : {}"},
+    "backup_exist": {"en": "🔒 Backup already exist: {}", "fr": "🔒 La Sauvegarde existe déjà: {}"},
     "repo_not_git": {"en": "⚠️ Folder {} exists but is not a Git repository. Update needed",
                            "fr": "⚠️ Le dossier {} existe mais n’est pas un dépôt Git. Mise à jour nécessaire"},
     "install_abort": {"en": "❌ Installation aborted (Ctrl+C).",
@@ -28,11 +32,11 @@ SETUP = {
     "found_settings": {"en": "⚙️ Major Change → force new files for {}: {}", 
                        "fr": "⚙️ Changement Majeur → force nouveau fichier(s) pour {}: {}"},
     "cleaning_local": {"en": "⚡ Cleaning up {} (preserve: {})", "fr": "⚡ Nettoyage de {} (préservé : {})"},
-    "backup_file": {"en": "📦 Backed up {} → {}", "fr": "📦 Sauvegarde de {} → {}",},
+    "backup_file": {"en": "📦 Backed up {} → {}", "fr": "📦 Sauvegarde de {} → {}"},
     "forced_overwrite": {"en": "⚡ Forced overwrite of {} with {}", "fr": "⚡ Écrasement forcé de {} avec {}"},
-    "merged_file": {"en": "📦 Merged {} with {}", "fr": "📦 Fusion de {} avec {}",},
-    "no_dist": {"en": "ℹ️  No {}.dist found, skipped merge/overwrite", "fr": "ℹ️  Aucun {}.dist trouvé, fusion/écrasement ignoré"},
-    "clone_done": {"en": "✅ Done! {} deleted.","fr": "✅ Terminé ! {} supprimé."},
+    "merged_file": {"en": "📦 Merged {} with {}", "fr": "📦 Fusion de {} avec {}"},
+    "no_dist": {"en": "ℹ️ No .dist file to merge/overwrite. ignored", "fr": "ℹ️ Aucun .dist à fusionner/écraser. Ignoré"},
+    "clone_done": {"en": "✅ Done! {} deleted.", "fr": "✅ Terminé! {} supprimé."},
     "update_prompt": {"en": "✅  A newer release (local {}, remote {}) is available. Update now? [Y/n] ",
                       "fr": "✅  Une nouvelle version (local {}, distant {}) est disponible. Voulez-vous mettre à jour maintenant ? [O/n] "},
     "interactive_update_prompt": {"en": "⚙️ Do you want to update (U), force fresh reinstall (F), or skip (S)? [U/F/S] ",
@@ -91,13 +95,12 @@ SETUP = {
                               "fr": "Choix invalide. Configuration d'écran annulée."},
     "screen_selected": {"en": "Screen Selected: {}", "fr": "Ecran Sélectionné: {}"},
     "screen_save_fail": {"en": "❌ Failed to save screen to config.ini", "fr": "❌ Échec de l'enregistrement dans config.ini"},
-    "screen_spi_info": {"en": "SPI screen selected — Enter the GPIO pin number (BCM) (22, 23, 24, etc).",
-                        "fr": "Écran SPI sélectionné — Entrez les numéros de GPIO (BCM) (22, 23, 24, etc)."},
-    "screen_cs_prompt": {"en": "CS pin (chip select)", "fr": "Broche CS (chip select)"},
+    "screen_spi_info": {"en": "SPI screen selected — you must enter the GPIO pin numbers (BCM). Type the value and press Enter.",
+                        "fr": "Écran SPI sélectionné — vous devez entrer les numéros de broches GPIO (BCM). Tapez la valeur puis appuyez sur Entrée."},
     "screen_dc_prompt": {"en": "DC pin (data/command)", "fr": "Broche DC (data/commande)"},
     "screen_reset_prompt": {"en": "RESET pin", "fr": "Broche RESET"},
-    "screen_bl_prompt": {"en": "BL pin (backlight) — leave empty it's not supported for now (need to connect it to 3.3v)",
-                         "fr": "Broche BL (rétro-éclairage) — Laisser vide, non implémenté pour le moment (branchez la sur 3.3v)"},
+    "screen_bl_prompt": {"en": "BL pin (backlight) — leave empty and press enter, it's not supported for now (need to connect it to 3.3v)",
+                         "fr": "Broche BL (rétro-éclairage) — Laisser vide et appuyer sur entrée, non implémenté pour le moment (branchez la sur 3.3v)"},
     "screen_saved_ok": {"en": "Screen configuration saved.", "fr": "Configuration de l'écran enregistrée."},
     "low_ram_warning": {"en": "\n⚠️ This device has {}MB RAM. Enable ZRAM for better stability.",
                         "fr": "\n⚠️ Ce périphérique a {}Mo de RAM. Activez ZRAM pour plus de stabilité."},
@@ -162,7 +165,7 @@ SETUP = {
     "profile_update_error": {"en": "❌ Failed to update ~/.profile: {}", "fr": "❌ Échec de la mise à jour de ~/.profile : {}"},
     "install_done": {"en": "\n✅ Installation complete.", "fr": "\n✅ Installation terminée."},
     "controle_explanation": {"en": "\n⚙️ Controle configuration:"
-                                   "\n- GPIO buttons or rotary: configure pins in config.ini.n"
+                                   "\n- GPIO buttons or rotary: configure pins in config.ini"
                                    "\n- IR Remote: Run ' python3 {} ' to install and configure LIRC.",
                              "fr": "\n⚙️ Configuration des Controle :"
                                    "\n- Boutons GPIO ou encodeur rotatif: configurez les broches dans config.ini."

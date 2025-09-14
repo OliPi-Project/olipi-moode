@@ -11,6 +11,7 @@ import stat
 import json
 import traceback
 import argparse
+import tempfile
 import urllib.request
 import urllib.error
 import re
@@ -43,6 +44,7 @@ DEFAULT_VENV_PATH = os.path.expanduser("~/.olipi-moode-venv")
 INSTALL_LIRC_REMOTE_PATH = os.path.join(INSTALL_DIR, "install_lirc_remote.py")
 SETTINGS_FILE = Path(INSTALL_DIR) / ".setup-settings.json"
 TMP_LOG_FILE = Path("/tmp/setup.log")
+CONFIG_TXT = "/boot/firmware/config.txt"
 
 _LOG_INITIALIZED = False
 
@@ -178,6 +180,94 @@ def install_apt_dependencies():
         run_command(f"sudo apt-get install -y {' '.join(missing)}", log_out=True, show_output=True, check=True)
 
     print(SETUP["apt_ok"][lang])
+
+def safe_read_file_as_lines(path, critical=True):
+    """Read file as lines as root."""
+    try:
+        res = run_command(f"cat {path}", log_out=True, show_output=False, check=False)
+        # run_command returns stdout as string for non-interactive
+        return res.stdout.splitlines()
+    except Exception as e1:
+        log_line(error=f"❌ Failed to read file with sudo: {e1}", context="safe_read_file_as_lines")
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                return f.readlines()
+        except Exception as e2:
+            log_line(error=f"❌ Direct read of {path} failed: {e2}", context="safe_read_file_as_lines")
+            if critical:
+                safe_exit(1, error=f"❌ Direct read of {path} failed: {e2}")
+            else:
+                print(f"⚠️ Could not read {path}, continuing anyway or ctrl+c to quit and check what wrong.")
+                return []
+
+def safe_write_file_as_root(path, lines, critical=True):
+    """Write file as root: create a tmp file then sudo mv into place (preserve content)."""
+    try:
+        with tempfile.NamedTemporaryFile('w', delete=False, encoding="utf-8") as tmp:
+            if isinstance(lines, list):
+                for line in lines:
+                    tmp.write(line if line.endswith("\n") else line + "\n")
+            else:
+                tmp.write(lines if lines.endswith("\n") else lines + "\n")
+            tmp_path = tmp.name
+        run_command(f"sudo cp {tmp_path} {path}", log_out=False, show_output=False, check=True)
+        run_command(f"sudo rm -f {tmp_path}", log_out=False, show_output=False, check=False)
+    except Exception as e:
+        log_line(error=f"❌ Write file as root of {path} failed: {e}", context="safe_write_file_as_root")
+        if critical:
+            safe_exit(1, error=f"❌ Write file as root of {path} failed: {e}")
+        else:
+            print(f"⚠️ Write file as root of {path} failed, continuing anyway or ctrl+c to quit and check what wrong.")
+            pass
+
+def create_backup(file_path, critical=True):
+    if os.path.exists(file_path):
+        backup_path = f"{file_path}.olipi-back"
+        if os.path.exists(backup_path):
+            print(SETUP["backup_exist"][lang].format(backup_path))
+            pass
+        else:
+            try:
+                run_command(f"cp -p {file_path} {backup_path}", sudo=True, log_out=True, show_output=True, check=True)
+                print(SETUP["backup_created"][lang].format(backup_path))
+            except Exception as e:
+                log_line(error=f"⚠ Backup of {file_path} failed: {e}", context="create_backup")
+                if critical:
+                    safe_exit(1, error=f"❌ Direct read of {file_path} failed: {e}")
+                else:
+                    print(f"⚠ Backup of {file_path} failed, continuing anyway or ctrl+c to quit and check what wrong.")
+                    pass
+
+def update_olipi_section(lines, marker, new_lines):
+    """
+    Update or add lines under a specific marker in # --- Olipi-moode --- section.
+    - marker: string identifier ('screen overlay' or 'ir overlay')
+    - new_lines: list of lines to insert
+    """
+    start_idx = None
+    section_found = False
+    for i, line in enumerate(lines):
+        if line.strip() == "# --- Olipi-moode ---":
+            section_found = True
+        if section_found and line.strip().lower() == f"# {marker}":
+            start_idx = i
+            break
+
+    if section_found and start_idx is not None:
+        # remplacer les lignes existantes après le marker
+        end_idx = start_idx + 1
+        while end_idx < len(lines) and not lines[end_idx].startswith("#"):
+            end_idx += 1
+        lines[start_idx+1:end_idx] = new_lines
+    else:
+        # ajouter section ou marker
+        if not section_found:
+            if lines and lines[-1].strip() != "":
+                lines.append("")
+            lines.append("# --- Olipi-moode ---")
+        lines.append(f"# {marker}")
+        lines.extend(new_lines)
+    return lines
 
 def safe_cleanup(path: Path, preserve_files=None, base: Path = None):
     """
@@ -609,6 +699,18 @@ def install_olipi_moode(mode="install"):
         mode=mode
     )
 
+def insert_screen_overlay(lines, screen_type, screen_id, rst=None, dc=None, bl=None, speed=None, txbuflen=None):
+    if screen_type == "i2c":
+        new_lines = ["dtparam=i2c_baudrate=400000"]
+    elif screen_type == "spi":
+        if bl:
+            new_lines = [f"dtoverlay=fbtft,spi0-0,{screen_id},reset_pin={rst},dc_pin={dc},led_pin={bl},speed={speed},txbuflen={txbuflen}"]
+        else:
+            new_lines = [f"dtoverlay=fbtft,spi0-0,{screen_id},reset_pin={rst},dc_pin={dc},speed={speed},txbuflen={txbuflen}"]
+    else:
+        return lines
+    return update_olipi_section(lines, "screen overlay", new_lines)
+
 def check_i2c():
     print(SETUP["i2c_check"][lang])
     result = run_command("sudo raspi-config nonint get_i2c", log_out=True, show_output=False, check=True)
@@ -624,14 +726,14 @@ def check_i2c():
             print(SETUP["i2c_enable_failed"][lang])
             safe_exit(1)
 
-    for _ in range(3):
+    for _ in range(10):
         res = run_command("i2cdetect -y 1", log_out=True, show_output=False, check=True)
         if res.stdout.strip():
             break
         time.sleep(1)
 
     detected_addresses = []
-    for line in result.stdout.splitlines():
+    for line in res.stdout.splitlines():
         if ":" in line:
             parts = line.split(":")[1].split()
             for part in parts:
@@ -668,7 +770,7 @@ def check_spi():
 
     # Detect /dev/spidev* entries (common device nodes for SPI)
     # Use a shell-friendly pattern and capture stdout
-    for _ in range(3):
+    for _ in range(10):
         res = run_command("ls /dev/spidev* 2>/dev/null || true", log_out=True, show_output=False, check=False)
         if res.stdout.strip():
             break
@@ -761,9 +863,16 @@ def configure_screen(olipi_moode_dir, olipi_core_dir):
     print(SETUP.get("screen_selected", {}).get(lang, "Selected: {}").format(selected))
     log_line(msg=f"User selected screen {selected} (type={meta.get('type')})", context="configure_screen")
 
+    create_backup(CONFIG_TXT)
+    lines = safe_read_file_as_lines(CONFIG_TXT, critical=True)
+
     if meta["type"] == "i2c":
+        lines = insert_screen_overlay(lines, "i2c", selected_id)
+        safe_write_file_as_root(CONFIG_TXT, lines, critical=True)
         check_i2c()
     elif meta["type"] == "spi":
+        lines = insert_screen_overlay(lines, "provisional", "")
+        safe_write_file_as_root(CONFIG_TXT, lines, critical=True)
         check_spi()
 
     try:
@@ -777,22 +886,18 @@ def configure_screen(olipi_moode_dir, olipi_core_dir):
     # If SPI -> ask pins and save them
     if meta.get("type") == "spi":
         print(SETUP.get("screen_spi_info", {}).get(lang, "SPI screen selected — Enter the GPIO pin number (BCM)."))
-        cs = safe_input(SETUP.get("screen_cs_prompt", {}).get(lang, "CS pin (chip select)"))
         dc = safe_input(SETUP.get("screen_dc_prompt", {}).get(lang, "DC pin (data/command)"))
         rst = safe_input(SETUP.get("screen_reset_prompt", {}).get(lang, "RESET pin"))
         bl = safe_input(SETUP.get("screen_bl_prompt", {}).get(lang, "BL pin (backlight) — leave empty if none)"))
 
-        try:
-            core_config.save_config("cs_pin", cs.upper(), section="screen", preserve_case=True)
-            core_config.save_config("dc_pin", dc.upper(), section="screen", preserve_case=True)
-            core_config.save_config("reset_pin", rst.upper(), section="screen", preserve_case=True)
-            if bl:
-                core_config.save_config("bl_pin", bl.upper(), section="screen", preserve_case=True)
-            log_line(msg=f"Saved SPI pins cs={cs}, dc={dc}, reset={rst}, bl={bl}", context="configure_screen")
-        except Exception as e:
-            print(SETUP.get("screen_save_fail", {}).get(lang, "❌ Failed to save pin configuration"))
-            safe_exit(1, error=f"❌ Failed to save pin configuration. {e}")
-            return False
+        speed = meta.get("speed", None)
+        txbuflen = meta.get("txbuflen", None)
+        lines = safe_read_file_as_lines(CONFIG_TXT, critical=True)
+        if bl:
+            lines = insert_screen_overlay(lines, "spi", selected_id.lower(), rst=rst, dc=dc, bl=bl, speed=speed, txbuflen=txbuflen)
+        else:
+            lines = insert_screen_overlay(lines, "spi", selected_id.lower(), rst=rst, dc=dc, speed=speed, txbuflen=txbuflen)
+        safe_write_file_as_root(CONFIG_TXT, lines, critical=True)
 
         core_config.reload_config()
         print(SETUP.get("screen_saved_ok", {}).get(lang, "Screen configuration saved."))
