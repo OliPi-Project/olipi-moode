@@ -9,7 +9,6 @@ import shutil
 import argparse
 import tempfile
 import re
-import glob
 import time
 import threading
 import configparser
@@ -462,22 +461,22 @@ def safe_write_file_as_root(path, lines, critical=True):
             print(f"⚠️ Write file as root of {path} failed, continuing anyway or ctrl+c to quit and check what wrong.")
             pass
 
-def create_backup(file_path, lang, critical=True):
-    if os.path.exists(file_path):
-        backup_path = f"{file_path}.olipi-back"
+def create_backup(path, lang, critical=True):
+    if os.path.exists(path):
+        backup_path = f"{path}.olipi-back"
         if os.path.exists(backup_path):
             print(MESSAGES["backup_exist"][lang].format(backup_path))
             pass
         else:
             try:
-                run_command(f"cp -p {file_path} {backup_path}", sudo=True, log_out=True, show_output=True, check=True)
+                run_command(f"cp -p {path} {backup_path}", sudo=True, log_out=True, show_output=True, check=True)
                 print(MESSAGES["backup_created"][lang].format(backup_path))
             except Exception as e:
-                log_line(error=f"⚠ Backup of {file_path} failed: {e}", context="create_backup")
+                log_line(error=f"⚠ Backup of {path} failed: {e}", context="create_backup")
                 if critical:
-                    safe_exit(1, error=f"❌ Direct read of {file_path} failed: {e}")
+                    safe_exit(1, error=f"❌ Direct read of {path} failed: {e}")
                 else:
-                    print(f"⚠ Backup of {file_path} failed, continuing anyway or ctrl+c to quit and check what wrong.")
+                    print(f"⚠ Backup of {path} failed, continuing anyway or ctrl+c to quit and check what wrong.")
                     pass
 
 # ---------- LIRC install / config functions ----------
@@ -487,6 +486,41 @@ def ask_gpio_pin(lang):
         if pin.isdigit() and 0 <= int(pin) <= 40:
             return int(pin)
         print("❌ Invalid GPIO pin. Please enter a number between 0 and 40.")
+
+def update_olipi_section(lines, marker, new_lines):
+    """
+    Update or add lines under a specific marker in # --- Olipi-moode --- section.
+    - marker: string identifier ('screen overlay' ou 'ir overlay')
+    - new_lines: list of lines à insérer
+    """
+    start_idx = None
+    section_found = False
+    for i, line in enumerate(lines):
+        if line.strip() == "# --- Olipi-moode ---":
+            section_found = True
+        if section_found and line.strip().lower() == f"# {marker}":
+            start_idx = i
+            break
+
+    if section_found and start_idx is not None:
+        # remplacer les lignes existantes après le marker
+        end_idx = start_idx + 1
+        while end_idx < len(lines) and not lines[end_idx].startswith("#"):
+            end_idx += 1
+        lines[start_idx+1:end_idx] = new_lines
+    else:
+        # ajouter section ou marker
+        if not section_found:
+            if lines and lines[-1].strip() != "":
+                lines.append("")
+            lines.append("# --- Olipi-moode ---")
+        lines.append(f"# {marker}")
+        lines.extend(new_lines)
+    return lines
+
+def insert_ir_overlay(lines, gpio_pin):
+    new_lines = [f"dtoverlay=gpio-ir,gpio_pin={gpio_pin}"]
+    return update_olipi_section(lines, "ir overlay", new_lines)
 
 def update_config_txt(lang):
     create_backup(CONFIG_TXT, lang)
@@ -506,38 +540,8 @@ def update_config_txt(lang):
     else:
         gpio_pin = ask_gpio_pin(lang)
 
-    # Clean up any occurrence of gpio-ir (avoid duplicates)
-    new_lines = []
-    for line in lines:
-        if regex.match(line.strip()):
-            continue
-        new_lines.append(line if line.endswith("\n") else line + "\n")
+    new_lines = insert_ir_overlay(lines, gpio_pin)
 
-    new_entry = f"dtoverlay=gpio-ir,gpio_pin={gpio_pin}\n"
-    insert_index = None
-
-    for i, line in enumerate(new_lines):
-        if line.strip().lower().startswith("# do not alter this section"):
-            # s'assurer qu'on n'empile pas d'espaces
-            if i > 0 and new_lines[i-1].strip() != "":
-                new_lines.insert(i, "\n")
-                i += 1
-            insert_index = i
-            break
-
-    if insert_index is None:
-        for i, line in enumerate(new_lines):
-            if line.strip().lower() == "[all]":
-                insert_index = i + 1
-                break
-
-    if insert_index is None:
-        if len(new_lines) > 0 and new_lines[-1].strip() != "":
-            new_lines.append("\n")
-        insert_index = len(new_lines)
-
-    # Insertion
-    new_lines.insert(insert_index, new_entry)
     safe_write_file_as_root(CONFIG_TXT, new_lines, critical=True)
     print(MESSAGES["updating_config"][lang])
     log_line(msg=f"Updated {CONFIG_TXT} with gpio_pin={gpio_pin}", context="update_config_txt")
