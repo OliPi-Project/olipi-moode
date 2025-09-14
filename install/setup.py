@@ -519,6 +519,7 @@ def install_repo(repo_name: str, repo_url: str, local_dir: Path, branch: str,
     print(SETUP.get(f"{repo_name.lower()}_cloned", {}).get(lang, f"✅ {repo_name} has been cloned to {temp_dir}").format(temp_dir))
 
     if mode != "dev_mode" and remote_tag not in ("dev", "tag not found"):
+        print(SETUP["checkout_tag"][lang].format(remote_tag, repo_name))
         run_command(f"git -C {temp_dir} fetch --tags origin", log_out=True, show_output=False, check=False)
         run_command(f"git -C {temp_dir} checkout {remote_tag}", log_out=True, show_output=False, check=False)
         local_tag = remote_tag
@@ -530,10 +531,14 @@ def install_repo(repo_name: str, repo_url: str, local_dir: Path, branch: str,
         with cloned_settings_file.open("r", encoding="utf-8") as fh:
             cloned_settings = json.load(fh)
         force_new_files = cloned_settings.get("force_new_files", {}).get(repo_name.lower(), [])
+        print(SETUP["found_settings"][lang].format(repo_name, force_new_files or "none"))
+        log_line(msg=f"Force new files for {repo_name}: {force_new_files}", context="install_repo")
     else:
         force_new_files = []
 
     if local_dir.exists():
+        print(SETUP["cleaning_local"][lang].format(local_dir, PRESERVE_FILES))
+        log_line(msg=f"Cleaning up {local_dir} (preserve: {PRESERVE_FILES})", context="install_repo")
         safe_cleanup(local_dir, preserve_files=PRESERVE_FILES)
     else:
         local_dir.mkdir(parents=True, exist_ok=True)
@@ -553,13 +558,18 @@ def install_repo(repo_name: str, repo_url: str, local_dir: Path, branch: str,
                 timestamp = time.strftime("%Y%m%d_%H%M%S")
                 backup_file = user_file.parent / f"{user_file.name}_backup_{timestamp}"
                 shutil.copy2(user_file, backup_file)
-                print(f"Backed up {user_file.name} → {backup_file}")
+                print(SETUP["backup_file"][lang].format(user_file.name, backup_file))
+                log_line(msg=f"Back up files for {user_file.name} → {backup_file}", context="install_repo")
             if dist_file.exists():
                 shutil.copy2(dist_file, user_file)
-                print(f"Overwritten {user_file.name} with {cfg}.dist")
+                print(SETUP["forced_overwrite"][lang].format(user_file.name, dist_file.name))
+                log_line(msg=f"Force overwrite for {dist_file} → {user_file}", context="install_repo")
         elif dist_file.exists():
             merge_ini_with_dist(user_file, dist_file)
-            print(f"Merged {cfg} with {cfg}.dist")
+            print(SETUP["merged_file"][lang].format(user_file.name, dist_file.name))
+            log_line(msg=f"Merged file {user_file} with {dist_file}", context="install_repo")
+        else:
+            print(SETUP["no_dist"][lang].format(user_file.name))
 
     log_line(msg=f"{repo_name} installed/updated. branch:{branch} tag:{local_tag}", context="install_repo")
 
