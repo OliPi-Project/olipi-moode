@@ -744,13 +744,14 @@ def check_i2c():
             print(SETUP["i2c_enabling"][lang])
             # dtparam=i2c_arm=on is normally already enabled by Moode audio, but just in case we tell raspi-config where to write it if disabled:
             lines = update_olipi_section(lines, "screen overlay", ["#dtparam=i2c_arm=on"], replace_prefixes=["dtparam=i2c_arm=on"])
+            safe_write_file_as_root(CONFIG_TXT, lines, critical=True)
             # attempt to enable i2c (non-fatal here but requires reboot)
             run_command("sudo raspi-config nonint do_i2c 0", log_out=True, show_output=False, check=True)
             print(SETUP["i2c_enabled"][lang])
-            print(SETUP["i2c_reboot_required"][lang])
         else:
             print(SETUP["i2c_enable_failed"][lang])
             safe_exit(1)
+    lines = safe_read_file_as_lines(CONFIG_TXT, critical=True)
     lines = update_olipi_section(lines, "screen overlay", ["dtparam=i2c_baudrate=400000"], replace_prefixes=["dtparam=i2c_baudrate"])
     safe_write_file_as_root(CONFIG_TXT, lines, critical=True)
 
@@ -768,17 +769,35 @@ def check_i2c():
                 if part != "--":
                     detected_addresses.append(part.lower())
     if detected_addresses:
-        print(SETUP["i2c_addresses_detected"][lang].format(", ".join(["0x" + addr for addr in detected_addresses])))
+        print(SETUP["i2c_addresses_detected"][lang].format(
+            ", ".join(["0x" + addr for addr in detected_addresses])
+        ))
+
+        # If standard address found
         if "3c" in detected_addresses or "3d" in detected_addresses:
-            print(SETUP["i2c_display_ok"][lang])
-        else:
-            print(SETUP["i2c_no_display"][lang])
-            print(SETUP["i2c_check_wiring"][lang])
+            default_addr = "3c" if "3c" in detected_addresses else "3d"
+            print(SETUP["i2c_display_ok"][lang].format("0x" + default_addr))
+            
+        # Ask user to choose
+        print(SETUP["i2c_choose_detected"][lang])
+        for i, addr in enumerate(detected_addresses, start=1):
+            print(f"[{i}] 0x{addr}")
+        choice = input("> ").strip()
+        try:
+            idx = int(choice) - 1
+            selected_addr = detected_addresses[idx]
+        except (ValueError, IndexError):
+            print("❌ Invalid choice.")
             safe_exit(1)
+
+        # Save in config.ini
+        core_config.save_config("i2c_address", "0x" + selected_addr, section="screen", preserve_case=True)
+        print(SETUP["i2c_saved"][lang].format("0x" + selected_addr))
     else:
         print(SETUP["i2c_no_display"][lang])
-        print(SETUP["i2c_no_devices"][lang])
+        print(SETUP["i2c_check_wiring"][lang])
         safe_exit(1)
+
 
 def check_spi():
     print(SETUP["spi_check"][lang])
@@ -792,14 +811,13 @@ def check_spi():
         if choice in ["", "y", "o"]:
             # dtparam=spi=on is absent by default on Moode audio, so we tell raspi-config where to write it:
             lines = update_olipi_section(lines, "screen overlay", ["#dtparam=spi=on"], replace_prefixes=["dtparam=spi=on"])
+            safe_write_file_as_root(CONFIG_TXT, lines, critical=True)
             print(SETUP["spi_enabling"][lang])
             run_command("sudo raspi-config nonint do_spi 0", log_out=True, show_output=False, check=True)
             print(SETUP["spi_enabled"][lang])
-            print(SETUP["spi_reboot_required"][lang])
         else:
             print(SETUP["spi_enable_failed"][lang])
             safe_exit(1)
-    safe_write_file_as_root(CONFIG_TXT, lines, critical=True)
 
     # Detect /dev/spidev* entries (common device nodes for SPI)
     # Use a shell-friendly pattern and capture stdout
@@ -817,7 +835,6 @@ def check_spi():
                 devices.append(p)
     if devices:
         print(SETUP["spi_devices_detected"][lang].format(", ".join(devices)))
-        print(SETUP.get("spi_ready", {}).get(lang, "✅ SPI interface looks OK."))
         log_line(msg=f"SPI devices found: {', '.join(devices)}", context="check_spi")
         return True
     else:
