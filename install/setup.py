@@ -231,38 +231,37 @@ def create_backup(file_path, critical=True):
                     print(f"⚠ Backup of {file_path} failed, continuing anyway or ctrl+c to quit and check what wrong.")
                     pass
 
-def normalize_line(l: str) -> str:
-    return l.rstrip("\n") + "\n"
+def normalize_line(line: str) -> str:
+    """Ensure the line ends with a single newline and strip trailing spaces."""
+    return line.rstrip() + "\n"
 
 def update_olipi_section(lines, marker, new_lines=None, replace_prefixes=None, clear=False):
     """
-    Update or clear a block under a specific marker in the # --- Olipi-moode --- section.
+    Update, clear, or insert a block under a specific marker in the # --- Olipi-moode --- section.
 
-    - marker: string identifier ("screen overlay", "ir overlay", …)
-    - new_lines: list of strings to insert (ignored if clear=True)
-    - replace_prefixes: if given, remove any matching lines (even if commented) globally,
-      then insert only inside this marker block
-    - clear=True: wipe all lines under this marker
+    Markers must follow the convention:
+        # @marker: screen overlay
+        # @marker: ir overlay
+
+    Parameters:
+        - marker: string identifier ("screen overlay", "ir overlay", …)
+        - new_lines: list of strings to insert (ignored if clear=True)
+        - replace_prefixes: if given, remove any matching lines (even if commented) globally,
+          then insert/replace only inside this marker block
+        - clear: True → wipe all lines under this marker
+
+    Behavior:
+        - clear=True takes priority and empties the block under the marker
+        - replace_prefixes removes matching lines anywhere in the file (commented or not)
+        - new_lines are added/replaced only in the marker block
     """
     section_header = "# --- Olipi-moode ---"
     marker_line = f"# @marker: {marker}"
 
     section_found = False
     marker_idx = None
-    end_idx = None
 
-    # Remove globally any lines matching replace_prefixes
-    if replace_prefixes:
-        prefixes = tuple(replace_prefixes)
-        cleaned = []
-        for line in lines:
-            check = line.lstrip("# ").strip()
-            if any(check.startswith(p) for p in prefixes):
-                continue
-            cleaned.append(line)
-        lines = cleaned
-
-    # Find section and marker
+    # Step 1: find the section and marker
     for i, line in enumerate(lines):
         if line.strip() == section_header:
             section_found = True
@@ -270,29 +269,45 @@ def update_olipi_section(lines, marker, new_lines=None, replace_prefixes=None, c
             marker_idx = i
             break
 
+    # Step 2: if marker exists and clear=True, wipe the block immediately
     if marker_idx is not None:
-        # Find end of block: to next marker or end of file
         end_idx = marker_idx + 1
         while end_idx < len(lines) and not lines[end_idx].lstrip().startswith("# @marker:"):
             end_idx += 1
-
         if clear:
             lines[marker_idx+1:end_idx] = []
             return lines
 
-        block = lines[marker_idx+1:end_idx]
+    # Step 3: remove globally any lines matching replace_prefixes (skip if clear)
+    if replace_prefixes and not clear:
+        prefixes = tuple(replace_prefixes)
+        cleaned = []
+        for line in lines:
+            check = line.lstrip("# ").strip()  # ignore leading # and spaces
+            if any(check.startswith(p) for p in prefixes):
+                continue
+            cleaned.append(line)
+        lines = cleaned
+
+    # Step 4: insert or replace lines in the marker block
+    if marker_idx is not None and not clear:
+        # find end of block
+        end_idx = marker_idx + 1
+        while end_idx < len(lines) and not lines[end_idx].lstrip().startswith("# @marker:"):
+            end_idx += 1
+
         if replace_prefixes is None:
-            # Replace completely
             if new_lines:
                 lines[marker_idx+1:end_idx] = [normalize_line(l) for l in new_lines]
         else:
-            # Selective replacement
+            # selective replacement inside the block
+            block = lines[marker_idx+1:end_idx]
             filtered = [normalize_line(l) for l in block]
             if new_lines:
                 filtered.extend([normalize_line(l) for l in new_lines])
             lines[marker_idx+1:end_idx] = filtered
     else:
-        # Section or marker missing → add
+        # marker or section missing → add
         if not section_found:
             if lines and lines[-1].strip() != "":
                 lines.append("")
@@ -733,7 +748,7 @@ def install_olipi_moode(mode="install"):
         mode=mode
     )
 
-def check_i2c():
+def check_i2c(core_config):
     print(SETUP["i2c_check"][lang])
     lines = safe_read_file_as_lines(CONFIG_TXT, critical=True)
     lines = update_olipi_section(lines, "screen overlay", clear=True)
@@ -798,8 +813,7 @@ def check_i2c():
         print(SETUP["i2c_check_wiring"][lang])
         safe_exit(1)
 
-
-def check_spi():
+def check_spi(core_config):
     print(SETUP["spi_check"][lang])
     lines = safe_read_file_as_lines(CONFIG_TXT, critical=True)
     lines = update_olipi_section(lines, "screen overlay", clear=True)
@@ -874,7 +888,6 @@ def configure_screen(olipi_moode_dir, olipi_core_dir):
     os.environ["OLIPI_DIR"] = str(Path(olipi_moode_dir))
     if str(Path(olipi_moode_dir)) not in sys.path:
         sys.path.insert(0, str(Path(olipi_moode_dir)))
-
     try:
         from olipi_core import core_config
     except Exception as e:
@@ -916,9 +929,9 @@ def configure_screen(olipi_moode_dir, olipi_core_dir):
     create_backup(CONFIG_TXT)
 
     if meta["type"] == "i2c":
-        check_i2c()
+        check_i2c(core_config)
     elif meta["type"] == "spi":
-        check_spi()
+        check_spi(core_config)
 
     try:
         core_config.save_config("current_screen", selected_id.upper(), section="screen", preserve_case=True)
