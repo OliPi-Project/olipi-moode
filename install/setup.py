@@ -681,7 +681,10 @@ def install_repo(repo_name: str, repo_url: str, local_dir: Path, branch: str,
 
     # load mergeable files declared in repo we just cloned
     mergeable_files, repo_force_on_major = load_mergeable_files(temp_dir)
-    print(SETUP.get("found_settings", {}).get(lang, "Found settings for {}: {}").format(repo_name, mergeable_files or "none"))
+    if mergeable_files:
+        print(SETUP.get("found_mergeable", {}).get(lang, "⚙️ Found mergeable files for {}: {}").format(repo_name, mergeable_files or "none"))
+    if repo_force_on_major:
+        print(SETUP.get("found_force_dist", {}).get(lang, "⚙️ On major update → force new files for {}: {}").format(repo_name, repo_force_on_major or "none"))
     log_line(msg=f"Mergeable files for {repo_name}: {mergeable_files} / force_on_major: {repo_force_on_major}", context="install_repo")
 
     # decide change_type (same/minor/major) if we had a local repo
