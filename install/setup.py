@@ -231,37 +231,28 @@ def create_backup(file_path, critical=True):
                     print(f"⚠ Backup of {file_path} failed, continuing anyway or ctrl+c to quit and check what wrong.")
                     pass
 
-def normalize_line(line: str) -> str:
-    """Ensure the line ends with a single newline and strip trailing spaces."""
-    return line.rstrip() + "\n"
-
 def update_olipi_section(lines, marker, new_lines=None, replace_prefixes=None, clear=False):
     """
-    Update, clear, or insert a block under a specific marker in the # --- Olipi-moode --- section.
+    Update or clear a block under a specific marker inside the # --- Olipi-moode --- section.
 
-    Markers must follow the convention:
-        # @marker: screen overlay
-        # @marker: ir overlay
+    Args:
+        lines (list[str]): current config.txt file as a list of lines
+        marker (str): marker identifier (e.g. "screen overlay", "ir overlay")
+        new_lines (list[str] | None): lines to insert (ignored if clear=True)
+        replace_prefixes (list[str] | None): if given, remove any matching lines (even if commented) globally,
+                                             then insert only inside this marker block
+        clear (bool): if True, wipe all lines under this marker
 
-    Parameters:
-        - marker: string identifier ("screen overlay", "ir overlay", …)
-        - new_lines: list of strings to insert (ignored if clear=True)
-        - replace_prefixes: if given, remove any matching lines (even if commented) globally,
-          then insert/replace only inside this marker block
-        - clear: True → wipe all lines under this marker
-
-    Behavior:
-        - clear=True takes priority and empties the block under the marker
-        - replace_prefixes removes matching lines anywhere in the file (commented or not)
-        - new_lines are added/replaced only in the marker block
+    Returns:
+        list[str]: updated list of lines
     """
+
     section_header = "# --- Olipi-moode ---"
     marker_line = f"# @marker: {marker}"
 
+    # Locate section and marker
     section_found = False
     marker_idx = None
-
-    # Step 1: find the section and marker
     for i, line in enumerate(lines):
         if line.strip() == section_header:
             section_found = True
@@ -269,52 +260,52 @@ def update_olipi_section(lines, marker, new_lines=None, replace_prefixes=None, c
             marker_idx = i
             break
 
-    # Step 2: if marker exists and clear=True, wipe the block immediately
-    if marker_idx is not None:
+    # If clear=True → remove the whole block under this marker
+    if marker_idx is not None and clear:
         end_idx = marker_idx + 1
         while end_idx < len(lines) and not lines[end_idx].lstrip().startswith("# @marker:"):
             end_idx += 1
-        if clear:
-            lines[marker_idx+1:end_idx] = []
-            return lines
+        lines[marker_idx+1:end_idx] = []
+        return lines
 
-    # Step 3: remove globally any lines matching replace_prefixes (skip if clear)
-    if replace_prefixes and not clear:
+    # Remove globally any lines matching replace_prefixes (commented or not)
+    if replace_prefixes:
         prefixes = tuple(replace_prefixes)
         cleaned = []
         for line in lines:
-            check = line.lstrip("# ").strip()  # ignore leading # and spaces
+            check = line.lstrip("# ").strip()
             if any(check.startswith(p) for p in prefixes):
                 continue
             cleaned.append(line)
         lines = cleaned
 
-    # Step 4: insert or replace lines in the marker block
+    # If marker exists → replace or extend block
     if marker_idx is not None and not clear:
-        # find end of block
+        # Find block end (next marker or end of file)
         end_idx = marker_idx + 1
         while end_idx < len(lines) and not lines[end_idx].lstrip().startswith("# @marker:"):
             end_idx += 1
 
         if replace_prefixes is None:
+            # Replace the whole block
             if new_lines:
-                lines[marker_idx+1:end_idx] = [normalize_line(l) for l in new_lines]
+                lines[marker_idx+1:end_idx] = [l.rstrip() + "\n" for l in new_lines]
         else:
-            # selective replacement inside the block
+            # Selective replacement inside the block
             block = lines[marker_idx+1:end_idx]
-            filtered = [normalize_line(l) for l in block]
+            filtered = [l.rstrip() + "\n" for l in block]
             if new_lines:
-                filtered.extend([normalize_line(l) for l in new_lines])
+                filtered.extend([l.rstrip() + "\n" for l in new_lines])
             lines[marker_idx+1:end_idx] = filtered
     else:
-        # marker or section missing → add
+        # Section or marker not found → add them
         if not section_found:
             if lines and lines[-1].strip() != "":
                 lines.append("")
             lines.append(section_header)
         lines.append(marker_line)
         if not clear and new_lines:
-            lines.extend([normalize_line(l) for l in new_lines])
+            lines.extend([l.rstrip() + "\n" for l in new_lines])
 
     return lines
 
@@ -751,7 +742,7 @@ def install_olipi_moode(mode="install"):
 def check_i2c(core_config):
     print(SETUP["i2c_check"][lang])
     lines = safe_read_file_as_lines(CONFIG_TXT, critical=True)
-    lines = update_olipi_section(lines, "screen overlay", clear=True)
+    lines = update_olipi_section(lines, "screen overlay", clear=True)   
     result = run_command("sudo raspi-config nonint get_i2c", log_out=True, show_output=False, check=True)
     if result.returncode != 0 or result.stdout.strip() != "0":
         choice = input(SETUP["i2c_disabled"][lang] + " > ").strip().lower()
@@ -763,10 +754,10 @@ def check_i2c(core_config):
             # attempt to enable i2c (non-fatal here but requires reboot)
             run_command("sudo raspi-config nonint do_i2c 0", log_out=True, show_output=False, check=True)
             print(SETUP["i2c_enabled"][lang])
+            lines = safe_read_file_as_lines(CONFIG_TXT, critical=True)
         else:
             print(SETUP["i2c_enable_failed"][lang])
             safe_exit(1)
-    lines = safe_read_file_as_lines(CONFIG_TXT, critical=True)
     lines = update_olipi_section(lines, "screen overlay", ["dtparam=i2c_baudrate=400000"], replace_prefixes=["dtparam=i2c_baudrate"])
     safe_write_file_as_root(CONFIG_TXT, lines, critical=True)
 
