@@ -32,8 +32,6 @@ spectrum_profile = {"win_s":2048, "hop_s":1024, "smoothing":0.65, "attack":0.55,
 manual_bands =
 # Optional manual bands: comma-separated ranges "fmin-fmax" (manual_bands = 20-60, 55-100, etc). Modify num_bars to match.
 
-
-
 [manual]
 # Manual settings:
 # Blacklist files or folders to avoid reading them via the randoms functions:
