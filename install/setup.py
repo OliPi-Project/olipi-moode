@@ -18,7 +18,6 @@ import re
 from pathlib import Path
 from lang import SETUP
 
-# --- Constants ---
 APT_DEPENDENCIES = [
     "git", "python3-pil", "python3-venv", "python3-pip", "python3-tk", "libasound2-dev", "libatlas-base-dev",
     "i2c-tools", "libgpiod-dev", "python3-libgpiod", "python3-lgpio", "python3-setuptools"
@@ -48,9 +47,6 @@ CONFIG_TXT = "/boot/firmware/config.txt"
 
 _LOG_INITIALIZED = False
 
-# -----------------------
-# Logging & shell helpers
-# -----------------------
 def finalize_log(exit_code=0):
     """Move the temporary log file to INSTALL_DIR/logs with status."""
     try:
@@ -136,9 +132,6 @@ def run_command(cmd, log_out=True, show_output=False, check=False):
 
     return result
 
-# -----------------------
-# Utilities
-# -----------------------
 def choose_language():
     global lang
     print(SETUP.get("choose_language", {}).get(lang, "Please choose your language:"))
@@ -238,35 +231,76 @@ def create_backup(file_path, critical=True):
                     print(f"⚠ Backup of {file_path} failed, continuing anyway or ctrl+c to quit and check what wrong.")
                     pass
 
-def update_olipi_section(lines, marker, new_lines):
+def normalize_line(l: str) -> str:
+    return l.rstrip("\n") + "\n"
+
+def update_olipi_section(lines, marker, new_lines=None, replace_prefixes=None, clear=False):
     """
-    Update or add lines under a specific marker in # --- Olipi-moode --- section.
-    - marker: string identifier ('screen overlay' or 'ir overlay')
-    - new_lines: list of lines to insert
+    Update or clear a block under a specific marker in the # --- Olipi-moode --- section.
+
+    - marker: string identifier ("screen overlay", "ir overlay", …)
+    - new_lines: list of strings to insert (ignored if clear=True)
+    - replace_prefixes: if given, remove any matching lines (even if commented) globally,
+      then insert only inside this marker block
+    - clear=True: wipe all lines under this marker
     """
-    start_idx = None
+    section_header = "# --- Olipi-moode ---"
+    marker_line = f"# @marker: {marker}"
+
     section_found = False
+    marker_idx = None
+    end_idx = None
+
+    # Remove globally any lines matching replace_prefixes
+    if replace_prefixes:
+        prefixes = tuple(replace_prefixes)
+        cleaned = []
+        for line in lines:
+            check = line.lstrip("# ").strip()
+            if any(check.startswith(p) for p in prefixes):
+                continue
+            cleaned.append(line)
+        lines = cleaned
+
+    # Find section and marker
     for i, line in enumerate(lines):
-        if line.strip() == "# --- Olipi-moode ---":
+        if line.strip() == section_header:
             section_found = True
-        if section_found and line.strip().lower() == f"# {marker}":
-            start_idx = i
+        if section_found and line.strip().lower() == marker_line.lower():
+            marker_idx = i
             break
 
-    if section_found and start_idx is not None:
-        # remplacer les lignes existantes après le marker
-        end_idx = start_idx + 1
-        while end_idx < len(lines) and not lines[end_idx].startswith("#"):
+    if marker_idx is not None:
+        # Find end of block: to next marker or end of file
+        end_idx = marker_idx + 1
+        while end_idx < len(lines) and not lines[end_idx].lstrip().startswith("# @marker:"):
             end_idx += 1
-        lines[start_idx+1:end_idx] = new_lines
+
+        if clear:
+            lines[marker_idx+1:end_idx] = []
+            return lines
+
+        block = lines[marker_idx+1:end_idx]
+        if replace_prefixes is None:
+            # Replace completely
+            if new_lines:
+                lines[marker_idx+1:end_idx] = [normalize_line(l) for l in new_lines]
+        else:
+            # Selective replacement
+            filtered = [normalize_line(l) for l in block]
+            if new_lines:
+                filtered.extend([normalize_line(l) for l in new_lines])
+            lines[marker_idx+1:end_idx] = filtered
     else:
-        # ajouter section ou marker
+        # Section or marker missing → add
         if not section_found:
             if lines and lines[-1].strip() != "":
                 lines.append("")
-            lines.append("# --- Olipi-moode ---")
-        lines.append(f"# {marker}")
-        lines.extend(new_lines)
+            lines.append(section_header)
+        lines.append(marker_line)
+        if not clear and new_lines:
+            lines.extend([normalize_line(l) for l in new_lines])
+
     return lines
 
 def safe_cleanup(path: Path, preserve_files=None, base: Path = None):
@@ -699,31 +733,17 @@ def install_olipi_moode(mode="install"):
         mode=mode
     )
 
-def insert_screen_overlay(lines, screen_type, screen_id, rst=None, dc=None, bl=None, speed=None, txbuflen=None):
-    if screen_type == "i2c":
-        new_lines = ["dtparam=i2c_baudrate=400000"]
-    elif screen_type == "spi":
-        overlay_line = f"dtoverlay=fbtft,spi0-0,{screen_id},reset_pin={rst},dc_pin={dc}"
-        if bl:
-            overlay_line += f",led_pin={bl}"
-        if speed:
-            overlay_line += f",speed={speed}"
-        if txbuflen:
-            overlay_line += f",txbuflen={txbuflen}"
-        new_lines = [overlay_line]
-    elif screen_type == "provisional":
-        new_lines = ["#dtparam=spi=on"]
-    else:
-        return lines
-    return update_olipi_section(lines, "screen overlay", new_lines)
-
 def check_i2c():
     print(SETUP["i2c_check"][lang])
+    lines = safe_read_file_as_lines(CONFIG_TXT, critical=True)
+    lines = update_olipi_section(lines, "screen overlay", clear=True)
     result = run_command("sudo raspi-config nonint get_i2c", log_out=True, show_output=False, check=True)
     if result.returncode != 0 or result.stdout.strip() != "0":
         choice = input(SETUP["i2c_disabled"][lang] + " > ").strip().lower()
         if choice in ["", "y", "o"]:
             print(SETUP["i2c_enabling"][lang])
+            # dtparam=i2c_arm=on is normally already enabled by Moode audio, but just in case we tell raspi-config where to write it if disabled:
+            lines = update_olipi_section(lines, "screen overlay", ["#dtparam=i2c_arm=on"], replace_prefixes=["dtparam=i2c_arm=on"])
             # attempt to enable i2c (non-fatal here but requires reboot)
             run_command("sudo raspi-config nonint do_i2c 0", log_out=True, show_output=False, check=True)
             print(SETUP["i2c_enabled"][lang])
@@ -731,6 +751,8 @@ def check_i2c():
         else:
             print(SETUP["i2c_enable_failed"][lang])
             safe_exit(1)
+    lines = update_olipi_section(lines, "screen overlay", ["dtparam=i2c_baudrate=400000"], replace_prefixes=["dtparam=i2c_baudrate"])
+    safe_write_file_as_root(CONFIG_TXT, lines, critical=True)
 
     for _ in range(10):
         res = run_command("i2cdetect -y 1", log_out=True, show_output=False, check=True)
@@ -760,12 +782,16 @@ def check_i2c():
 
 def check_spi():
     print(SETUP["spi_check"][lang])
+    lines = safe_read_file_as_lines(CONFIG_TXT, critical=True)
+    lines = update_olipi_section(lines, "screen overlay", clear=True)
     # Ask raspi-config whether SPI is enabled (nonint getter)
     result = run_command("sudo raspi-config nonint get_spi", log_out=True, show_output=False, check=True)
     if result.returncode != 0 or result.stdout.strip() != "0":
         # SPI reported disabled -> offer to enable (requires reboot)
         choice = input(SETUP["spi_disabled"][lang] + " > ").strip().lower()
         if choice in ["", "y", "o"]:
+            # dtparam=spi=on is absent by default on Moode audio, so we tell raspi-config where to write it:
+            lines = update_olipi_section(lines, "screen overlay", ["#dtparam=spi=on"], replace_prefixes=["dtparam=spi=on"])
             print(SETUP["spi_enabling"][lang])
             run_command("sudo raspi-config nonint do_spi 0", log_out=True, show_output=False, check=True)
             print(SETUP["spi_enabled"][lang])
@@ -773,6 +799,7 @@ def check_spi():
         else:
             print(SETUP["spi_enable_failed"][lang])
             safe_exit(1)
+    safe_write_file_as_root(CONFIG_TXT, lines, critical=True)
 
     # Detect /dev/spidev* entries (common device nodes for SPI)
     # Use a shell-friendly pattern and capture stdout
@@ -870,15 +897,10 @@ def configure_screen(olipi_moode_dir, olipi_core_dir):
     log_line(msg=f"User selected screen {selected} (type={meta.get('type')})", context="configure_screen")
 
     create_backup(CONFIG_TXT)
-    lines = safe_read_file_as_lines(CONFIG_TXT, critical=True)
 
     if meta["type"] == "i2c":
-        lines = insert_screen_overlay(lines, "i2c", selected_id)
-        safe_write_file_as_root(CONFIG_TXT, lines, critical=True)
         check_i2c()
     elif meta["type"] == "spi":
-        lines = insert_screen_overlay(lines, "provisional", "")
-        safe_write_file_as_root(CONFIG_TXT, lines, critical=True)
         check_spi()
 
     try:
@@ -898,11 +920,19 @@ def configure_screen(olipi_moode_dir, olipi_core_dir):
 
         speed = meta.get("speed", None)
         txbuflen = meta.get("txbuflen", None)
+
         lines = safe_read_file_as_lines(CONFIG_TXT, critical=True)
+
+        overlay_line = f"dtoverlay=fbtft,spi0-0,{selected_id.lower()},reset_pin={rst},dc_pin={dc}"
         if bl:
-            lines = insert_screen_overlay(lines, "spi", selected_id.lower(), rst=rst, dc=dc, bl=bl, speed=speed, txbuflen=txbuflen)
-        else:
-            lines = insert_screen_overlay(lines, "spi", selected_id.lower(), rst=rst, dc=dc, speed=speed, txbuflen=txbuflen)
+            overlay_line += f",led_pin={bl}"
+        if speed:
+            overlay_line += f",speed={speed}"
+        if txbuflen:
+            overlay_line += f",txbuflen={txbuflen}"
+        new_lines = [overlay_line]
+        lines = update_olipi_section(lines, "screen overlay", new_lines, replace_prefixes=["dtoverlay=fbtft"])
+
         safe_write_file_as_root(CONFIG_TXT, lines, critical=True)
 
         core_config.reload_config()
