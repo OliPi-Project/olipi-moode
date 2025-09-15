@@ -31,8 +31,7 @@ OLIPI_CORE_REPO = "https://github.com/OliPi-Project/olipi-core.git"
 OLIPI_MOODE_REPO = "https://github.com/OliPi-Project/olipi-moode.git"
 OLIPI_MOODE_DEV_BRANCH = "dev"
 OLIPI_CORE_DEV_BRANCH = "dev"
-PRESERVE_FILES = ["config.ini"] # path relative to local_dir e.g. ["config/user_key.ini, config.ini"]
-CONFIG_FILES = ["config.ini"] # path relative to local_dir e.g. ["config/user_key.ini, config.ini"]
+PRESERVE_FILES = [] # path relative to local_dir e.g. ["config/user_key.ini, something.ini"]
 
 lang = "en"
 
@@ -589,101 +588,141 @@ def compare_version(local, remote):
 
     return "same"
 
-# -----------------------
-# Repo install/update flow
-# -----------------------
+def load_mergeable_files(repo_dir: Path):
+    """
+    Load mergeable files declared in .mergeable_files.json at the root of the repo.
+
+    Returns a tuple: (mergeable_files:list, force_on_major:list)
+
+    Accepts:
+      - {"mergeable": [...], "force_on_major": [...]} (preferred)
+      - {"mergeable": [...]} (no force_on_major)
+      - ["a","b"] (shorthand -> treated as mergeable)
+    """
+    mergeable_file = Path(repo_dir) / ".mergeable_files.json"
+    if not mergeable_file.exists():
+        return [], []
+    try:
+        with mergeable_file.open("r", encoding="utf-8") as fh:
+            data = json.load(fh)
+        if isinstance(data, dict):
+            mergeable = data.get("mergeable", []) or []
+            force_on_major = data.get("force_on_major", []) or []
+            # normalize to list of strings
+            mergeable = [str(x) for x in mergeable]
+            force_on_major = [str(x) for x in force_on_major]
+            return mergeable, force_on_major
+        elif isinstance(data, list):
+            # shorthand: list == mergeable
+            return [str(x) for x in data], []
+    except Exception as e:
+        log_line(error=f"Failed to load mergeable files: {e}", context="load_mergeable_files")
+    return [], []
+
+# --- install_repo (refondue) -----------------------------------------------
 def install_repo(repo_name: str, repo_url: str, local_dir: Path, branch: str,
-                 settings_keys: dict, mode: str = "install"):
- 
+                 settings_keys: dict, mode: str = "install") -> Path:
+    """
+    Clone/update a repository and handle mergeable files declared in .mergeable_files.json.
+    - If a major upgrade is detected, files in DEFAULT_FORCE_ON_MAJOR that are listed
+      as mergeable will be reset from their .dist (with backup).
+    - Merge .dist into user files for other mergeable files.
+    """
     print(SETUP.get(f"install_{repo_name.lower()}", {}).get(lang,
           f"Installing {repo_name}..."))
 
     local_dir = Path(local_dir)
-    remote_tag = "dev" if mode == "dev_mode" else get_latest_release_tag(repo_url, branch=branch) or "tag not found"
-    local_tag = "unknown"
-
     repo_exists = local_dir.exists() and (local_dir / ".git").exists()
-    if repo_exists:
-        local_tag = get_latest_release_tag(str(local_dir), branch=branch) or "unknown"
-        print(SETUP.get(f"{repo_name.lower()}_exists", {}).get(lang, f"{local_dir} already exists.").format(local_dir))
 
+    # determine remote and local tags
+    remote_tag = "dev" if mode == "dev_mode" else get_latest_release_tag(repo_url, branch=branch) or ""
+    local_tag = ""
+    if repo_exists:
+        local_tag = get_latest_release_tag(str(local_dir), branch=branch) or ""
+
+    # Decide whether to update/clone
     update_needed = False
     if mode == "install":
         update_needed = True
-
+    elif mode == "dev_mode":
+        update_needed = True
     elif mode == "update":
         if not repo_exists:
             print(SETUP.get("repo_not_git", {}).get(lang, "⚠️ Folder {} exists but is not a Git repository. Update needed").format(local_dir))
             update_needed = True
         else:
+            # interactive prompt (keeps previous behaviour)
             if version_is_newer(local_tag, remote_tag):
                 upd_msg = SETUP.get("update_prompt", {}).get(lang, "✅  A newer release (local {}, remote {}) is available. Update now? [Y/n] ").format(local_tag, remote_tag)
             else:
-                upd_msg = SETUP.get("already_uptodate", {}).get(lang, "✅ Already up-to-date (local {}, remote {}. Force Update? [Y/n]).").format(local_tag, remote_tag)
-            ans = input(upd_msg).strip().lower()    
+                upd_msg = SETUP.get("already_uptodate", {}).get(lang, "✅ Already up-to-date (local {}, remote {}). Force Update? [Y/n]").format(local_tag, remote_tag)
+            ans = input(upd_msg).strip().lower()
             if ans in ("", "y", "o"):
                 update_needed = True
-
-    elif mode == "dev_mode":
-        update_needed = True
-
-    if update_needed and repo_exists and repo_name.lower() == "moode":
-        backup_ans = input(SETUP.get("repo_backup_prompt", {}).get(lang,
-                            "⚠️ Folder {} already exists. Keep a backup before overwriting? [Y/n] ").format(local_dir)).strip().lower()
-        if backup_ans in ("", "y", "o"):
-            timestamp = time.strftime("%Y%m%d_%H%M%S")
-            backup_dir = local_dir.parent / f"{local_dir.name}_backup_{timestamp}"
-            copytree_safe(local_dir, backup_dir)
-            print(SETUP.get("repo_backup", {}).get(lang, "📦 Existing folder {} copied to {} before cloning.").format(local_dir, backup_dir))
 
     if not update_needed:
         log_line(msg=f"{repo_name} is already up-to-date (local {local_tag}, remote {remote_tag})", context="install_repo")
         return local_dir
 
+    # clone into a temp dir
     temp_dir = local_dir.parent / (local_dir.name + "_tmp_clone")
     if temp_dir.exists():
         shutil.rmtree(temp_dir)
-
-    clone_cmd = f"git clone --branch {branch} {repo_url} {temp_dir}"
-    run_command(clone_cmd, log_out=True, show_output=True, check=True)
+    run_command(f"git clone --branch {branch} {repo_url} {temp_dir}", log_out=True, show_output=True, check=True)
     print(SETUP.get(f"{repo_name.lower()}_cloned", {}).get(lang, f"✅ {repo_name} has been cloned to {temp_dir}").format(temp_dir))
 
-    if mode != "dev_mode" and remote_tag not in ("dev", "tag not found"):
-        print(SETUP["checkout_tag"][lang].format(remote_tag, repo_name))
+    # checkout tag if not dev
+    effective_remote_tag = "dev"
+    if mode != "dev_mode" and remote_tag:
         run_command(f"git -C {temp_dir} fetch --tags origin", log_out=True, show_output=False, check=False)
-        run_command(f"git -C {temp_dir} checkout {remote_tag}", log_out=True, show_output=False, check=False)
-        local_tag = remote_tag
-    else:
-        local_tag = "dev"
+        if remote_tag not in ("", "tag not found"):
+            run_command(f"git -C {temp_dir} checkout {remote_tag}", log_out=True, show_output=False, check=False)
+            effective_remote_tag = remote_tag
 
-    cloned_settings_file = temp_dir / "install" / ".setup-settings.json"
-    if cloned_settings_file.exists():
-        with cloned_settings_file.open("r", encoding="utf-8") as fh:
-            cloned_settings = json.load(fh)
-        force_new_files = cloned_settings.get("force_new_files", {}).get(repo_name.lower(), [])
-        print(SETUP["found_settings"][lang].format(repo_name, force_new_files or "none"))
-        log_line(msg=f"Force new files for {repo_name}: {force_new_files}", context="install_repo")
-    else:
-        force_new_files = []
+    # load mergeable files declared in repo we just cloned
+    mergeable_files, repo_force_on_major = load_mergeable_files(temp_dir)
+    print(SETUP.get("found_settings", {}).get(lang, "Found settings for {}: {}").format(repo_name, mergeable_files or "none"))
+    log_line(msg=f"Mergeable files for {repo_name}: {mergeable_files} / force_on_major: {repo_force_on_major}", context="install_repo")
 
+    # decide change_type (same/minor/major) if we had a local repo
+    change_type = "same"
+    if repo_exists and effective_remote_tag and local_tag:
+        try:
+            change_type = compare_version(local_tag, effective_remote_tag)
+        except Exception:
+            change_type = "same"
+
+    # Force-reset files = intersection of repo-declared force_on_major and mergeable files
+    force_reset_files = []
+    if change_type == "major":
+        force_reset_files = [f for f in repo_force_on_major if f in mergeable_files]
+
+    # Update preserve files: mergeable files must be preserved during cleanup/move
+    current_preserve = set(PRESERVE_FILES or [])
+    current_preserve.update(mergeable_files)
+    preserve_files = list(current_preserve)
+
+    # ensure local dir exists then clean preserving listed files
     if local_dir.exists():
-        print(SETUP["cleaning_local"][lang].format(local_dir, PRESERVE_FILES))
-        log_line(msg=f"Cleaning up {local_dir} (preserve: {PRESERVE_FILES})", context="install_repo")
-        safe_cleanup(local_dir, preserve_files=PRESERVE_FILES)
+        print(SETUP.get("cleaning_local", {}).get(lang, "⚡ Cleaning up {} (preserve: {})").format(local_dir, preserve_files))
+        log_line(msg=f"Cleaning up {local_dir} (preserve: {preserve_files})", context="install_repo")
+        safe_cleanup(local_dir, preserve_files=preserve_files)
     else:
         local_dir.mkdir(parents=True, exist_ok=True)
 
-    print(SETUP.get("moving_files", {}).get(lang, "📦 Moving cloned files from {} to {}...").format(temp_dir, local_dir))
-    move_contents(temp_dir, local_dir, preserve_files=PRESERVE_FILES)
+    # move cloned files into place, keeping preserved files
+    print(SETUP.get("moving_files", {}).get(lang, "📦 Moving cloned files from {} to {}").format(temp_dir, local_dir))
+    move_contents(temp_dir, local_dir, preserve_files=preserve_files)
     shutil.rmtree(temp_dir)
     print(SETUP.get("clone_done", {}).get(lang, "✅ Done! {} deleted.").format(temp_dir))
 
-    # Merge sensitive config files or force new file
-    for cfg in CONFIG_FILES:
-        dist_file = local_dir / f"{cfg}.dist"
-        user_file = local_dir / cfg
+    # Handle mergeable files: either reset on major (with backup) or merge .dist into user file
+    for f in mergeable_files:
+        user_file = local_dir / f
+        dist_file = local_dir / f"{f}.dist"
 
-        if cfg in force_new_files:
+        # if explicit force-reset for this file
+        if f in force_reset_files:
             if user_file.exists():
                 timestamp = time.strftime("%Y%m%d_%H%M%S")
                 backup_file = user_file.parent / f"{user_file.name}_backup_{timestamp}"
@@ -694,29 +733,33 @@ def install_repo(repo_name: str, repo_url: str, local_dir: Path, branch: str,
                 shutil.copy2(dist_file, user_file)
                 print(SETUP["forced_overwrite"][lang].format(user_file.name, dist_file.name))
                 log_line(msg=f"Force overwrite for {dist_file} → {user_file}", context="install_repo")
-        elif dist_file.exists():
+            continue
+
+        # normal merge if .dist exists
+        if dist_file.exists():
             merge_ini_with_dist(user_file, dist_file)
             print(SETUP["merged_file"][lang].format(user_file.name, dist_file.name))
             log_line(msg=f"Merged file {user_file} with {dist_file}", context="install_repo")
         else:
             print(SETUP["no_dist"][lang].format(user_file.name))
 
-    log_line(msg=f"{repo_name} installed/updated. branch:{branch} tag:{local_tag}", context="install_repo")
-
+    # Save/record installation metadata
     settings = load_settings()
     settings[settings_keys["branch"]] = branch
-    settings[settings_keys["local_tag"]] = local_tag
-    settings[settings_keys["remote_tag"]] = remote_tag
+    settings[settings_keys["local_tag"]] = local_tag or effective_remote_tag or "unknown"
+    settings[settings_keys["remote_tag"]] = effective_remote_tag or remote_tag or ""
     save_settings(settings)
 
+    log_line(msg=f"{repo_name} installed/updated. branch:{branch} tag:{settings[settings_keys['local_tag']]}", context="install_repo")
     return local_dir
 
+# --- thin wrappers for specific repos --------------------------------------
 def install_olipi_core(mode="install"):
     return install_repo(
         repo_name="Core",
         repo_url=OLIPI_CORE_REPO,
         local_dir=Path(OLIPI_CORE_DIR),
-        branch=(OLIPI_CORE_DEV_BRANCH if mode=="dev_mode" else "main"),
+        branch=(OLIPI_CORE_DEV_BRANCH if mode == "dev_mode" else "main"),
         settings_keys={
             "branch": "branch_olipi_core",
             "local_tag": "local_tag_core",
@@ -730,7 +773,7 @@ def install_olipi_moode(mode="install"):
         repo_name="Moode",
         repo_url=OLIPI_MOODE_REPO,
         local_dir=Path(OLIPI_MOODE_DIR),
-        branch=(OLIPI_MOODE_DEV_BRANCH if mode=="dev_mode" else "main"),
+        branch=(OLIPI_MOODE_DEV_BRANCH if mode == "dev_mode" else "main"),
         settings_keys={
             "branch": "branch_olipi_moode",
             "local_tag": "local_tag_moode",
