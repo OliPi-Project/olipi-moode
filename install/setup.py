@@ -31,7 +31,11 @@ OLIPI_CORE_REPO = "https://github.com/OliPi-Project/olipi-core.git"
 OLIPI_MOODE_REPO = "https://github.com/OliPi-Project/olipi-moode.git"
 OLIPI_MOODE_DEV_BRANCH = "dev"
 OLIPI_CORE_DEV_BRANCH = "dev"
-PRESERVE_FILES = [] # path relative to local_dir e.g. ["config/user_key.ini, something.ini"]
+# path relative to local_dir e.g. ["config/user_key.ini, something.ini"]
+PRESERVE_FILES = {
+    "moode": [],
+    "core": []
+}
 
 lang = "en"
 
@@ -565,11 +569,11 @@ def version_is_newer(local: str, remote: str) -> bool:
         return False
 
 def compare_version(local, remote):
-    local_core = local.lstrip("v").split("-")[0]
-    remote_core = remote.lstrip("v").split("-")[0]
+    local_version = local.lstrip("v").split("-")[0]
+    remote_version = remote.lstrip("v").split("-")[0]
 
-    l_major, l_minor, l_patch = map(int, local_core.split("."))
-    r_major, r_minor, r_patch = map(int, remote_core.split("."))
+    l_major, l_minor, l_patch = map(int, local_version.split("."))
+    r_major, r_minor, r_patch = map(int, remote_version.split("."))
 
     if r_major == 0:
         # Mode "unstable": minor bump = breaking
@@ -683,11 +687,9 @@ def install_repo(repo_name: str, repo_url: str, local_dir: Path, branch: str,
     mergeable_files, repo_force_on_major = load_mergeable_files(temp_dir)
     if mergeable_files:
         print(SETUP.get("found_mergeable", {}).get(lang, "⚙️ Found mergeable files for {}: {}").format(repo_name, mergeable_files or "none"))
-    if repo_force_on_major:
-        print(SETUP.get("found_force_dist", {}).get(lang, "⚙️ On major update → force new files for {}: {}").format(repo_name, repo_force_on_major or "none"))
     log_line(msg=f"Mergeable files for {repo_name}: {mergeable_files} / force_on_major: {repo_force_on_major}", context="install_repo")
 
-    # decide change_type (same/minor/major) if we had a local repo
+    # decide change_type (patch/minor/major) if we had a local repo
     change_type = "same"
     if repo_exists and effective_remote_tag and local_tag:
         try:
@@ -695,13 +697,30 @@ def install_repo(repo_name: str, repo_url: str, local_dir: Path, branch: str,
         except Exception:
             change_type = "same"
 
+    if dev_mode:
+        print(f"⚙️ Dev mode detected for {repo_name}. Choose config handling:")
+        print(" [1] Preserve all mergeable files (same as Patch Update)")
+        print(" [2] Merge .dist into existing mergeable files (same as Minor Update)")
+        print(" [3] Force-reset mergeable files (overwrite from .dist) (same as Major Update)")
+        ans = input("Select [1-3] > ").strip()
+        if ans not in ("1","2","3"):
+            ans = "1"
+        if ans == "1":
+            change_type = "patch"
+        elif ans == "2":
+            change_type = "minor"
+        elif ans == "3":
+            change_type = "major"
+
     # Force-reset files = intersection of repo-declared force_on_major and mergeable files
     force_reset_files = []
     if change_type == "major":
         force_reset_files = [f for f in repo_force_on_major if f in mergeable_files]
+        if force_reset_files:
+            print(SETUP.get("found_force_dist", {}).get(lang, "⚙️ Major update → force new files for {}: {}").format(repo_name, force_reset_files or "none"))
 
     # Update preserve files: mergeable files must be preserved during cleanup/move
-    current_preserve = set(PRESERVE_FILES or [])
+    current_preserve = set(PRESERVE_FILES.get(repo_name.lower(), []) or [])
     current_preserve.update(mergeable_files)
     preserve_files = list(current_preserve)
 
@@ -719,32 +738,35 @@ def install_repo(repo_name: str, repo_url: str, local_dir: Path, branch: str,
     shutil.rmtree(temp_dir)
     print(SETUP.get("clone_done", {}).get(lang, "✅ Done! {} deleted.").format(temp_dir))
 
-    # Handle mergeable files: either reset on major (with backup) or merge .dist into user file
-    for f in mergeable_files:
-        user_file = local_dir / f
-        dist_file = local_dir / f"{f}.dist"
+    # Handle mergeable files: either reset on major (with backup) or merge .dist into user file or skip
+    if change_type == "patch":
+        print(SETUP["patch_skip_merge"][lang])
+    else:
+        for f in mergeable_files:
+            user_file = local_dir / f
+            dist_file = local_dir / f"{f}.dist"
 
-        # if explicit force-reset for this file
-        if f in force_reset_files:
-            if user_file.exists():
-                timestamp = time.strftime("%Y%m%d_%H%M%S")
-                backup_file = user_file.parent / f"{user_file.name}_backup_{timestamp}"
-                shutil.copy2(user_file, backup_file)
-                print(SETUP["backup_file"][lang].format(user_file.name, backup_file))
-                log_line(msg=f"Back up files for {user_file.name} → {backup_file}", context="install_repo")
+            # if explicit force-reset for this file (only on major)
+            if f in force_reset_files:
+                if user_file.exists():
+                    timestamp = time.strftime("%Y%m%d_%H%M%S")
+                    backup_file = user_file.parent / f"{user_file.name}_backup_{timestamp}"
+                    shutil.copy2(user_file, backup_file)
+                    print(SETUP["backup_file"][lang].format(user_file.name, backup_file))
+                    log_line(msg=f"Back up file {user_file.name} → {backup_file}", context="install_repo")
+                if dist_file.exists():
+                    shutil.copy2(dist_file, user_file)
+                    print(SETUP["forced_overwrite"][lang].format(user_file.name, dist_file.name))
+                    log_line(msg=f"Force overwrite for {dist_file} → {user_file}", context="install_repo")
+                continue
+
+            # normal merge if .dist exists
             if dist_file.exists():
-                shutil.copy2(dist_file, user_file)
-                print(SETUP["forced_overwrite"][lang].format(user_file.name, dist_file.name))
-                log_line(msg=f"Force overwrite for {dist_file} → {user_file}", context="install_repo")
-            continue
-
-        # normal merge if .dist exists
-        if dist_file.exists():
-            merge_ini_with_dist(user_file, dist_file)
-            print(SETUP["merged_file"][lang].format(user_file.name, dist_file.name))
-            log_line(msg=f"Merged file {user_file} with {dist_file}", context="install_repo")
-        else:
-            print(SETUP["no_dist"][lang].format(user_file.name))
+                merge_ini_with_dist(user_file, dist_file)
+                print(SETUP["merged_file"][lang].format(user_file.name, dist_file.name))
+                log_line(msg=f"Merged file {user_file} with {dist_file}", context="install_repo")
+            else:
+                print(SETUP["no_dist"][lang].format(user_file.name))
 
     # Save/record installation metadata
     settings = load_settings()
@@ -1537,7 +1559,6 @@ def main():
     install_apt_dependencies()
     settings = load_settings()
 
-
     # check if repos are present
     moode_present = Path(OLIPI_MOODE_DIR).exists() and (Path(OLIPI_MOODE_DIR) / ".git").exists()
     core_present = Path(OLIPI_CORE_DIR).exists() and (Path(OLIPI_CORE_DIR) / ".git").exists()
@@ -1551,15 +1572,22 @@ def main():
     elif args.update:
         cmd = "update"
     else:
-        local_tag_moode = settings.get("local_tag_moode", "")
-        local_tag_core = settings.get("local_tag_core", "")
+        #local_tag_moode = settings.get("local_tag_moode", "")
+        #local_tag_core = settings.get("local_tag_core", "")
+        local_tag_moode = get_latest_release_tag(OLIPI_MOODE_DIR, branch="main") or ""
+        local_tag_core = get_latest_release_tag(OLIPI_CORE_DIR, branch="main") or ""
         remote_tag_moode = get_latest_release_tag(OLIPI_MOODE_REPO, branch="main") or ""
         remote_tag_core = get_latest_release_tag(OLIPI_CORE_REPO, branch="main") or ""
 
-        moode_major_change = parse_semver_prefix(remote_tag_moode)[:1] != parse_semver_prefix(local_tag_moode)[:1]
-        core_major_change = parse_semver_prefix(remote_tag_core)[:1] != parse_semver_prefix(local_tag_core)[:1]
+        #moode_major_change = parse_semver_prefix(remote_tag_moode)[:1] != parse_semver_prefix(local_tag_moode)[:1]
+        #core_major_change = parse_semver_prefix(remote_tag_core)[:1] != parse_semver_prefix(local_tag_core)[:1]
+        #force_install = moode_major_change or core_major_change or not core_present
 
-        force_install = moode_major_change or core_major_change or not core_present
+        force_install = False
+        moode_major_change = compare_version(local_tag_moode, remote_tag_moode)
+        core_major_change = compare_version(local_tag_core, remote_tag_core)     
+        if moode_major_change == "major" or core_major_change == "major" or not core_present:
+            force_install = True
 
         if force_install:
             ans = input(SETUP.get("interactive_install_prompt", {}).get(lang,
@@ -1595,12 +1623,14 @@ def main():
             run_install_services(venv_path, user)
             update_ready_script()
             append_to_profile()
+            settings = load_settings()
             settings.update({
                 "venv_path": str(venv_path),
                 "project_dir": str(OLIPI_MOODE_DIR),
+                "core_dir": str(OLIPI_CORE_DIR),
                 "install_date": time.strftime("%Y-%m-%d %H:%M:%S"),
             })
-            settings.pop("force_new_files", None)
+            #settings.pop("force_new_files", None)
             save_settings(settings)
             install_done()
             print(SETUP.get("develop_done", {}).get(lang, "✅ Development mode setup complete."))
@@ -1617,13 +1647,14 @@ def main():
             run_install_services(venv_path, user)
             update_ready_script()
             append_to_profile()
+            settings = load_settings()
             settings.update({
                 "venv_path": str(venv_path),
                 "project_dir": str(OLIPI_MOODE_DIR),
                 "core_dir": str(OLIPI_CORE_DIR),
                 "install_date": time.strftime("%Y-%m-%d %H:%M:%S"),
             })
-            settings.pop("force_new_files", None)
+            #settings.pop("force_new_files", None)
             save_settings(settings)
             install_done()
 
@@ -1631,12 +1662,13 @@ def main():
             # minor update only
             install_olipi_moode(mode="update")
             install_olipi_core(mode="update")
+            settings = load_settings()
             settings.update({
-                "update_date": time.strftime("%Y-%m-%d %H:%M:%S"),
                 "project_dir": str(OLIPI_MOODE_DIR),
-                "core_dir": str(OLIPI_CORE_DIR)
+                "core_dir": str(OLIPI_CORE_DIR),
+                "update_date": time.strftime("%Y-%m-%d %H:%M:%S")
             })
-            settings.pop("force_new_files", None)
+            #settings.pop("force_new_files", None)
             save_settings(settings)
             print(SETUP.get("update_done", {}).get(lang, "✅ Update complete."))
             with TMP_LOG_FILE.open("a", encoding="utf-8") as fh:
