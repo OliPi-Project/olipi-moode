@@ -697,7 +697,7 @@ def install_repo(repo_name: str, repo_url: str, local_dir: Path, branch: str,
         except Exception:
             change_type = "same"
 
-    if dev_mode:
+    if mode == "dev_mode":
         print(f"⚙️ Dev mode detected for {repo_name}. Choose config handling:")
         print(" [1] Preserve all mergeable files (same as Patch Update)")
         print(" [2] Merge .dist into existing mergeable files (same as Minor Update)")
