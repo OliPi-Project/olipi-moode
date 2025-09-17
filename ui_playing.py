@@ -448,7 +448,7 @@ def update_status_info():
             last_renderer_check = now
             load_renderer_states_from_db()
 
-        if now - last_status_time > 0.3:
+        if now - last_status_time > 1.5:
             last_status_time = now
             try:
                 r = requests.get("http://localhost/command/?cmd=status", timeout=2)
@@ -463,7 +463,7 @@ def update_status_info():
                 if core.DEBUG:
                     print("error status: ", e)
 
-        if now - last_song_time > 1:
+        if now - last_song_time > 1.5:
             last_song_time = now
             try:
                 r = requests.get("http://localhost/command/?cmd=get_currentsong", timeout=2)
@@ -504,7 +504,7 @@ def update_status_info():
                 if core.DEBUG:
                     print("error song: ", e)
 
-        if now - last_status_extra_time > 1:
+        if now - last_status_extra_time > 1.5:
             last_status_extra_time = now
             try:
                 client = MPDClient()
@@ -541,11 +541,11 @@ def update_status_info():
                 if core.DEBUG:
                     print("error mpd status: ", e)
 
-        if now - last_fav_time > 1:
+        if now - last_fav_time > 1.5:
             last_fav_time = now
             global_state["favorite"] = is_current_song_favorite(path)
 
-        if now - last_volume_time > 0.5:
+        if now - last_volume_time > 1.5:
             last_volume_time = now
             try:
                 r = requests.get("http://localhost/command/?cmd=get_volume", timeout=2)
@@ -562,7 +562,7 @@ def update_status_info():
         if now - last_clock_time > 10:
             last_clock_time = now
             global_state["clock"] = time.strftime("%Hh%M")
-        time.sleep(0.1)
+        time.sleep(1)
 
 def update_hardware_info():
     global hardware_info_lines
@@ -1217,7 +1217,7 @@ def preload_worker():
             core.show_message(core.t("preload_yt", error=e))
             if core.DEBUG:
                 print("error preload yt: ", e)
-        time.sleep(0.5)
+        time.sleep(1)
         preload_queue.task_done()
 
 def play_all_songlog_from_queue():
@@ -2223,7 +2223,7 @@ if core.height >= 128:
             profile=profile_dict
         )
         if core.DEBUG:
-            print(f"Samplerate détecté: {spectrum.samplerate} Hz, Channels: {spectrum.channels}, Format: {spectrum.format}")
+            print(f"Samplerate détecté: {spectrum.samplerate} Hz, Channels: {spectrum.channels}, Format: {spectrum.format_name}")
         spectrum.start()
 
 def interpolate_palette(value, palette):

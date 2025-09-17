@@ -63,7 +63,7 @@ class SpectrumCapture(threading.Thread):
         info = self.recorder.info()
         self.samplerate = info.get("rate", 44100)
         self.channels   = info.get("channels",2)
-        self.format     = info.get("format_name","S16_LE")
+        self.format_name     = info.get("format_name","S16_LE")
 
         # utiliser le profil ini ou fallback
         prof = profile or DEFAULT_PROFILE
@@ -127,7 +127,7 @@ class SpectrumCapture(threading.Thread):
             l,data=self.recorder.read()
             if l<=0 or not data:
                 self.levels*=0.9
-                time.sleep(0.01)
+                time.sleep(0.005)
                 continue
 
             samples=np.frombuffer(data,dtype=np.int16).astype(np.float32)
@@ -145,7 +145,7 @@ class SpectrumCapture(threading.Thread):
             dbfs=self._frame_dbfs(frame)
             if dbfs<self.noise_gate_db:
                 self.levels*=0.85
-                time.sleep(0.005)
+                time.sleep(0.001)
                 continue
 
             # RMS factor scaling
@@ -170,4 +170,4 @@ class SpectrumCapture(threading.Thread):
             new_levels[rising]=(1.0-self.attack)*new_levels[rising]+self.attack*rel[rising]
             new_levels[~rising]*=self.release
             self.levels=self.smoothing*self.levels+(1.0-self.smoothing)*new_levels
-            time.sleep(0.005)
+            time.sleep(0.001)
