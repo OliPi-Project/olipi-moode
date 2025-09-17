@@ -1011,7 +1011,7 @@ def configure_screen(olipi_moode_dir, olipi_core_dir):
         txbuflen = meta.get("txbuflen", None)
 
         lines = safe_read_file_as_lines(CONFIG_TXT, critical=True)
-
+        lines = update_olipi_section(lines, "screen overlay", ["dtparam=spi=on"], replace_prefixes=["dtparam=spi=on"])
         overlay_line = f"dtoverlay=fbtft,spi0-0,{selected_id.lower()},reset_pin={rst},dc_pin={dc}"
         if bl:
             overlay_line += f",led_pin={bl}"
