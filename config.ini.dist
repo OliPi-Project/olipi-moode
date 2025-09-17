@@ -22,7 +22,7 @@ show_spectrum = False
 
 [spectrum]
 device = hw:Loopback,1,0
-num_bars = 30
+num_bars = 36
 fmin = 25
 fmax = 20000
 # height or level
