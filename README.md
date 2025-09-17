@@ -6,7 +6,7 @@
 
 # OliPi MoOde
 
-OliPi MoOde is an user interface for OLED/LCD screens >= 128x64 for [Moode Audio](https://moodeaudio.org/) with control via IR remote control and/or GPIO buttons.
+OliPi MoOde is an user interface for OLED/LCD screens >= 128x64 for [Moode Audio](https://moodeaudio.org/) with control via IR remote control and/or GPIO buttons/rotary encoder.
 
 <p align="center">
   <img src="https://github.com/OliPi-Project/olipi-moode/blob/main/docs/screenshots/TFT_demo.gif" width="400" alt="All Screens Demo">
@@ -17,6 +17,27 @@ Video presentation:
 [https://youtu.be/9Y13UeyyT7k?si=hkOkiP9gk0rjxlB8](https://youtu.be/9Y13UeyyT7k?si=hkOkiP9gk0rjxlB8)
 
 ---
+
+## What's new?
+**V0.2.0-Pre**  
+***Change of approach for SPI displays: they now use the FBTFT overlay directly instead of going through the Adafruit lib. For I2C screens, I've switched to Luma.oled. So it's best to [uninstall completely](#-uninstall) Olipi Moode if you've already installed it.***  
+> Release note:
+>   - FBTFT overlay for SPI screens
+>   - Luma.oled for I2C screens (Now you need to select the I2C address of your screen during installation)
+>   - Setup script improved for install/update, with OliPi Moode folder backup
+>       - Now based on release version
+>       - Patch / Minor / Major Update are treated differently
+>       - Force new config.ini on major update with full install/configuration
+>       - Preserve config.ini and merge with .dist files on Minor update
+>       - Don't touch config.ini on Patch update
+>       - Backup existing configs before overwriting
+>       - Safe cleanup and move of cloned repo files
+>       - Use dedicaced section `# --- Olipi-moode ---` and `# @marker:***` on config.txt 
+>   - A small performance improvement for Pi zero 2w / Pi3 A/B+ with highter screen resolution (still a lot of work to do)
+>       - refresh_interval is now set according to the model of raspberry detected 
+>       - SPI speed and buffer size is now set according to the model of screen selected
+>   - And other odds and ends...
+
 
 ## 📚 Table of Contents
 
@@ -82,36 +103,30 @@ Video presentation:
   i2c-tools libgpiod-dev python3-libgpiod python3-lgpio python3-setuptools
   ```
 
-- **Python dependencies** (installed automatically):
+- **Python dependencies** (installed automatically with the virtual environment):
   
   ```txt
-  Adafruit_Blinka~=8.55.0
-  adafruit_circuitpython_rgb_display~=3.14.1
-  adafruit_circuitpython_ssd1306~=2.12.21
-  rpi_lgpio~=0.6
+  luma.oled~=3.14.0
+  luma_core~=2.5.1
   Pillow~=11.3.0
   python_mpd2~=3.0.5
   PyYAML~=6.0.2
-  Requests~=2.32.4
-  yt_dlp>=2025.7.21
-  numpy~=2.3.2
+  Requests~=2.32.5
+  rpi_lgpio~=0.6
   pyalsaaudio~=0.11.0
-  scipy~=1.16.1
+  numpy~=2.3.3
+  scipy~=1.16.2
+  yt_dlp[default]>=2025.9.5
   ```
 
 ---
 
 ## 🚀 Installation
 
-***Beware of performance issues on the Pi Zero2 W and Pi3a/B+ with higher resolutions like 170x320 or 240x320 (need to up the `spidev.bufsiz=131072` in /boot/firmware/cmdline.txt keep all text on 1 line, and set the `baudrate = 100000000` with a `refresh_interval = 0.01` in the config.ini )...
-For better smooth scrolling, I2C screens (like ssd1306) it's a good thing to increase the bauderate to 400k with `dtparam=i2c_baudrate=400000` in /boot/firmware/config.txt (400k seems to be compatible with DACs)***
-
-***I'm looking for a solution to use the Raspberry-Pi FBTFT overlays directly rather than going through the Adafruit libraries.***
+If you have [MoodeOled](https://github.com/Trachou2Bois/MoodeOled) installed, check [here](https://github.com/Trachou2Bois/MoodeOled/blob/main/README.md#moodeoled-has-grown) to uninstall it before install OliPi Moode.
 
 First of all, make sure you've wired your screen, buttons and IR receiver correctly.
 [See wiring guide](TROUBLESHOOTING.md#wiring--screen-does-not-turn-on-after-installation).
-
-If you have [MoodeOled](https://github.com/Trachou2Bois/MoodeOled) installed, check [here](https://github.com/Trachou2Bois/MoodeOled/blob/main/README.md#moodeoled-has-grown) to uninstall it before install OliPi Moode.
 
 
 1. Clone this repository:
@@ -140,7 +155,7 @@ If you have [MoodeOled](https://github.com/Trachou2Bois/MoodeOled) installed, ch
        - Offers ZRAM configuration if 512MB RAM and/or swap detected.
        - Creates a virtual environment (`~/.olipi-moode-venv` by default).
        - Installs systemd services.
-       - Modify ready script for starting ui_playing service after Moode boot
+       - Modify ready script for starting olipi-ui-playing service after Moode boot
        - Append some lines with useful commands to .profile
        - Create file with versions and paths in install dir.
        
@@ -152,12 +167,12 @@ If you have [MoodeOled](https://github.com/Trachou2Bois/MoodeOled) installed, ch
 
 The following systemd services are created during installation:
 
-| Service      | Description                   |
-| ------------ | ----------------------------- |
-| `ui_playing` | Displays "Now Playing" screen |
-| `ui_browser` | Music library navigation      |
-| `ui_queue`   | Playback queue display        |
-| `ui_off`     | Turns off screen at shutdown  |
+| Service            | Description                   |
+| ------------------ | ----------------------------- |
+| `olipi-ui-playing` | Displays "Now Playing" screen |
+| `olipi-ui-browser` | Music library navigation      |
+| `olipi-ui-queue`   | Playback queue display        |
+| `olipi-ui-off`     | Turns off screen at shutdown  |
 
 Switch between the 3 main display scripts using the `KEY_BACK` button.
 
