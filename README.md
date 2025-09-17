@@ -337,7 +337,7 @@ Possible future improvements:
 - Translation into more languages.
 - Documentation improvements.
 
-Come [discuss it on Discord](https://discord.gg/pku67XsFEE)  or if you want, [you can get your hands dirty with the engine](./CONTRIBUTING.md).
+Come [discuss it on Discord](https://discord.gg/pku67XsFEE)!
 
 ---
 
