@@ -487,62 +487,101 @@ def ask_gpio_pin(lang):
             return int(pin)
         print("❌ Invalid GPIO pin. Please enter a number between 0 and 40.")
 
-def update_olipi_section(lines, marker, new_lines):
+def update_olipi_section(lines, marker, new_lines=None, replace_prefixes=None, clear=False):
     """
-    Update or add lines under a specific marker in # --- Olipi-moode --- section.
-    - marker: string identifier ('screen overlay' ou 'ir overlay')
-    - new_lines: list of lines à insérer
+    Update or clear a block under a specific marker inside the # --- Olipi-moode --- section.
+
+    Args:
+        lines (list[str]): current config.txt file as a list of lines
+        marker (str): marker identifier (e.g. "screen overlay", "ir overlay")
+        new_lines (list[str] | None): lines to insert (ignored if clear=True)
+        replace_prefixes (list[str] | None): if given, remove any matching lines (even if commented) globally,
+                                             then insert only inside this marker block
+        clear (bool): if True, wipe all lines under this marker
+
+    Returns:
+        list[str]: updated list of lines
     """
-    start_idx = None
+
+    section_header = "# --- Olipi-moode ---"
+    marker_line = f"# @marker: {marker}"
+
+    # Locate section and marker
     section_found = False
+    marker_idx = None
     for i, line in enumerate(lines):
-        if line.strip() == "# --- Olipi-moode ---":
+        if line.strip() == section_header:
             section_found = True
-        if section_found and line.strip().lower() == f"# {marker}":
-            start_idx = i
+        if section_found and line.strip().lower() == marker_line.lower():
+            marker_idx = i
             break
 
-    if section_found and start_idx is not None:
-        # remplacer les lignes existantes après le marker
-        end_idx = start_idx + 1
-        while end_idx < len(lines) and not lines[end_idx].startswith("#"):
+    # If clear=True → remove the whole block under this marker
+    if marker_idx is not None and clear:
+        end_idx = marker_idx + 1
+        while end_idx < len(lines) and not lines[end_idx].lstrip().startswith("# @marker:"):
             end_idx += 1
-        lines[start_idx+1:end_idx] = new_lines
+        lines[marker_idx+1:end_idx] = []
+        return lines
+
+    # Remove globally any lines matching replace_prefixes (commented or not)
+    if replace_prefixes:
+        prefixes = tuple(replace_prefixes)
+        cleaned = []
+        for line in lines:
+            check = line.lstrip("# ").strip()
+            if any(check.startswith(p) for p in prefixes):
+                continue
+            cleaned.append(line)
+        lines = cleaned
+
+    # If marker exists → replace or extend block
+    if marker_idx is not None and not clear:
+        # Find block end (next marker or end of file)
+        end_idx = marker_idx + 1
+        while end_idx < len(lines) and not lines[end_idx].lstrip().startswith("# @marker:"):
+            end_idx += 1
+
+        if replace_prefixes is None:
+            # Replace the whole block
+            if new_lines:
+                lines[marker_idx+1:end_idx] = [l.rstrip() + "\n" for l in new_lines]
+        else:
+            # Selective replacement inside the block
+            block = lines[marker_idx+1:end_idx]
+            filtered = [l.rstrip() + "\n" for l in block]
+            if new_lines:
+                filtered.extend([l.rstrip() + "\n" for l in new_lines])
+            lines[marker_idx+1:end_idx] = filtered
     else:
-        # ajouter section ou marker
+        # Section or marker not found → add them
         if not section_found:
             if lines and lines[-1].strip() != "":
                 lines.append("")
-            lines.append("# --- Olipi-moode ---")
-        lines.append(f"# {marker}")
-        lines.extend(new_lines)
-    return lines
+            lines.append(section_header)
+        lines.append(marker_line)
+        if not clear and new_lines:
+            lines.extend([l.rstrip() + "\n" for l in new_lines])
 
-def insert_ir_overlay(lines, gpio_pin):
-    new_lines = [f"dtoverlay=gpio-ir,gpio_pin={gpio_pin}"]
-    return update_olipi_section(lines, "ir overlay", new_lines)
+    return lines
 
 def update_config_txt(lang):
     create_backup(CONFIG_TXT, lang)
     lines = safe_read_file_as_lines(CONFIG_TXT, critical=True)
     regex = re.compile(r"^dtoverlay=gpio-ir,\s*gpio_pin=(\d+)\s*$")
     existing_pin = None
-
     for line in lines:
         m = regex.match(line.strip())
         if m:
             existing_pin = int(m.group(1))
             break
-
     if existing_pin is not None:
         choice = input(MESSAGES["keep_existing_pin"][lang].format(existing_pin)).strip().lower()
         gpio_pin = existing_pin if choice not in ["n", "no"] else ask_gpio_pin(lang)
     else:
         gpio_pin = ask_gpio_pin(lang)
-
-    new_lines = insert_ir_overlay(lines, gpio_pin)
-
-    safe_write_file_as_root(CONFIG_TXT, new_lines, critical=True)
+    lines = update_olipi_section(lines, "ir overlay", [f"dtoverlay=gpio-ir,gpio_pin={gpio_pin}"], replace_prefixes=["dtoverlay=gpio-ir,gpio_pin"])
+    safe_write_file_as_root(CONFIG_TXT, lines, critical=True)
     print(MESSAGES["updating_config"][lang])
     log_line(msg=f"Updated {CONFIG_TXT} with gpio_pin={gpio_pin}", context="update_config_txt")
 
