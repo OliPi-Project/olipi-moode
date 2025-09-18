@@ -27,7 +27,7 @@ USER_HOME=$(eval echo "~$REAL_USER")
 echo "Detected user: $REAL_USER"
 
 # --- List of services ---
-SERVICES=("olipi-ui-playing" "olipi-ui-browser" "olipi-ui-queue" "olipi-ui-off")
+SERVICES=("olipi-ui-playing" "olipi-ui-browser" "olipi-ui-queue" "olipi-ui-off" "olipi-starting-wait")
 
 PROJECT_DIR=""
 VENV_DIR=""
@@ -134,7 +134,7 @@ fi
 echo ">> Cleaning old backups"
 for path in "/boot/firmware" "/etc/lirc"; do
     if [ -d "$path" ]; then
-        backups=( $(ls -t "$path" 2>/dev/null | grep '\.olipi-moode-back-' || true) )
+        backups=( $(ls -t "$path" 2>/dev/null | grep '\.olipi-' || true) )
         if [ ${#backups[@]} -gt 1 ]; then
             echo "   - Removing old backups in $path"
             for file in "${backups[@]:1}"; do

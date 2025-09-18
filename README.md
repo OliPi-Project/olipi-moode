@@ -19,23 +19,25 @@ Video presentation:
 ---
 
 ## ❔ What's new?
-**<u>V0.2.0-Pre</u>**  
+**<u>V0.2.0-pre</u>**
+
 *Change of approach for SPI displays: they now use the FBTFT overlay directly instead of going through the Adafruit lib. For I2C screens, I've switched to Luma.oled. So it's best to [uninstall completely](#-uninstall) Olipi Moode if you've already installed it.*  
 > Release note:
->   - FBTFT overlay for SPI screens
->   - Luma.oled for I2C screens (Now you need to select the I2C address of your screen during installation)
->   - Setup script improved for install/update, with OliPi Moode folder backup
->       - Now based on release version
->       - Patch / Minor / Major Update are treated differently
->       - Force new config.ini on major update with full install/configuration
->       - Preserve config.ini and merge with .dist files on Minor update
->       - Don't touch config.ini on Patch update
->       - Backup existing configs before overwriting
->       - Safe cleanup and move of cloned repo files
->       - Use dedicaced section `# --- Olipi-moode ---` and `# @marker:***` on config.txt 
->   - A small performance improvement for Pi zero 2w / Pi3 A/B+ with highter screen resolution (still a lot of work to do)
->       - refresh_interval is now set according to the model of raspberry detected 
->       - SPI speed and buffer size is now set according to the model of screen selected
+>   - Ready-script replaced by a systemd service with starting animation waiting for Moode to start. you can disable ready-script in Moode.
+>   - FBTFT overlay for SPI screens.
+>   - Luma.oled for I2C screens (Now you need to select the I2C address of your screen during installation).
+>   - Setup script improved for install/update, with OliPi Moode folder backup.
+>       - Now based on release version.
+>       - Patch / Minor / Major Update are treated differently.
+>       - Force new config.ini on major update with full install/configuration.
+>       - Preserve config.ini and merge with .dist files on Minor update.
+>       - Don't touch config.ini on Patch update.
+>       - Backup existing configs before overwriting.
+>       - Safe cleanup and move of cloned repo files.
+>       - Use dedicaced section `# --- Olipi-moode ---` and `# @marker:***` on config.txt.
+>   - A small performance improvement for Pi zero 2w / Pi3 A/B+ with highter screen resolution (still a lot of work to do).
+>       - refresh_interval is now set according to the model of raspberry detected. 
+>       - SPI speed and buffer size is now set according to the model of screen selected.
 >   - And other odds and ends...
 
 
@@ -139,7 +141,7 @@ First of all, make sure you've wired your screen, buttons and IR receiver correc
    python3 ~/olipi-moode/install/setup.py
    ```
 
-3. Follow the on-screen instructions.
+3. Follow the on-screen instructions.  
    
        This script performs the following actions:
        
@@ -153,20 +155,16 @@ First of all, make sure you've wired your screen, buttons and IR receiver correc
        - Creates a virtual environment (`~/.olipi-moode-venv` by default).
        - Install Python dependencies in venv.
        - Installs systemd services.
-       - Modify ready script for starting olipi-ui-playing service after Moode boot
        - Append some lines with useful commands to .profile
        - Create file with versions and paths in install dir.
        
-       It can be reused for update OliPi Moode or force reinstall
+       It can be reused for update OliPi Moode or force reinstall  
 
-**❗ <u>Moode configuration reminder</u>**
+4. ❗ <u>Moode configuration reminder</u>
 
-```
-In **Moode > System Config**:
-
-- Enable **Ready Script** (System).
-- Enable **LCD Updater** (Peripherals).
-```
+    ```
+    In Moode > System Config > Peripherals: Enable LCD Updater.
+    ```
 
 ## 🖥 Services
 
@@ -339,7 +337,7 @@ See the [LICENSE](./LICENSE) file for details.
 This project is based on Moode Audio Player and may reuse various code patterns and configuration approaches.  
 Moode is licensed under GPLv3: https://moodeaudio.org/LICENSE.txt
 
-## **Disclaimer**
+## ⚠️ **Disclaimer**
 
 This project is neither affiliated with nor endorsed by the official Moode Audio team.
 

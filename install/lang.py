@@ -156,12 +156,6 @@ SETUP = {
     "service_skipped": {"en": "⚠️  Service {} installation cancelled.", "fr": "⚠️  Installation du service {} annulée."},
     "permission_denied": {"en": "❌ Permission denied. Please run this script with sudo.",
                           "fr": "❌ Permission refusée. Veuillez exécuter ce script avec sudo."},
-    "ready_script_update": {"en": "\n⇨ Updating ready-script...", "fr": "\n⇨ Mise à jour du ready-script..."},
-    "ready_script_backup": {"en": "🔒 Backup of ready-script created: {}",
-                            "fr": "🔒 Sauvegarde du ready-script créée : {}"},
-    "ready_script_nobackup": {"en": "🔒 Backup of ready-script already exist: {}",
-                              "fr": "🔒 Sauvegarde du ready-script existe déjà: {}"},
-    "ready_script_done": {"en": "✅ ready-script updated.", "fr": "✅ ready-script mis à jour."},
     "profile_update": {"en": "\n⇨ Updating ~/.profile with useful olipi-moode commands...",
                        "fr": "\n⇨ Mise à jour de ~/.profile avec les commandes utiles pour olipi-moode..."},
     "profile_updated": {"en": "✅ ~/.profile updated successfully.", "fr": "✅ ~/.profile mis à jour avec succès."},
@@ -173,8 +167,8 @@ SETUP = {
                              "fr": "\n⚙️ Configuration des Controle :"
                                    "\n- Boutons GPIO ou encodeur rotatif: configurez les broches dans config.ini."
                                    "\n- Télécommande IR: Executez ' python3 {} ' pour installer et configurer LIRC."},
-    "moode_reminder": {"en": "\n⚠️ Reminder: In Moode, enable:\n  - Ready Script (System)\n  - LCD Updater (Peripherals)\n",
-                       "fr": "\n⚠️ Rappel : Dans Moode, activez :\n  - Ready Script (Système)\n  - LCD Updater (Périphériques)\n"},
+    "moode_reminder": {"en": "\n⚠️ Reminder: In Moode, enable:\n  - LCD Updater (Peripherals)\n",
+                       "fr": "\n⚠️ Rappel : Dans Moode, activez :\n  - LCD Updater (Périphériques)\n"},
     "develop_done": {"en": "✅ Development mode setup complete.",
                      "fr": "✅ La branche de développement a été installée avec succès."},
     "reboot_prompt": {"en": "\n⇨ Do you want to reboot now? [Y/n] > ", "fr": "\n⇨ Voulez-vous redémarrer maintenant ? [O/n] > "},

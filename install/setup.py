@@ -1353,10 +1353,6 @@ def detect_user():
     print(SETUP["user_detected"][lang].format(user))
     return user
 
-# -----------------------
-# Services & ready-script (merged)
-# -----------------------
-# Service templates (same as before)
 SERVICES = {
     "olipi-ui-playing": """[Unit]
 Description=OliPi MoOde Now-Playing Screen (ui_playing)
@@ -1404,6 +1400,25 @@ Wants=sound.target
 [Service]
 Type=simple
 ExecStart={venv}/bin/python3 {project}/ui_queue.py
+WorkingDirectory={project}
+User={user}
+Group={user}
+Restart=on-failure
+RestartSec=10
+StartLimitIntervalSec=200
+StartLimitBurst=10
+
+[Install]
+WantedBy=multi-user.target
+""",
+    "olipi-starting-wait": """[Unit]
+Description=OliPi UI playing Wait for Moode Audio to be ready
+After=network.target sound.target
+Wants=sound.target
+
+[Service]
+Type=simple
+ExecStart={venv}/bin/python3 {project}/ui_wait.py
 WorkingDirectory={project}
 User={user}
 Group={user}
@@ -1467,9 +1482,13 @@ def run_install_services(venv, user):
                 service_content = template.format(venv=venv, project=project_path, user=user)
                 try:
                     write_service(name, service_content)
-                    if name == "olipi-ui-off":
+                    if name == "olipi-starting-wait":
                         run_command(f"sudo systemctl enable {name}", log_out=True, show_output=False, check=True)
                         print(SETUP["service_enabled"][lang].format(name))
+                    elif name == "olipi-ui-off":
+                        run_command(f"sudo systemctl enable {name}", log_out=True, show_output=False, check=True)
+                        print(SETUP["service_enabled"][lang].format(name))
+
                 except PermissionError:
                     print(SETUP["permission_denied"][lang])
                     safe_exit(1, error="Permission denied while writing/enabling service")
@@ -1481,28 +1500,6 @@ def run_install_services(venv, user):
                 print(SETUP["service_skipped"][lang].format(name))
                 break
     log_line(msg="install_services finished", context="run_install_services")
-
-def update_ready_script():
-    READY_SCRIPT_TEMPLATE = os.path.join(INSTALL_DIR, "ready-script.sh")
-
-    print(SETUP["ready_script_update"][lang])
-    log_line(msg="Updating ready-script", context="update_ready_script")
-
-    READY_SCRIPT_PATH = "/var/local/www/commandw/ready-script.sh"
-    if os.path.exists(READY_SCRIPT_PATH):
-        READY_SCRIPT_BACKUP = "/var/local/www/commandw/ready-script.sh.olipi-bak"
-        if os.path.exists(READY_SCRIPT_BACKUP):
-            print(SETUP["ready_script_nobackup"][lang].format(READY_SCRIPT_BACKUP))
-            pass
-        else:
-            run_command(f"sudo cp {READY_SCRIPT_PATH} {READY_SCRIPT_BACKUP}", log_out=True, show_output=False, check=True)
-            print(SETUP["ready_script_backup"][lang].format(READY_SCRIPT_BACKUP))
-
-    run_command(f"sudo cp {READY_SCRIPT_TEMPLATE} {READY_SCRIPT_PATH}", log_out=True, show_output=False, check=True)
-    run_command(f"sudo chmod 755 {READY_SCRIPT_PATH}", log_out=True, show_output=False, check=True)
-    run_command(f"sudo chown root:root {READY_SCRIPT_PATH}", log_out=True, show_output=False, check=True)
-    print(SETUP["ready_script_done"][lang])
-    log_line(msg="Ready-script updated", context="update_ready_script")
 
 def append_to_profile():
     profile_path = os.path.expanduser("~/.profile")
@@ -1621,7 +1618,6 @@ def main():
             setup_virtualenv(venv_path)
             user = detect_user()
             run_install_services(venv_path, user)
-            update_ready_script()
             append_to_profile()
             settings = load_settings()
             settings.update({
@@ -1645,7 +1641,6 @@ def main():
             setup_virtualenv(venv_path)
             user = detect_user()
             run_install_services(venv_path, user)
-            update_ready_script()
             append_to_profile()
             settings = load_settings()
             settings.update({

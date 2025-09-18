@@ -23,9 +23,9 @@ This guide covers common problems and their solutions when using OliPi MoOde.
     - SDA => SDA (GPIO 2)
 
 - If you have wired your screen correctly but nothing is displayed:
-    - Ready-script are turned ON in Moode Audio parameter?
     - Check the logs of the service:   
       `journalctl -u olipi-ui-playing -f`
+      `journalctl -u olipi-starting-wait -f`
 
     - For SPI screens check the ouptut of:  
       `dmesg | grep fb`
