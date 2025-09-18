@@ -1,10 +1,10 @@
-# 🛠️ OliPi MoOde - Troubleshooting
+# 🛠️ OliPi MoOde - Troubleshooting and AFQ
 
 This guide covers common problems and their solutions when using OliPi MoOde.
 
 ---
 
-## Wiring screen / does not turn on after installation
+## 🔌 Wiring screen / does not turn on after installation
 
 - Double-check the wiring:
   - For SPI screens:
@@ -37,7 +37,7 @@ This guide covers common problems and their solutions when using OliPi MoOde.
         - Look the output in terminal...
     - [Report problem](#-still-having-issues)
 
-## Wiring IR Receiver / Remote control is not detected
+## 📡 Wiring IR Receiver / Remote control is not detected
 
 - Check the wiring of your IR receiver:
     - Pin 1 (OUT) → Any free GPIO
@@ -50,33 +50,27 @@ This guide covers common problems and their solutions when using OliPi MoOde.
   
   Check if you have entered the correct GPIO And try (mode2) or (irw) in the prompt menu
 
-## I don't have enough gpio ports to connect everything!
+## ➰ I don't have enough gpio ports to connect everything!
 
 If you use SPI screen and no other SPI peripheriphe You can use CE1 (GPIO 8) as normal GPIOs (CE0 must remain activated for the screen):  
 CE1 must be disabled in the system (otherwise conflicts may occur) with add `dtoverlay=spi0-1cs` in `/boot/firmware/config.txt`.  
 If you don't use SPI you can disable CE0 and CE1 with `dtoverlay=spi0-0cs`
 
-## 🔹 Low memory devices (512 MB RAM)
+## 🧠 Low memory devices (512 MB RAM)
 
-- Devices like Pi Zero 2W or Pi 3 A+ may run into memory issues.
-
+- Devices like Pi Zero 2W or Pi 3 A+ may run into audio glitches with yt-dlp
 - The installer will propose installing **ZRAM** automatically.
-
 - Swap is disabled to improve performance and avoid SD card wear.
 
-- Recommended to avoid audio glitches with yt-dlp or heavy menus.
 
-
-
-## 🔹 Can OliPi MoOde be used without Moode?
+## 💡 Can OliPi MoOde be used without Moode?
 
 - Not directly. OliPi MoOde is tightly integrated with Moode’s API and scripts.
-
-- For more generic cases, you can use base [OliPi-Core](https://github.com/OliPi-Project/olipi-core).
-
+- For more generic cases, you can use base [OliPi-Core](https://github.com/OliPi-Project/olipi-core). (need to be documented)
 
 
-## 🔹 Still having issues?
+
+## 🆘 Still having issues?
 
 - Please open an [issue](https://github.com/OliPi-Project/olipi-moode/issues) with details about your setup: 
   - Raspberry Pi model 
@@ -86,4 +80,4 @@ If you don't use SPI you can disable CE0 and CE1 with `dtoverlay=spi0-0cs`
   - Setup logs on install directory
   - Or anything can help to debug your problem.
 
-- Or open a topic on [Discord](https://discord.gg/pku67XsFEE)
+- Come chat or open a topic on [Discord](https://discord.gg/pku67XsFEE)
