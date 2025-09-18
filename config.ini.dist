@@ -11,6 +11,7 @@ color_theme = autumn
 
 [screen]
 current_screen =
+#For I2C screens rotation are "1,2,3,4" (default: rotation = 0)
 #rotation = 90
 #refresh_interval = 0.01
 
@@ -38,14 +39,9 @@ manual_bands =
 blacklist_audio_paths = OSDISK/Stereo Test/LRMonoPhase4.flac, OSDISK/System Sounds/ReadyChime.flac
 # Add or modify genres according to your preferences:
 genres = Varied, Relax, Rhythmic, Nocturne, Instru
-# Activate or deactivate inputs according to your configuration (true/false) and can use all at same time:
-# use_lirc is configured during lirc_setup.py. You'll can activate it manually if you've installed LIRC yourself.
-use_lirc = false
-# Configure GPIO pins before enabling these parameters:
-use_gpio = false
-use_rotary = false
 
 [buttons]
+use_gpio = false
 # If you use buttons, uncomment and Modify the gpio pins to suit your configuration.
 # Required keys (essential for OliPi MoOde navigation):
 #key_UP = 4
@@ -60,13 +56,18 @@ use_rotary = false
 #KEY_PLAY = 25
 
 [rotary]
-# if you use rotary encoder, uncomment and modify the gpio pins to suit your configuration:
-# Comment KEY_PLAY and/or KEY_VOLUMEUP, KEY_VOLUMEDOWN in [buttons] section
+use_rotary = false
+# if you use rotary encoder, uncomment and modify the gpio pins to suit your configuration.
+# KEY_PLAY/UP/DOWN need to be commented in [buttons] section if you use:
 # up/down / volume (in now-playing screen)
 #pin_a = 4
 #pin_b = 5
 # toggle play/pause (in now-playing screen) + shutdown on long press:
 #pin_btn = 25
+
+[lirc]
+# use_lirc is configured during lirc_setup.py. You'll can activate it manually if you've installed LIRC yourself.
+use_lirc = false
 
 [remote_mapping]
 # Use install_lirc_remote.py for remap your remote key or modify manualy here.

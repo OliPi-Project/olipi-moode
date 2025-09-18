@@ -34,8 +34,8 @@ MESSAGES = {
         "fr": "❌ LIRC n'est pas installé."
     },
     "lirc_prompt": {
-        "en": "Would you like to reinstall and reconfigure LIRC now? (requires an IR receiver connected to the GPIO pin) [Y/n] > ",
-        "fr": "Voulez-vous réinstaller et reconfigurer LIRC maintenant? (nécessite un récepteur ir branché sur broche gpio) [O/n] > "
+        "en": "Would you like to reinstall LIRC? Choose 'n' to go remote configuration [Y/n] > ",
+        "fr": "Voulez-vous réinstaller LIRC? Choissisez 'n' pour configurer la télécommande [O/n] > "
     },
     "lirc_installed": {
         "en": "✅ LIRC is installed.",
@@ -52,6 +52,7 @@ MESSAGES = {
     "explain": {
         "en": (
             "This will configure LIRC for IR remotes connected to a GPIO receiver.\n"
+            "(requires an IR receiver connected to the GPIO pin).\n"
             "Steps:\n"
             "  1. Install and configure LIRC if missing\n"
             "  2. Add or update dtoverlay=gpio-ir,gpio_pin=<pin> to /boot/firmware/config.txt\n"
@@ -61,6 +62,7 @@ MESSAGES = {
         ),
         "fr": (
             "Cette opération configure LIRC pour les télécommandes IR connectées sur GPIO.\n"
+            "(nécessite un récepteur ir branché sur broche gpio).\n"
             "Étapes:\n"
             "  1. Installe et configure LIRC si nécessaire\n"
             "  2. Ajoute ou mettre à jour dtoverlay=gpio-ir,gpio_pin=<pin> dans /boot/firmware/config.txt\n"
@@ -615,7 +617,7 @@ def update_lirc_options(lang):
 
 def enable_use_lirc_in_config(lang):
     if not os.path.exists(CONFIG_INI):
-        print(MESSAGES["use_lirc_not_found"][lang])
+        print("⚠️ Config.ini not found. Please reinstall OliPi Moode.")
         log_line(msg=f"{CONFIG_INI} not found", context="enable_use_lirc_in_config")
         return
     try:
