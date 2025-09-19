@@ -892,29 +892,19 @@ def check_spi(core_config):
             print(SETUP["spi_enable_failed"][lang])
             safe_exit(1)
 
-    # Detect /dev/spidev* entries (common device nodes for SPI)
-    # Use a shell-friendly pattern and capture stdout
-    for _ in range(10):
-        res = run_command("ls /dev/spidev* 2>/dev/null || true", log_out=True, show_output=False, check=False)
-        if res.stdout.strip():
-            break
-        time.sleep(1)
-
+    fb_active = ""
+    res = run_command("dmesg | grep -i 'graphics fb.*spi'", log_out=True, show_output=False, check=False)
+    fb_active = res.stdout.strip()
+    if fb_active:
+        print(SETUP["spi_fb_detected"][lang].format(fb_active))
+        log_line(msg=f"SPI framebuffer active:\n{fb_active}", context="check_spi")
     devices = []
-    if res.returncode == 0 and res.stdout.strip():
-        # split on whitespace in case multiple devices listed
-        for p in res.stdout.strip().split():
-            if p.startswith("/dev/"):
-                devices.append(p)
+    for entry in Path("/sys/bus/spi/devices").iterdir():
+        devices.append(entry.name)
     if devices:
         print(SETUP["spi_devices_detected"][lang].format(", ".join(devices)))
         log_line(msg=f"SPI devices found: {', '.join(devices)}", context="check_spi")
-        return True
-    else:
-        print(SETUP["spi_no_devices"][lang])
-        print(SETUP["spi_check_wiring"][lang])
-        log_line(error="No SPI devices detected", context="check_spi")
-        safe_exit(1)
+    return True
 
 def discover_screens_from_olipicore(olipi_core_dir):
     discovered = {}

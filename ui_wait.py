@@ -54,7 +54,7 @@ def wait_for_moode(timeout=TIMEOUT_MOODE):
         show_message_centered(msg1, msg2)
 
         frame += 1
-        time.sleep(0.5)
+        time.sleep(0.2)
 
         if time.time() - start > timeout:
             show_message_centered("MoOde Not Ready", "Restarting Wait Service")
@@ -64,7 +64,7 @@ def wait_for_moode(timeout=TIMEOUT_MOODE):
 if not wait_for_moode():
     sys.exit("MoOde not Avaible")
 
-show_message_centered("MoOde Ready")
+show_message_centered("MoOde Ready!")
 time.sleep(1)
 
 # --- Lancement de nowoled.service ---
