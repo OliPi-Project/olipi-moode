@@ -130,7 +130,16 @@ if [ -f "$READY_SCRIPT" ]; then
     run_cmd "sudo sed -i '/# Start the OliPi service/,/systemctl start olipi-ui-playing/d' $READY_SCRIPT"
 fi
 
-# --- 7. Remove old backups ---
+# --- 7. Clean /boot/firmware/config.txt ---
+CONFIG_FILE="/boot/firmware/config.txt"
+if [ -f "$CONFIG_FILE" ]; then
+    echo ">> Removing Olipi section from config.txt"
+    run_cmd "sudo sed -i '/^# --- Olipi-moode START ---/,/^# --- Olipi-moode END ---/d' $CONFIG_FILE"
+    # Clean multiple empty lines
+    run_cmd "sudo sed -i '/^$/N;/^\n$/D' $CONFIG_FILE"
+fi
+
+# --- 8. Remove old backups ---
 echo ">> Cleaning old backups"
 for path in "/boot/firmware" "/etc/lirc"; do
     if [ -d "$path" ]; then
@@ -148,7 +157,7 @@ if [ -f "/var/local/www/commandw/ready-script.sh.bak" ]; then
     run_cmd "sudo rm -f /var/local/www/commandw/ready-script.sh.bak"
 fi
 
-# --- 8. Remove main project directory ---
+# --- 9. Remove main project directory ---
 if [ -n "$PROJECT_DIR" ] && [ -d "$PROJECT_DIR" ]; then
     echo ">> Removing OliPi-Moode directory"
     run_cmd "sudo rm -rf $PROJECT_DIR"
@@ -156,6 +165,7 @@ fi
 
 echo ""
 echo "=== Uninstallation complete ==="
+echo "You need to reboot your Raspberry!"
 if $DRY_RUN; then
-    echo ">>> (no modifications were applied, because --dry-run was active)"
+    echo ">> (no modifications were applied, because --dry-run was active)"
 fi

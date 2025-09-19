@@ -217,8 +217,9 @@ def safe_write_file_as_root(path, lines, critical=True):
             pass
 
 def create_backup(file_path, critical=True):
+    moode_version = get_moode_version()
     if os.path.exists(file_path):
-        backup_path = f"{file_path}.olipi-back"
+        backup_path = f"{file_path}.olipi-back-moode{moode_version}"
         if os.path.exists(backup_path):
             print(SETUP["backup_exist"][lang].format(backup_path))
             pass
@@ -236,7 +237,7 @@ def create_backup(file_path, critical=True):
 
 def update_olipi_section(lines, marker, new_lines=None, replace_prefixes=None, clear=False):
     """
-    Update or clear a block under a specific marker inside the # --- Olipi-moode --- section.
+    Update or clear a block under a specific marker inside the # --- Olipi-moode START/END --- section.
 
     Args:
         lines (list[str]): current config.txt file as a list of lines
@@ -250,66 +251,83 @@ def update_olipi_section(lines, marker, new_lines=None, replace_prefixes=None, c
         list[str]: updated list of lines
     """
 
-    section_header = "# --- Olipi-moode ---"
+    section_start = "# --- Olipi-moode START ---"
+    section_end = "# --- Olipi-moode END ---"
     marker_line = f"# @marker: {marker}"
 
-    # Locate section and marker
-    section_found = False
-    marker_idx = None
+    # Locate section boundaries
+    start_idx = None
+    end_idx = None
     for i, line in enumerate(lines):
-        if line.strip() == section_header:
-            section_found = True
-        if section_found and line.strip().lower() == marker_line.lower():
+        if line.strip() == section_start:
+            start_idx = i
+        elif line.strip() == section_end and start_idx is not None:
+            end_idx = i
+            break
+
+    # If section not found, create it at the end of file
+    if start_idx is None or end_idx is None:
+        if lines and lines[-1].strip() != "":
+            lines.append("")
+        lines.append(section_start)
+        lines.append(section_end)
+        start_idx = len(lines) - 2
+        end_idx = len(lines) - 1
+
+    # Extract block content between START and END
+    block = lines[start_idx + 1:end_idx]
+
+    # Look for marker inside the block
+    marker_idx = None
+    for i, line in enumerate(block):
+        if line.strip().lower() == marker_line.lower():
             marker_idx = i
             break
 
     # If clear=True → remove the whole block under this marker
     if marker_idx is not None and clear:
-        end_idx = marker_idx + 1
-        while end_idx < len(lines) and not lines[end_idx].lstrip().startswith("# @marker:"):
-            end_idx += 1
-        lines[marker_idx+1:end_idx] = []
+        end_m = marker_idx + 1
+        while end_m < len(block) and not block[end_m].lstrip().startswith("# @marker:"):
+            end_m += 1
+        block[marker_idx+1:end_m] = []
+        lines[start_idx + 1:end_idx] = block
         return lines
 
-    # Remove globally any lines matching replace_prefixes (commented or not)
+    # Remove globally any lines matching replace_prefixes
     if replace_prefixes:
         prefixes = tuple(replace_prefixes)
-        cleaned = []
-        for line in lines:
+        cleaned_block = []
+        for line in block:
             check = line.lstrip("# ").strip()
             if any(check.startswith(p) for p in prefixes):
                 continue
-            cleaned.append(line)
-        lines = cleaned
+            cleaned_block.append(line)
+        block = cleaned_block
 
-    # If marker exists → replace or extend block
+    # Update or add marker section
     if marker_idx is not None and not clear:
-        # Find block end (next marker or end of file)
-        end_idx = marker_idx + 1
-        while end_idx < len(lines) and not lines[end_idx].lstrip().startswith("# @marker:"):
-            end_idx += 1
+        # Find block end (next marker or end of section)
+        end_m = marker_idx + 1
+        while end_m < len(block) and not block[end_m].lstrip().startswith("# @marker:"):
+            end_m += 1
 
         if replace_prefixes is None:
-            # Replace the whole block
             if new_lines:
-                lines[marker_idx+1:end_idx] = [l.rstrip() + "\n" for l in new_lines]
+                block[marker_idx+1:end_m] = [l.rstrip() + "\n" for l in new_lines]
         else:
-            # Selective replacement inside the block
-            block = lines[marker_idx+1:end_idx]
-            filtered = [l.rstrip() + "\n" for l in block]
+            existing = block[marker_idx+1:end_m]
+            filtered = [l.rstrip() + "\n" for l in existing]
             if new_lines:
                 filtered.extend([l.rstrip() + "\n" for l in new_lines])
-            lines[marker_idx+1:end_idx] = filtered
+            block[marker_idx+1:end_m] = filtered
     else:
-        # Section or marker not found → add them
-        if not section_found:
-            if lines and lines[-1].strip() != "":
-                lines.append("")
-            lines.append(section_header)
-        lines.append(marker_line)
+        # Marker not found → append inside section
+        block.append(marker_line + "\n")
         if not clear and new_lines:
-            lines.extend([l.rstrip() + "\n" for l in new_lines])
+            block.extend([l.rstrip() + "\n" for l in new_lines])
 
+    # Write back updated block into lines
+    lines[start_idx + 1:end_idx] = block
     return lines
 
 def safe_cleanup(path: Path, preserve_files=None, base: Path = None):
