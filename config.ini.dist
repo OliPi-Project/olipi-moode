@@ -34,14 +34,18 @@ manual_bands =
 # Optional manual bands: comma-separated ranges "fmin-fmax" (manual_bands = 20-60, 55-100, etc). Modify num_bars to match.
 
 [manual]
-# Manual settings:
 # Blacklist files or folders to avoid reading them via the randoms functions:
 blacklist_audio_paths = OSDISK/Stereo Test/LRMonoPhase4.flac, OSDISK/System Sounds/ReadyChime.flac
 # Add or modify genres according to your preferences:
 genres = Varied, Relax, Rhythmic, Nocturne, Instru
 
+[input]
+# use_lirc is configured during install_lirc_remote.py. You'll can activate it manually if you've installed LIRC yourself.
+use_lirc = false
+use_buttons = false
+use_rotary = false
+
 [buttons]
-use_gpio = false
 # If you use buttons, uncomment and Modify the gpio pins to suit your configuration.
 # Required keys (essential for OliPi MoOde navigation):
 #key_UP = 4
@@ -56,7 +60,6 @@ use_gpio = false
 #KEY_PLAY = 25
 
 [rotary]
-use_rotary = false
 # if you use rotary encoder, uncomment and modify the gpio pins to suit your configuration.
 # KEY_PLAY/UP/DOWN need to be commented in [buttons] section if you use:
 # up/down / volume (in now-playing screen)
@@ -64,10 +67,6 @@ use_rotary = false
 #pin_b = 5
 # toggle play/pause (in now-playing screen) + shutdown on long press:
 #pin_btn = 25
-
-[lirc]
-# use_lirc is configured during lirc_setup.py. You'll can activate it manually if you've installed LIRC yourself.
-use_lirc = false
 
 [remote_mapping]
 # Use install_lirc_remote.py for remap your remote key or modify manualy here.
