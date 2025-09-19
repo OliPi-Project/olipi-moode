@@ -218,18 +218,20 @@ KEY_NEXT = KEY_NEXTSONG
 
 ## 🎛 GPIO and rotary encoder support
 
-OliPi MoOde uses `rpi_lgpio`, you can configure GPIO buttons or rotary encoders in `config.ini`. Be careful not to use pins that are used for other things. Check your hardware and selected pin before enabling "use_gpio" and "use_rotary""
+OliPi MoOde uses `rpi_lgpio`, you can configure GPIO buttons or rotary encoders in `config.ini`. Be careful not to use pins that are used for other things. Check your hardware and wiring before enabling "use_buttons" and "use_rotary""
 
 Example:
 
 ```ini
+[input]
+use_buttons = true
+use_rotary = true
+
 [buttons]
-use_gpio = true
-KEY_PLAY = 17
-KEY_STOP = 27
+KEY_LEFT = 17
+KEY_RIGHT = 27
 
 [rotary]
-use_rotary = true
 pin_a = 22
 pin_b = 23
 pin_btn = 24
