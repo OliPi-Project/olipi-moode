@@ -1,5 +1,5 @@
 [settings]
-# Configuration via menu interface, do not modify directly
+### Configuration via menu interface, do not modify directly
 language = en
 debug = false
 screen_timeout = 0
@@ -11,14 +11,13 @@ color_theme = autumn
 
 [screen]
 current_screen =
-#For I2C screens rotation are "1,2,3,4" (default: rotation = 0)
-#rotation = 90
 #refresh_interval = 0.01
+#rotation = 90
 
 [nowplaying]
 show_extra_infos = True
 show_progress_barre = True
-# Spectrum need Loopback actived in Moode > configure > audio > alsa options
+### Spectrum need Loopback actived in Moode > configure > audio > alsa options
 show_spectrum = False
 
 [spectrum]
@@ -26,28 +25,28 @@ device = hw:Loopback,1,0
 num_bars = 36
 fmin = 25
 fmax = 20000
-# height or level
+### height or level
 gradient_mode = height
 spectrum_profile = {"win_s":2048, "hop_s":1024, "smoothing":0.65, "attack":0.55, "release":0.75, "agc_alpha":0.02, "noise_gate_db":-85, "rms_factor_gain":1}
-# leave empty to use auto (Mel) bands
+### leave empty to use auto (Mel) bands
 manual_bands =
-# Optional manual bands: comma-separated ranges "fmin-fmax" (manual_bands = 20-60, 55-100, etc). Modify num_bars to match.
+### Optional manual bands: comma-separated ranges "fmin-fmax" (manual_bands = 20-60, 55-100, etc). Modify num_bars to match.
 
 [manual]
-# Blacklist files or folders to avoid reading them via the randoms functions:
+### Blacklist files or folders to avoid reading them via the randoms functions:
 blacklist_audio_paths = OSDISK/Stereo Test/LRMonoPhase4.flac, OSDISK/System Sounds/ReadyChime.flac
-# Add or modify genres according to your preferences:
+### Add or modify genres according to your preferences:
 genres = Varied, Relax, Rhythmic, Nocturne, Instru
 
 [input]
-# use_lirc is configured during install_lirc_remote.py. You'll can activate it manually if you've installed LIRC yourself.
+### use_lirc is configured during install_lirc_remote.py. You'll can activate it manually if you've installed LIRC yourself.
 use_lirc = false
 use_buttons = false
 use_rotary = false
 
 [buttons]
-# If you use buttons, uncomment and Modify the gpio pins to suit your configuration.
-# Required keys (essential for OliPi MoOde navigation):
+### If you use buttons, uncomment and Modify the gpio pins to suit your configuration.
+### Required keys (essential for OliPi MoOde navigation):
 #key_UP = 4
 #key_DOWN = 5
 #key_LEFT = 6
@@ -60,19 +59,19 @@ use_rotary = false
 #KEY_PLAY = 25
 
 [rotary]
-# if you use rotary encoder, uncomment and modify the gpio pins to suit your configuration.
-# KEY_PLAY/UP/DOWN need to be commented in [buttons] section if you use:
-# up/down / volume (in now-playing screen)
+### if you use rotary encoder, uncomment and modify the gpio pins to suit your configuration.
+### KEY_PLAY/UP/DOWN need to be commented in [buttons] section if you use:
+### up/down / volume (in now-playing screen)
 #pin_a = 4
 #pin_b = 5
-# toggle play/pause (in now-playing screen) + shutdown on long press:
+### toggle play/pause (in now-playing screen) + shutdown on long press:
 #pin_btn = 25
 
 [remote_mapping]
-# Use install_lirc_remote.py for remap your remote key or modify manualy here.
-# KEY_OLIPIMOODE = YOUR_REMOTE_KEY
-# Leave " — " if you don't need to remap KEY
-# Required keys (essential for OliPi MoOde navigation)
+### Use install_lirc_remote.py for remap your remote key or modify manualy here.
+### KEY_OLIPIMOODE = YOUR_REMOTE_KEY
+### Leave " — " if you don't need to remap KEY
+### Required keys (essential for OliPi MoOde navigation)
 KEY_UP = —
 KEY_DOWN = —
 KEY_LEFT = —
@@ -83,7 +82,7 @@ KEY_INFO = —
 KEY_CHANNELUP = —
 KEY_CHANNELDOWN = —
 KEY_PLAY = —
-# Optional keys (additional multimedia controls)
+### Optional keys (additional multimedia controls)
 KEY_STOP = —
 KEY_NEXT = —
 KEY_PREVIOUS = —
