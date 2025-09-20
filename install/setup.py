@@ -225,7 +225,7 @@ def create_backup(file_path, critical=True):
             pass
         else:
             try:
-                run_command(f"cp -p {file_path} {backup_path}", sudo=True, log_out=True, show_output=True, check=True)
+                run_command(f"sudo cp -p {file_path} {backup_path}", log_out=True, show_output=True, check=True)
                 print(SETUP["backup_created"][lang].format(backup_path))
             except Exception as e:
                 log_line(error=f"⚠ Backup of {file_path} failed: {e}", context="create_backup")
@@ -369,87 +369,106 @@ def move_contents(src: Path, dst: Path, preserve_files=None, base: Path = None):
                 continue
             shutil.move(str(item), str(target))
 
-
-def merge_ini_with_dist(user_file: Path, dist_file: Path, preserve_files=None, base: Path = None):
+def merge_ini_with_dist(user_file: Path, dist_file: Path):
     """
     Merge dist file into user config file while preserving comments, formatting,
-    and existing values. Adds new keys and their comments if missing.
-    Skips merge if file is in preserve_files.
+    and existing values. Adds missing keys (active or commented) and their comments.
+    Updates comments if they differ. Only considers comments starting with ###.
     """
-    preserve_files = preserve_files or []
-    base = base or user_file.parent.parent
-    rel_path = str(user_file.relative_to(base))
-
-    if rel_path in preserve_files:
-        return
-
     if not dist_file.exists():
         return
 
     if not user_file.exists():
-        user_file.write_text(dist_file.read_text(), encoding="utf-8")
+        user_file.write_text(dist_file.read_text(encoding="utf-8"), encoding="utf-8")
         return
 
     user_lines = user_file.read_text(encoding="utf-8").splitlines()
     dist_lines = dist_file.read_text(encoding="utf-8").splitlines()
 
+    # --- collect existing keys (active or commented) ---
     existing_keys = set()
     current_section = None
     for line in user_lines:
         striped = line.strip()
         if striped.startswith("[") and striped.endswith("]"):
             current_section = striped
-        elif striped and not striped.startswith(("#", ";")) and "=" in striped:
-            key = striped.split("=", 1)[0].strip()
+        elif "=" in striped:
+            key = striped.lstrip("#;").split("=", 1)[0].strip()
             existing_keys.add((current_section, key))
 
     merged_lines = []
     current_section = None
-    current_section_dist = None
 
     for line in user_lines:
-        merged_lines.append(line)
         striped = line.strip()
         if striped.startswith("[") and striped.endswith("]"):
             current_section = striped
+        elif "=" in striped:
+            key = striped.lstrip("#;").split("=", 1)[0].strip()
 
-            # look in the dist to see if there are any missing keys to add for this section
-            dist_section_lines = []
-            current_section_dist = None
-            for idx, dline in enumerate(dist_lines):
-                dstrip = dline.strip()
-                if dstrip.startswith("[") and dstrip.endswith("]"):
-                    current_section_dist = dstrip
-                elif current_section_dist == current_section and "=" in dstrip and not dstrip.startswith(("#",";")):
-                    key = dstrip.split("=",1)[0].strip()
-                    if (current_section, key) not in existing_keys:
-                        # Add comments above the key
-                        comments_before = []
-                        j = idx-1
-                        while j>=0 and dist_lines[j].strip().startswith(("#",";")):
-                            comments_before.insert(0, dist_lines[j])
-                            j-=1
-                        dist_section_lines.extend(comments_before+[dline])
-            if dist_section_lines:
-                merged_lines.extend(dist_section_lines)
+            # --- find dist comments for this key ---
+            dist_idx = None
+            for i, dline in enumerate(dist_lines):
+                if dline.strip() == current_section:
+                    # search within this section
+                    for j in range(i + 1, len(dist_lines)):
+                        dstrip = dist_lines[j].strip()
+                        if dstrip.startswith("[") and dstrip.endswith("]"):
+                            break
+                        if "=" in dstrip:
+                            dkey = dstrip.lstrip("#;").split("=", 1)[0].strip()
+                            if dkey == key:
+                                dist_idx = j
+                                break
+                    break
 
-    # Complete missing sections
-    existing_sections = {line.strip() for line in user_lines if line.strip().startswith("[") and line.strip().endswith("]")}
-    current_section_dist = None
-    missing_section_lines = []
-    for dline in dist_lines:
+            if dist_idx is not None:
+                # collect ### comments above this key in dist
+                new_comments = []
+                j = dist_idx - 1
+                while j >= 0 and dist_lines[j].strip().startswith("###"):
+                    new_comments.insert(0, dist_lines[j])
+                    j -= 1
+
+                # replace existing ### comments if they differ
+                k = len(merged_lines) - 1
+                while k >= 0 and merged_lines[k].strip().startswith("###"):
+                    merged_lines.pop()
+                    k -= 1
+                merged_lines.extend(new_comments)
+
+        merged_lines.append(line)
+
+    # --- add missing keys/sections from dist ---
+    existing_sections = {l.strip() for l in user_lines if l.strip().startswith("[") and l.strip().endswith("]")}
+    current_section = None
+    additions = []
+
+    for idx, dline in enumerate(dist_lines):
         dstrip = dline.strip()
         if dstrip.startswith("[") and dstrip.endswith("]"):
-            current_section_dist = dstrip
-            if current_section_dist not in existing_sections:
-                missing_section_lines.append("")
-                missing_section_lines.append(dline)
-        elif current_section_dist and current_section_dist not in existing_sections:
-            missing_section_lines.append(dline)
+            current_section = dstrip
+            if current_section not in existing_sections:
+                additions.append("")
+                additions.append(dline)
+        elif current_section and current_section not in existing_sections:
+            additions.append(dline)
+        elif current_section and "=" in dstrip:
+            key = dstrip.lstrip("#;").split("=", 1)[0].strip()
+            if (current_section, key) not in existing_keys:
+                # collect preceding ### comments
+                comments_before = []
+                j = idx - 1
+                while j >= 0 and dist_lines[j].strip().startswith("###"):
+                    comments_before.insert(0, dist_lines[j])
+                    j -= 1
+                additions.append("")
+                additions.extend(comments_before)
+                additions.append(dline)
 
-    if missing_section_lines:
+    if additions:
         merged_lines.append("")
-        merged_lines.extend(missing_section_lines)
+        merged_lines.extend(additions)
 
     user_file.write_text("\n".join(merged_lines) + "\n", encoding="utf-8")
 
