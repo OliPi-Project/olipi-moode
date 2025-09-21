@@ -33,7 +33,7 @@ OLIPI_MOODE_DEV_BRANCH = "dev"
 OLIPI_CORE_DEV_BRANCH = "dev"
 # path relative to local_dir e.g. ["config/user_key.ini, something.ini"]
 PRESERVE_FILES = {
-    "moode": [],
+    "moode": [songlog.txt],
     "core": []
 }
 
@@ -931,10 +931,21 @@ def check_spi(core_config):
 
     fb_active = ""
     res = run_command("dmesg | grep -i 'graphics fb.*spi'", log_out=True, show_output=False, check=False)
-    fb_active = res.stdout.strip()
-    if fb_active:
-        print(SETUP["spi_fb_detected"][lang].format(fb_active))
-        log_line(msg=f"SPI framebuffer active:\n{fb_active}", context="check_spi")
+    fb_active_lines = res.stdout.strip().splitlines()
+    if fb_active_lines:
+        clean_lines = []
+        for line in fb_active_lines:
+            # retirer le timestamp initial entre crochets si présent
+            clean_line = line
+            if line.startswith("["):
+                try:
+                    clean_line = line.split("]", 1)[1].strip()
+                except IndexError:
+                    pass
+            clean_lines.append(clean_line)
+        display = "\n    ".join(clean_lines)
+        print(SETUP["spi_fb_detected"][lang].format(display))
+        log_line(msg=f"SPI framebuffer active:\n{display}", context="check_spi")
     devices = []
     for entry in Path("/sys/bus/spi/devices").iterdir():
         devices.append(entry.name)
