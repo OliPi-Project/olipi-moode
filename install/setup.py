@@ -603,6 +603,9 @@ def version_is_newer(local: str, remote: str) -> bool:
         return False
 
 def compare_version(local, remote):
+    if not local:
+        local_version = "0.0.0"
+
     local_version = local.lstrip("v").split("-")[0]
     remote_version = remote.lstrip("v").split("-")[0]
 
@@ -1605,23 +1608,26 @@ def main():
     elif args.update:
         cmd = "update"
     else:
-        #local_tag_moode = settings.get("local_tag_moode", "")
-        #local_tag_core = settings.get("local_tag_core", "")
-        local_tag_moode = get_latest_release_tag(OLIPI_MOODE_DIR, branch="main") or ""
-        local_tag_core = get_latest_release_tag(OLIPI_CORE_DIR, branch="main") or ""
-        remote_tag_moode = get_latest_release_tag(OLIPI_MOODE_REPO, branch="main") or ""
-        remote_tag_core = get_latest_release_tag(OLIPI_CORE_REPO, branch="main") or ""
-        print(f"OliPi-core: local version: {local_tag_core} remote version: {remote_tag_core}")
-        print(f"OliPi-Moode: local version: {local_tag_moode} remote version: {remote_tag_moode}")
-
-        #moode_major_change = parse_semver_prefix(remote_tag_moode)[:1] != parse_semver_prefix(local_tag_moode)[:1]
-        #core_major_change = parse_semver_prefix(remote_tag_core)[:1] != parse_semver_prefix(local_tag_core)[:1]
-        #force_install = moode_major_change or core_major_change or not core_present
 
         force_install = False
-        moode_major_change = compare_version(local_tag_moode, remote_tag_moode)
-        core_major_change = compare_version(local_tag_core, remote_tag_core)     
-        if moode_major_change == "major" or core_major_change == "major" or not core_present:
+        moode_major_change = ""
+        core_major_change = ""
+        if moode_present:
+            local_tag_moode = get_latest_release_tag(OLIPI_MOODE_DIR, branch="main") or ""
+            remote_tag_moode = get_latest_release_tag(OLIPI_MOODE_REPO, branch="main") or ""
+            moode_major_change = compare_version(local_tag_moode, remote_tag_moode)
+            print(f"OliPi-Moode: local version: {local_tag_moode} remote version: {remote_tag_moode}")
+        else:
+            print("OliPi-Moode absent")
+        if core_present:
+            local_tag_core = get_latest_release_tag(OLIPI_CORE_DIR, branch="main") or ""
+            remote_tag_core = get_latest_release_tag(OLIPI_CORE_REPO, branch="main") or ""
+            core_major_change = compare_version(local_tag_core, remote_tag_core) 
+            print(f"OliPi-Core: local version: {local_tag_core} remote version: {remote_tag_core}")
+        else:
+            print("OliPi-Core absent")
+   
+        if moode_major_change == "major" or core_major_change == "major" or not core_present or not moode_present:
             force_install = True
 
         if force_install:
