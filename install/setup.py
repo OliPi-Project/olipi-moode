@@ -44,6 +44,7 @@ OLIPI_MOODE_DIR = os.path.dirname(INSTALL_DIR)  # parent → olipi-moode
 OLIPI_CORE_DIR = os.path.join(OLIPI_MOODE_DIR, "olipi_core")
 DEFAULT_VENV_PATH = os.path.expanduser("~/.olipi-moode-venv")
 INSTALL_LIRC_REMOTE_PATH = os.path.join(INSTALL_DIR, "install_lirc_remote.py")
+SETUP_SCRIPT_PATH = os.path.join(INSTALL_DIR, "setup.py")
 SETTINGS_FILE = Path(INSTALL_DIR) / ".setup-settings.json"
 TMP_LOG_FILE = Path("/tmp/setup.log")
 CONFIG_TXT = "/boot/firmware/config.txt"
@@ -1545,6 +1546,7 @@ def append_to_profile():
         'echo " "',
         'echo "Moode debug => moodeutl -l"',
         'echo "Force Moode update => sudo /var/www/util/system-updater.sh moode9"',
+        f'echo "Update or Reinstall OliPi Moode => python3 {SETUP_SCRIPT_PATH}"',
         f'echo "Configure IR remote => python3 {INSTALL_LIRC_REMOTE_PATH}"'
     ]
     print(SETUP["profile_update"][lang])
