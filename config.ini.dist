@@ -1,0 +1,89 @@
+[settings]
+### Configuration via menu interface, do not modify directly
+language = en
+debug = false
+screen_timeout = 0
+stream_profile = standard
+random_track_count = 20
+random_radio_count = 1
+random_recent_album_custom_days = 30
+color_theme = autumn
+
+[screen]
+current_screen =
+#refresh_interval = 0.01
+#rotation = 90
+
+[nowplaying]
+### Extra_infos need Spectrum actived
+show_extra_infos = False
+show_progress_barre = True
+### Spectrum need Loopback actived in Moode > configure > audio > alsa options
+show_spectrum = False
+
+[spectrum]
+num_bars = 36
+fmin = 0
+fmax = 17000
+spectrum_profile = {"win_s":2048, "hop_s":1024, "smoothing":0.65, "attack":0.55, "release":0.75, "agc_alpha":0.02, "noise_gate_db":-75}
+
+[manual]
+### Blacklist files or folders to avoid reading them via the randoms functions:
+blacklist_audio_paths = OSDISK/Stereo Test/LRMonoPhase4.flac, OSDISK/System Sounds/ReadyChime.flac
+### Add or modify genres for tagging playlists, according to your preferences:
+genres = Varied, Relax, Rhythmic, Nocturne, Instru
+
+[input]
+### use_lirc is configured during install_lirc_remote.py. You'll can activate it manually if you've installed LIRC yourself.
+use_lirc = false
+use_buttons = false
+use_rotary = false
+
+[buttons]
+### If you use buttons, uncomment and Modify the gpio pins to suit your configuration.
+### Required keys (essential for OliPi MoOde navigation):
+#key_UP = 4
+#key_DOWN = 5
+#key_LEFT = 6
+#key_RIGHT = 12
+#key_OK = 13
+#key_BACK = 16
+#key_INFO = 17
+#key_CHANNELUP = 26
+#key_CHANNELDOWN = 27
+#KEY_PLAY = 25
+
+[rotary]
+### if you use rotary encoder, uncomment and modify the gpio pins to suit your configuration.
+### KEY_PLAY/UP/DOWN need to be commented in [buttons] section if you use:
+### up/down / volume (in now-playing screen)
+#pin_a = 4
+#pin_b = 5
+### toggle play/pause (in now-playing screen) + shutdown on long press:
+#pin_btn = 25
+
+[remote_mapping]
+### Use install_lirc_remote.py for remap your remote key or modify manualy here.
+### KEY_OLIPIMOODE = YOUR_REMOTE_KEY
+### Leave " — " if you don't need to remap KEY
+### Required keys (essential for OliPi MoOde navigation)
+KEY_UP = —
+KEY_DOWN = —
+KEY_LEFT = —
+KEY_RIGHT = —
+KEY_OK = —
+KEY_BACK = —
+KEY_INFO = —
+KEY_CHANNELUP = —
+KEY_CHANNELDOWN = —
+KEY_PLAY = —
+### Optional keys (additional multimedia controls)
+KEY_STOP = —
+KEY_NEXT = —
+KEY_PREVIOUS = —
+KEY_FORWARD = —
+KEY_REWIND = —
+KEY_VOLUMEUP = —
+KEY_VOLUMEDOWN = —
+KEY_MUTE = —
+KEY_POWER = —

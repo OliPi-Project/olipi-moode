@@ -35,7 +35,7 @@ LOGO_PATH = "/var/local/www/imagesw/radio-logos/Local Stream.jpg"
 THUMB_PATH = "/var/local/www/imagesw/radio-logos/thumbs/Local Stream.jpg"
 THUMB_SM_PATH = "/var/local/www/imagesw/radio-logos/thumbs/Local Stream_sm.jpg"
 DB_PATH = "/var/local/www/db/moode-sqlite3.db"
-STREAM_URL = "http://localhost:8080/stream.mp3"
+LOCAL_STREAM_URL = "http://localhost:8080/stream.mp3"
 
 # --- Fonts ui_playing ---
 font_artist = core.get_font(OLIPIMOODE_DIR / 'Verdana.ttf', 15)
@@ -55,6 +55,11 @@ blocking_render = False
 previous_blocking_render = False
 
 SCROLL_SPEED_NOWPLAYING = 0.05
+
+# For more information look at https://github.com/yt-dlp/yt-dlp?tab=readme-ov-file#filtering-formats
+yt_format_low = "bestaudio[abr<=96][protocol!=m3u8]"
+yt_format_standard = "bestaudio[ext=m4a][protocol!=m3u8]/bestaudio[protocol!=m3u8]"
+yt_format_hifi = "bestaudio[protocol!=m3u8]/bestaudio[protocol!=m3u8]"
 
 menu_active = False
 menu_options = [
@@ -157,9 +162,9 @@ sleep_timeout_labels = {0: "Off", 15: "15s", 30: "30s", 60: "1m", 300: "5m", 600
 stream_profile_menu_active = False
 stream_profile_menu_selection = 0
 stream_profile_menu_options = [
-    {"id": "low", "label": core.t("stream_low"), "yt_format": core.get_config("manual", "yt_format_low", fallback="bestaudio[abr<=96][protocol!=m3u8]", type=str), "ffmpeg_bitrate": "96k"},
-    {"id": "standard", "label": core.t("stream_standard"), "yt_format": core.get_config("manual", "yt_format_standard", fallback="bestaudio[ext=m4a][protocol!=m3u8]/bestaudio[protocol!=m3u8]", type=str), "ffmpeg_bitrate": "128k"},
-    {"id": "hifi", "label": core.t("stream_hifi"), "yt_format": core.get_config("manual", "yt_format_hifi", fallback="bestaudio[ext=webm][protocol!=m3u8]/bestaudio[protocol!=m3u8]", type=str), "ffmpeg_bitrate": "160k"}
+    {"id": "low", "label": core.t("stream_low"), "yt_format": yt_format_low, "ffmpeg_bitrate": "96k"},
+    {"id": "standard", "label": core.t("stream_standard"), "yt_format": yt_format_standard, "ffmpeg_bitrate": "128k"},
+    {"id": "hifi", "label": core.t("stream_hifi"), "yt_format": yt_format_hifi, "ffmpeg_bitrate": "160k"}
 ]
 language_menu_active = False
 language_menu_selection = 0
@@ -310,6 +315,7 @@ load_icons_from_theme()
 
 spectrum = None
 PALETTE_SPECTRUM = []
+show_spectrum = core.get_config("nowplaying", "show_spectrum", fallback=False, type=bool)
 
 def load_spectrum_palette(theme_name="default"):
     themes = core.load_theme_file()
@@ -317,6 +323,12 @@ def load_spectrum_palette(theme_name="default"):
     if "spectrum" in theme:
         global PALETTE_SPECTRUM
         PALETTE_SPECTRUM = [(float(val), core.get_color(tuple(col))) for val, col in theme["spectrum"]]
+
+if core.height >= 128:
+    if show_spectrum:
+        from spectrum_capture import SpectrumCapture
+        load_spectrum_palette(core.THEME_NAME)
+
 
 last_title_seen = ""
 last_artist_seen = ""
@@ -439,14 +451,14 @@ def update_status_info():
             continue
         now = time.time()
 
-        if now - last_renderer_check > 1:
+        if now - last_renderer_check > 1.5:
             last_renderer_check = now
             load_renderer_states_from_db()
 
-        if now - last_status_time > 0.3:
+        if now - last_status_time > 1.5:
             last_status_time = now
             try:
-                r = requests.get("http://localhost/command/?cmd=status", timeout=2)
+                r = requests.get("http://localhost/command/?cmd=status", timeout=5)
                 status_data = r.json()
                 global_state["state"] = status_data.get("9", "state: unknown").split(": ")[-1].strip()
                 global_state["repeat"] = status_data.get("1", "repeat: 0").split(": ")[-1].strip()
@@ -458,10 +470,10 @@ def update_status_info():
                 if core.DEBUG:
                     print("error status: ", e)
 
-        if now - last_song_time > 1:
+        if now - last_song_time > 1.5:
             last_song_time = now
             try:
-                r = requests.get("http://localhost/command/?cmd=get_currentsong", timeout=2)
+                r = requests.get("http://localhost/command/?cmd=get_currentsong", timeout=5)
                 song_data = r.json()
                 artist = html.unescape(song_data.get("artist", ""))
                 album = html.unescape(song_data.get("album", ""))
@@ -483,12 +495,14 @@ def update_status_info():
                 else:
                     menu_context_flag = "library"
                     artist_album = f"{artist} - {album}"
+                    
                 if title != last_title_seen:
                     core.reset_scroll("nowplaying_title")
                     last_title_seen = title
                 if artist_album != last_artist_seen:
                     core.reset_scroll("nowplaying_artist")
                     last_artist_seen = artist_album
+                    
                 global_state["title"] = title
                 global_state["album"] = album
                 global_state["artist"] = artist
@@ -499,7 +513,7 @@ def update_status_info():
                 if core.DEBUG:
                     print("error song: ", e)
 
-        if now - last_status_extra_time > 1:
+        if now - last_status_extra_time > 1.5:
             last_status_extra_time = now
             try:
                 client = MPDClient()
@@ -513,22 +527,7 @@ def update_status_info():
                 # Timing
                 global_state["elapsed"] = float(status_extra.get("elapsed", 0.0))
                 global_state["duration"] = float(status_extra.get("duration", 0.0))
-                # Formats
-                audio_fmt = status_extra.get("audio", "")
-                if audio_fmt:
-                    try:
-                        samplerate, bits, channels = audio_fmt.split(":")
-                        samplerate = round(int(samplerate) / 1000, 1)  # kHz
-                        if samplerate.is_integer():
-                            samplerate = int(samplerate)
-                        if core.screen.width >= 160:
-                            global_state["audio"] = f"{samplerate} kHz / {bits} bit"
-                        else:
-                            global_state["audio"] = f"{samplerate}k / {bits}b"
-                    except Exception:
-                        global_state["audio"] = audio_fmt
-                else:
-                    global_state["audio"] = "No Info"
+                # Bitrate                
                 global_state["bitrate"] = status_extra.get("bitrate", "")
 
             except Exception as e:
@@ -536,14 +535,14 @@ def update_status_info():
                 if core.DEBUG:
                     print("error mpd status: ", e)
 
-        if now - last_fav_time > 1:
+        if now - last_fav_time > 1.5:
             last_fav_time = now
             global_state["favorite"] = is_current_song_favorite(path)
 
-        if now - last_volume_time > 0.5:
+        if now - last_volume_time > 1.5:
             last_volume_time = now
             try:
-                r = requests.get("http://localhost/command/?cmd=get_volume", timeout=2)
+                r = requests.get("http://localhost/command/?cmd=get_volume", timeout=5)
                 volume_data = r.json()
                 if volume_data.get("muted") == "yes":
                     global_state["volume"] = "Mute"
@@ -557,7 +556,7 @@ def update_status_info():
         if now - last_clock_time > 10:
             last_clock_time = now
             global_state["clock"] = time.strftime("%Hh%M")
-        time.sleep(0.1)
+        time.sleep(1)
 
 def update_hardware_info():
     global hardware_info_lines
@@ -1137,7 +1136,7 @@ def ensure_local_stream():
 
     # Check database entry
     result = subprocess.run(
-        ["sqlite3", DB_PATH, f"SELECT COUNT(*) FROM cfg_radio WHERE station='{STREAM_URL}';"],
+        ["sqlite3", DB_PATH, f"SELECT COUNT(*) FROM cfg_radio WHERE station='{LOCAL_STREAM_URL}';"],
         capture_output=True,
         text=True
     )
@@ -1149,7 +1148,7 @@ def ensure_local_stream():
             station, name, type, logo, genre, broadcaster, language,
             country, region, bitrate, format, geo_fenced, home_page, monitor
         ) VALUES (
-            '{STREAM_URL}',
+            '{LOCAL_STREAM_URL}',
             'Local Stream',
             'r',
             'local',
@@ -1158,7 +1157,7 @@ def ensure_local_stream():
             '',
             '',
             '',
-            '128',
+            '',
             'MP3',
             'No',
             '',
@@ -1182,7 +1181,7 @@ Version=2
         subprocess.run(["sudo", "chmod", "777", PLS_PATH])
         subprocess.run(["sudo", "chown", "root:root", PLS_PATH])
         subprocess.run(f"sudo touch '{PLS_PATH}'", shell=True, check=True)
-        subprocess.run(["sudo", "php", OLIPIMOODE_DIR / "update_local_stream.php", STREAM_URL, "Local Stream", "r", "128", "MP3"])
+        subprocess.run(["sudo", "php", OLIPIMOODE_DIR / "update_local_stream.php", LOCAL_STREAM_URL, "Local Stream", "r", "", "MP3"])
 
     else:
         if core.DEBUG:
@@ -1212,7 +1211,7 @@ def preload_worker():
             core.show_message(core.t("preload_yt", error=e))
             if core.DEBUG:
                 print("error preload yt: ", e)
-        time.sleep(0.5)
+        time.sleep(1)
         preload_queue.task_done()
 
 def play_all_songlog_from_queue():
@@ -1609,7 +1608,7 @@ def stream_songlog_entry():
                 "-i", stream_url,
                 "-vn",
                 "-c:a", "libmp3lame",
-                "-b:a", stream_profile_selected["ffmpeg_bitrate"],
+                "-q:a", "0",
                 "-metadata", f"title={final_title_yt}",
                 "-f", "mp3", "-"
             ]
@@ -2161,6 +2160,94 @@ def draw_hardware_info():
 def draw_confirm_box():
     core.draw_custom_menu([item["label"] for item in confirm_box_options], confirm_box_selection, title=confirm_box_title)
 
+
+def start_spectrum():
+    global spectrum
+    #stop_spectrum()
+
+    num_bars = core.get_config("spectrum", "num_bars", fallback=36, type=int)
+    fmin = core.get_config("spectrum", "fmin", fallback=0, type=int)
+    fmax = core.get_config("spectrum", "fmax", fallback=None, type=int)
+    profile_str = core.get_config("spectrum", "spectrum_profile", fallback="", type=str)
+    try:
+        profile_dict = json.loads(profile_str) if profile_str else None
+    except json.JSONDecodeError as e:
+        print(f"Invalid JSON for spectrum_profile in ini: {e}")
+        profile_dict = None
+    spectrum = SpectrumCapture(
+        num_bars=num_bars,
+        fmin=fmin,
+        fmax=fmax,
+        profile=profile_dict
+    )
+    spectrum.start()
+    
+    samplerate = spectrum.samplerate
+    samplerate = round(int(samplerate) / 1000, 1)  # kHz
+    if samplerate.is_integer():
+        samplerate = int(samplerate)
+    if core.screen.width >= 160:
+        global_state["audio"] = f"{samplerate} kHz / {spectrum.nominal_bits} bit"
+    else:
+        global_state["audio"] = f"{samplerate}k / {spectrum.nominal_bits}b"
+
+    if core.DEBUG:
+        print(f"Samplerate: {spectrum.samplerate} Hz, Channels: {spectrum.channels}, Format: {spectrum.format_name}")
+
+def stop_spectrum(timeout=3.0):
+    global spectrum
+    if spectrum:
+        try:
+            spectrum.stop()
+        except Exception:
+            pass
+        try:
+            spectrum.join(timeout)
+        except Exception:
+            pass
+        try:
+            if hasattr(spectrum, "is_alive") and spectrum.is_alive():
+                if core.DEBUG:
+                    print("Warning: spectrum thread still alive after join()")
+        except Exception:
+            pass
+        spectrum = None
+
+def mpd_monitor():
+    from mpd import MPDClient
+    client = MPDClient()
+    client.timeout = 10
+    try:
+        client.connect("localhost", 6600)
+    except Exception as e:
+        print("MPD connection failed:", e)
+        return
+    last_toggle = 0
+    while True:
+        try:
+            events = client.idle()
+            if 'player' in events:
+                if time.time() - last_toggle < 0.2:
+                    continue
+                stop_spectrum()
+                if core.DEBUG:
+                    print("idle event -> stop spectrum now")
+                client.pause()
+                time.sleep(0.1)
+                client.pause()
+                last_toggle = time.time()
+                time.sleep(0.1)
+                try:
+                    status = client.status()
+                except Exception:
+                    status = {}
+                if status.get("state") == "play":
+                    start_spectrum()
+        except Exception as e:
+            if core.DEBUG:
+                print("MPD monitor error:", e)
+            time.sleep(1.0)
+
 if core.height > 64:
     try:
         show_extra_infos = core.get_config("nowplaying", "show_extra_infos", fallback=False, type=bool)
@@ -2170,56 +2257,9 @@ if core.height > 64:
         show_progress_barre = False
 
 if core.height >= 128:
-    try:
-        show_spectrum = core.get_config("nowplaying", "show_spectrum", fallback=False, type=bool)
-    except:
-        show_spectrum = False
-
     if show_spectrum:
-        from spectrum_capture import SpectrumCapture
-        load_spectrum_palette(core.THEME_NAME)
-
-        # Read spectrum config from INI (with sane fallbacks)
-        dev = core.get_config("spectrum", "device", fallback="hw:Loopback,1,0", type=str)
-        profile = core.get_config("spectrum", "profile", fallback="defaut", type=str)
-        num_bars = core.get_config("spectrum", "num_bars", fallback=36, type=int)
-        fmin = core.get_config("spectrum", "fmin", fallback=20, type=int)
-        fmax = core.get_config("spectrum", "fmax", fallback=20000, type=int)
-
-        # manual_bands parsing (optional)
-        manual_bands = None
-        manual_bands_str = core.get_config("spectrum", "manual_bands", fallback="", type=str).strip()
-        if manual_bands_str:
-            try:
-                pairs = [p.strip() for p in manual_bands_str.split(",") if p.strip()]
-                manual_bands = []
-                for p in pairs:
-                    if "-" in p:
-                        a, b = p.split("-", 1)
-                        manual_bands.append((int(a.strip()), int(b.strip())))
-            except Exception as e:
-                if core.DEBUG:
-                    print("Invalid manual_bands in config, ignoring:", e)
-                manual_bands = None
-        profile_str = core.get_config("spectrum", "spectrum_profile", fallback="", type=str)
-        try:
-            profile_dict = json.loads(profile_str) if profile_str else None
-        except json.JSONDecodeError as e:
-            print(f"Invalid JSON for spectrum_profile in ini: {e}")
-            profile_dict = None
-
-        # Create spectrum capture
-        spectrum = SpectrumCapture(
-            device=dev,
-            num_bars=num_bars,
-            manual_bands=manual_bands,
-            fmin=fmin,
-            fmax=fmax,
-            profile=profile_dict
-        )
-        if core.DEBUG:
-            print(f"Samplerate détecté: {spectrum.samplerate} Hz, Channels: {spectrum.channels}, Format: {spectrum.format}")
-        spectrum.start()
+        threading.Thread(target=mpd_monitor, daemon=True).start()
+        start_spectrum()
 
 def interpolate_palette(value, palette):
     """Interpolate between colors in a palette (value ∈ [0,1])."""
@@ -2236,56 +2276,34 @@ def interpolate_palette(value, palette):
     return palette[-1][1]
 
 def draw_spectrum(y_top, height, levels):
-    """
-    Gradient mode: "height" = global gradient for full spectro,
-                   "level"  = gradient inside each bar.
-    """
     palette = PALETTE_SPECTRUM
-    gradient_mode = core.get_config("spectrum", "gradient_mode", fallback="height", type=str).lower()
-
     num_bars = len(levels)
-    bar_width = core.width // num_bars if num_bars > 0 else core.width
+    bar_width = (core.width - 4) // num_bars if num_bars > 0 else core.width - 4
     total_width = bar_width * num_bars
     margin_left = (core.width - total_width) // 2
 
     # Precompute global gradient if needed
-    global_gradient = None
-    if gradient_mode == "height":
-        global_gradient = []
-        if height <= 1:
-            color = interpolate_palette(1.0, palette)
-            global_gradient = [color]
-        else:
-            for yy in range(height):
-                value = 1.0 - (yy / (height - 1))  # bottom → top
-                global_gradient.append(interpolate_palette(value, palette))
+    global_gradient = []
+    if height <= 1:
+        color = interpolate_palette(1.0, palette)
+        global_gradient = [color]
+    else:
+        for yy in range(height):
+            value = 1.0 - (yy / (height - 1))  # bottom → top
+            global_gradient.append(interpolate_palette(value, palette))
 
     # Draw bars
     for i, level in enumerate(levels):
         bar_h = int(level * height)
         if bar_h <= 0:
             continue
-
         x0 = margin_left + i * bar_width
         y_start = y_top + height - bar_h
-
-        if gradient_mode == "height":
-            # Use global gradient
-            for y in range(bar_h):
-                idx = y_start + y - y_top
-                idx = max(0, min(idx, len(global_gradient) - 1))
-                color = global_gradient[idx]
-                core.draw.rectangle((x0, y_start + y, x0 + bar_width - 1, y_start + y), fill=color)
-        else:
-            # Gradient relative to each bar height
-            if bar_h == 1:
-                color = interpolate_palette(1.0, palette)
-                core.draw.rectangle((x0, y_start, x0 + bar_width - 1, y_start), fill=color)
-            else:
-                for y in range(bar_h):
-                    value = 1.0 - (y / (bar_h - 1))  # bottom → top
-                    color = interpolate_palette(value, palette)
-                    core.draw.rectangle((x0, y_start + y, x0 + bar_width - 1, y_start + y), fill=color)
+        for y in range(bar_h):
+            idx = y_start + y - y_top
+            idx = max(0, min(idx, len(global_gradient) - 1))
+            color = global_gradient[idx]
+            core.draw.rectangle((x0, y_start + y, x0 + bar_width - 1, y_start + y), fill=color)
 
 def draw_nowplaying():
     now = time.time()
@@ -2433,11 +2451,11 @@ def draw_nowplaying():
             spacing = 3
         elif core.height <= 160:
             spacing = 8
-        elif core.height == 170:
+        elif core.height == 170 and core.width == 320:
             spacing = 4
         else:
             spacing = 12
-            top_bar_h = icon_width + 4
+            top_bar_h = icon_width + 6
 
         # --- Artist / Album ---
         bbox_artist = font_artist.getbbox("Ay")
@@ -2453,7 +2471,7 @@ def draw_nowplaying():
 
         # --- Extra Infos ---
         y_extra_info = y_title + title_h + spacing + 2
-        if core.height > 64 and show_extra_infos:
+        if core.height > 64 and show_extra_infos and show_spectrum:
             extra_info = global_state.get("audio", "")
             bitrate = global_state.get("bitrate", "")
             if bitrate:

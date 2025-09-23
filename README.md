@@ -6,7 +6,7 @@
 
 # OliPi MoOde
 
-OliPi MoOde is an user interface for OLED/LCD screens >= 128x64 for [Moode Audio](https://moodeaudio.org/) with control via IR remote control and/or GPIO buttons.
+OliPi MoOde is an user interface for OLED/LCD screens >= 128x64 for [Moode Audio](https://moodeaudio.org/) with control via IR remote control and/or GPIO buttons/rotary encoder.
 
 <p align="center">
   <img src="https://github.com/OliPi-Project/olipi-moode/blob/main/docs/screenshots/TFT_demo.gif" width="400" alt="All Screens Demo">
@@ -17,6 +17,46 @@ Video presentation:
 [https://youtu.be/9Y13UeyyT7k?si=hkOkiP9gk0rjxlB8](https://youtu.be/9Y13UeyyT7k?si=hkOkiP9gk0rjxlB8)
 
 ---
+
+## ❔ What's new?
+**<u>V0.2.0-pre</u>**
+
+*Change of approach for SPI displays: they now use the FBTFT overlay directly instead of going through the Adafruit lib. For I2C screens, I've switched to Luma.oled.* 
+
+**<u>You need to uninstall completely Olipi Moode</u>** if you've already installed it:  
+
+Retrieve the latest uninstall script:  
+```
+curl -sSL https://github.com/OliPi-Project/olipi-moode/blob/main/install/uninstall-olipi-moode.sh -o uninstall-olipi-moode.sh
+```  
+And executed the script:
+
+```
+sudo bash uninstall-olipi-moode.sh
+```
+
+> Release note:
+>   - Ready-script replaced by a systemd service with starting animation waiting for Moode to start. you can disable ready-script in Moode.
+>   - FBTFT overlay for SPI screens.
+>   - Luma.oled for I2C screens (Now you need to select the I2C address of your screen during installation).
+>   - Setup script improved for install/update, with OliPi Moode folder backup.
+>       - Now based on release version.
+>       - Patch / Minor / Major Update are treated differently.
+>       - Force new config.ini on major update with full install/configuration.
+>       - Preserve config.ini and merge with .dist files on Minor update.
+>       - Don't modify config.ini on Patch update.
+>       - Backup existing configs before overwriting.
+>       - Safe cleanup and move of cloned repo files.
+>       - Use dedicaced section `# --- Olipi-moode ---` and `# @marker:***` on config.txt.
+>   - A small performance improvement for Pi zero 2w / Pi3 A/B+ with highter screen resolution (still a lot of work to do).
+>       - refresh_interval is now set according to the model of raspberry detected. 
+>       - SPI speed and buffer size is now set according to the model of screen selected.
+>   - Improved spectrometer.
+>       - More audio formats supported.
+>       - Now spectro releases the loopback when a track changes (Output format is no longer locked to the format read at opening).
+>   - Delete some options and clean up config.ini
+>   - And other odds and ends...
+
 
 ## 📚 Table of Contents
 
@@ -40,15 +80,12 @@ Video presentation:
 
 ## ✨ Features
 
-- **ui_playing**: Displays the current track, metadata, playback status, hardware info, etc. Media controls, add/remove favorites (follows the playlist configured in Moode), playback modes, renderers (Bluetooth, Airplay, and UPNP), search for the currently playing artist in the music library… And a little extra: Logs radio track titles (via the "favorites" button) into a text file to list them in the menu, and lets you search them via yt-dlp and replay them via a local stream/radio (no download).
-- **ui_browser**: Browse the music library, search, move, copy, delete to/from local or USB storage.
-- **ui_queue**: Displays and manages the playback queue. Playlist creation.
+- **Now Playing UI**: Displays the current track, metadata, playback status, hardware info, etc. Media controls, add/remove favorites (follows the playlist configured in Moode), playback modes, renderers (Bluetooth, Airplay, and UPNP), search for the currently playing artist in the music library… And a little extra: Logs radio track titles (via the "favorites" button) into a text file to list them in the menu, and lets you search them via yt-dlp and replay them via a local stream/radio (no download).
+- **Browser UI**: Browse the mpd music library, search, move, copy, delete to/from local or USB storage.
+- **Playlist/Queue UI**: Display and manage the playback queue. Can create or replace Playlist from queue.
 - **Configuration help and IR remote mapping**: Assisted and fully customizable LIRC configuration with conflict detection. Ability to add custom actions to unused keys in OliPi MoOde (see the `handle_custom_key` function in `media_key_actions.py`... *to be made more user-friendly*).
-- **GPIO button and rotary encoder support** using `rpi_lgpio` . Enable and configure pins in `config.ini` under the "manual" section.
-- **ZRAM configuration** for low-memory devices (e.g., Raspberry Pi Zero 2W).
-- Automatic integration with Moode’s "Ready Script" for smooth startup.
+- **GPIO button and rotary encoder support** using `rpi_lgpio` . Enable and configure pins in `config.ini` under the "manual" section (rotary not tested).
 
----
 
 ## 📦 System requirements
 
@@ -77,42 +114,39 @@ Video presentation:
   
 - **APT dependencies** (installed automatically):
   
-  ```bash
+  ```
   git python3-pil python3-venv python3-pip python3-tk libatlas-base-dev
   i2c-tools libgpiod-dev python3-libgpiod python3-lgpio python3-setuptools
   ```
 
-- **Python dependencies** (installed automatically):
+- **Python dependencies** (installed automatically with the virtual environment):
   
   ```txt
-  Adafruit_Blinka~=8.55.0
-  adafruit_circuitpython_rgb_display~=3.14.1
-  adafruit_circuitpython_ssd1306~=2.12.21
-  rpi_lgpio~=0.6
+  luma.oled~=3.14.0
+  luma_core~=2.5.1
   Pillow~=11.3.0
   python_mpd2~=3.0.5
   PyYAML~=6.0.2
-  Requests~=2.32.4
-  yt_dlp>=2025.7.21
-  numpy~=2.3.2
+  Requests~=2.32.5
+  rpi_lgpio~=0.6
   pyalsaaudio~=0.11.0
-  scipy~=1.16.1
+  numpy~=2.3.3
+  scipy~=1.16.2
+  yt_dlp[default]>=2025.9.5
   ```
 
 ---
 
 ## 🚀 Installation
 
-***Beware of performance issues on the Pi Zero2 W and Pi3a/B+ with higher resolutions like 170x320 or 240x320 (need to up the `spidev.bufsiz=131072` in /boot/firmware/cmdline.txt keep all text on 1 line, and set the `baudrate = 100000000` with a `refresh_interval = 0.01` in the config.ini )...
-For better smooth scrolling, I2C screens (like ssd1306) it's a good thing to increase the bauderate to 400k with `dtparam=i2c_baudrate=400000` in /boot/firmware/config.txt (400k seems to be compatible with DACs)***
+**<u>If you have [MoodeOled](https://github.com/Trachou2Bois/MoodeOled) installed</u>**, check [**here**](https://github.com/Trachou2Bois/MoodeOled/blob/main/README.md#moodeoled-has-grown) to **uninstall it** before install OliPi Moode.
 
-***I'm looking for a solution to use the Raspberry-Pi FBTFT overlays directly rather than going through the Adafruit libraries.***
-
-First of all, make sure you've wired your screen, buttons and IR receiver correctly.
+First of all:
+- if you have already installed Olipi Moode check [here](#-whats-new) if new version require uninstalling.
+- Make sure you've wired your screen, buttons and IR receiver correctly.
 [See wiring guide](TROUBLESHOOTING.md#wiring--screen-does-not-turn-on-after-installation).
 
-If you have [MoodeOled](https://github.com/Trachou2Bois/MoodeOled) installed, check [here](https://github.com/Trachou2Bois/MoodeOled/blob/main/README.md#moodeoled-has-grown) to uninstall it before install OliPi Moode.
-
+After that you can:
 
 1. Clone this repository:
    
@@ -127,43 +161,47 @@ If you have [MoodeOled](https://github.com/Trachou2Bois/MoodeOled) installed, ch
    python3 ~/olipi-moode/install/setup.py
    ```
 
-3. Follow the on-screen instructions.
+3. Follow the on-screen instructions.  
    
        This script performs the following actions:
        
        - Detects Moode version.
-       - Installs APT and Python dependencies.
+       - Installs APT dependencies.
        - Clone latest release from olipi-core
        - Offers to select from supported screens
        - Configures I²C or SPI if disabled.
-       - Offers to fill in the pins for the spi screens
+       - Offers to fill in the pins for SPI or select I2C adress
        - Offers ZRAM configuration if 512MB RAM and/or swap detected.
        - Creates a virtual environment (`~/.olipi-moode-venv` by default).
+       - Install Python dependencies in venv.
        - Installs systemd services.
-       - Modify ready script for starting ui_playing service after Moode boot
        - Append some lines with useful commands to .profile
        - Create file with versions and paths in install dir.
        
-       It can be reused for update OliPi Moode or force reinstall
+       It can be reused for update OliPi Moode or force reinstall  
 
----
+4. ❗ <u>Moode configuration reminder</u>
+
+    ```
+    In Moode > System Config > Peripherals: Enable LCD Updater.
+    ```
 
 ## 🖥 Services
 
 The following systemd services are created during installation:
 
-| Service      | Description                   |
-| ------------ | ----------------------------- |
-| `ui_playing` | Displays "Now Playing" screen |
-| `ui_browser` | Music library navigation      |
-| `ui_queue`   | Playback queue display        |
-| `ui_off`     | Turns off screen at shutdown  |
+| Service              | Description                           |
+| -------------------- | ------------------------------------- |
+| `olipi-ui-playing`   | Displays "Now Playing" screen         |
+| `olipi-ui-browser`   | Music library navigation              |
+| `olipi-ui-queue`     | Playback queue display                |
+| `olipi-ui-off`       | Turns off (clear) screen at shutdown  |
 
-Switch between the 3 main display scripts using the `KEY_BACK` button.
+Switch between the 3 main display scripts using the `KEY_BACK` button.  
+Service `olipi-ui-off` is enabled and execute ui_off.py for clearing display at shutdown. (Need better handling for turning off LCD backlight)
 
----
 
-## 🎛 IR remote configuration
+## 📡 IR remote configuration
 
 OliPi MoOde includes an interactive script to configure LIRC:
 
@@ -177,7 +215,9 @@ Features:
 - Hardware test (`mode2`, `irw`).
 - Download a configuration from `irdb-get`.
 - Learn a remote control (`irrecord`).
-- **Mapping editor**:
+- Move *.lircd.conf to /etc/lirc/lircd.conf.d
+- Manage/edit *.lircd.conf stored in /etc/lirc/lircd.conf.d
+- Mapping editor:
   - Reassign all keys or individually.
   - Conflict detection (confirmation if a key is already mapped).
   - Warning if mapping a system key (e.g., `KEY_UP`).
@@ -196,22 +236,20 @@ KEY_FORWARD = KEY_FASTFORWARD
 KEY_NEXT = KEY_NEXTSONG
 ```
 
----
+## 🎛 GPIO and rotary encoder support
 
-## ⌨ GPIO and rotary encoder support
-
-OliPi MoOde uses `rpi_lgpio`, you can configure GPIO buttons or rotary encoders in `config.ini`. Be careful not to use pins that are used for other things. Check your hardware before enabling "use_gpio" and "use_rotary""
+OliPi MoOde uses `rpi_lgpio`, you can configure GPIO buttons or rotary encoders in `config.ini`. Be careful not to use pins that are used for other things. Check your hardware and wiring before enabling "use_buttons" and "use_rotary""
 
 Example:
 
 ```ini
-[manual]
-use_gpio = true
+[input]
+use_buttons = true
 use_rotary = true
 
 [buttons]
-KEY_PLAY = 17
-KEY_STOP = 27
+KEY_LEFT = 17
+KEY_RIGHT = 27
 
 [rotary]
 pin_a = 22
@@ -219,28 +257,28 @@ pin_b = 23
 pin_btn = 24
 ```
 
----
-
-## **🎛 Key configuration**
+## ⌨ Key configuration
 
 ### 🔑 Essential keys
 
 These keys are **required** to navigate and control all interfaces:
 
-| Key                 | Generic role                                        | Specific usage in `ui_playing`                     |
+| Key                 | Generic role (all UI)                               | Specific usage in `ui_playing`                     |
 | ------------------- | --------------------------------------------------- | -------------------------------------------------- |
 | **KEY_UP**          | Move up                                             | Volume + if outside menu                           |
 | **KEY_DOWN**        | Move down                                           | Volume - if outside menu                           |
 | **KEY_LEFT**        | Move left                                           | Previous / Seek -10s (long press) if outside menu  |
 | **KEY_RIGHT**       | Move right                                          | Next / Seek +10s (long press) if outside menu      |
-| **KEY_OK**          | Open menu / Tools menu (long press) / Confirm       | Same                                               |
+| **KEY_OK**          | Open menu / Tools menu (long press) / Confirm       |                                                    |
 | **KEY_BACK**        | Switch to `ui_browser`/`ui_queue`/`ui_playing`      | Switch to `ui_browser` (short) / `ui_queue` (long) |
-| **KEY_INFO**        | Show contextual help                                | Same                                               |
+| **KEY_INFO**        | Show contextual help                                |                                                    |
 | **KEY_CHANNELUP**   | Context action                                      | Add/Remove favorites, if radio: add to songlog     |
 | **KEY_CHANNELDOWN** | Context action                                      | Remove from queue                                  |
-| **KEY_PLAY**        | If outside menu: Play/Pause / Shutdown (long press) | Same                                               |
+| **KEY_PLAY**        | Only on Now Playing UI                              | Play/Pause / Shutdown (long press)                 |
 
 These keys must be configured either via LIRC (`python3 ~/olipi-moode/install/install_lirc_remote.py`) or via GPIO (`[buttons]` section in `config.ini`).
+
+**For more info, press `KEY_INFO` in each context.**
 
 ### 🎵 Optional media keys
 
@@ -260,9 +298,8 @@ Recommended if available on your remote, but **not mandatory**:
 
 > **Note:** In `ui_playing`, navigation keys (`UP`, `DOWN`, `LEFT`, `RIGHT`) can replace optional media keys if they are not present.
 
----
 
-## 🔧 Configuration via tools menu in ui_playing
+## 🔧 Configuration via tools menu in Now Playing UI
 
 A small on-screen configuration menu allows you to change:
 
@@ -272,7 +309,6 @@ A small on-screen configuration menu allows you to change:
 - Enable/disable debug mode  
 - Change color theme
 
----
 
 ## 🧠 ZRAM on low-memory devices
 
@@ -281,16 +317,6 @@ If your Raspberry Pi has **512MB RAM** (e.g., Zero 2W or 3 A+):
 - The installer offers to install `zram-tools` and configure ZRAM (256 MB, lz4).
 - Completely disables swap.
 
----
-
-## ⚠️ Moode configuration reminder
-
-In **Moode > System Config**:
-
-- Enable **Ready Script** (System).
-- Enable **LCD Updater** (Peripherals).
-
----
 
 ## 🔧 Uninstall
 
@@ -302,14 +328,11 @@ You can uninstall all without leaving any residue with the following command:
 
 `sudo bash ~/olipi-moode/install/uninstall-olipi-moode.sh --dry-run`
 
----
-
 
 ## ❓ Troubleshooting and FAQ
 
 If you want to learn more about OliPi Moode or if you encounter issues (black screen, IR remote not detected, GPIO not working, etc.), please check the [FAQ & Troubleshooting guide](./TROUBLESHOOTING.md).
 
----
 
 ## 🤝 Contributing
 
@@ -322,7 +345,7 @@ Possible future improvements:
 - Translation into more languages.
 - Documentation improvements.
 
-Come [discuss it on Discord](https://discord.gg/pku67XsFEE)  or if you want, [you can get your hands dirty with the engine](./CONTRIBUTING.md).
+Come [discuss it on Discord](https://discord.gg/pku67XsFEE)!
 
 ---
 
@@ -336,7 +359,7 @@ See the [LICENSE](./LICENSE) file for details.
 This project is based on Moode Audio Player and may reuse various code patterns and configuration approaches.  
 Moode is licensed under GPLv3: https://moodeaudio.org/LICENSE.txt
 
-## **Disclaimer**
+## ⚠️ **Disclaimer**
 
 This project is neither affiliated with nor endorsed by the official Moode Audio team.
 

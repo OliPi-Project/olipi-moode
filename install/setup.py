@@ -11,13 +11,13 @@ import stat
 import json
 import traceback
 import argparse
+import tempfile
 import urllib.request
 import urllib.error
 import re
 from pathlib import Path
 from lang import SETUP
 
-# --- Constants ---
 APT_DEPENDENCIES = [
     "git", "python3-pil", "python3-venv", "python3-pip", "python3-tk", "libasound2-dev", "libatlas-base-dev",
     "i2c-tools", "libgpiod-dev", "python3-libgpiod", "python3-lgpio", "python3-setuptools"
@@ -31,6 +31,11 @@ OLIPI_CORE_REPO = "https://github.com/OliPi-Project/olipi-core.git"
 OLIPI_MOODE_REPO = "https://github.com/OliPi-Project/olipi-moode.git"
 OLIPI_MOODE_DEV_BRANCH = "dev"
 OLIPI_CORE_DEV_BRANCH = "dev"
+# path relative to local_dir e.g. ["config/user_key.ini, something.ini"]
+PRESERVE_FILES = {
+    "moode": [songlog.txt],
+    "core": []
+}
 
 lang = "en"
 
@@ -39,15 +44,13 @@ OLIPI_MOODE_DIR = os.path.dirname(INSTALL_DIR)  # parent → olipi-moode
 OLIPI_CORE_DIR = os.path.join(OLIPI_MOODE_DIR, "olipi_core")
 DEFAULT_VENV_PATH = os.path.expanduser("~/.olipi-moode-venv")
 INSTALL_LIRC_REMOTE_PATH = os.path.join(INSTALL_DIR, "install_lirc_remote.py")
+SETUP_SCRIPT_PATH = os.path.join(INSTALL_DIR, "setup.py")
 SETTINGS_FILE = Path(INSTALL_DIR) / ".setup-settings.json"
 TMP_LOG_FILE = Path("/tmp/setup.log")
+CONFIG_TXT = "/boot/firmware/config.txt"
 
 _LOG_INITIALIZED = False
-DRY_RUN = False  # set by CLI args
 
-# -----------------------
-# Logging & shell helpers
-# -----------------------
 def finalize_log(exit_code=0):
     """Move the temporary log file to INSTALL_DIR/logs with status."""
     try:
@@ -90,7 +93,7 @@ def log_line(msg=None, error=None, context=None):
 
 def run_command(cmd, log_out=True, show_output=False, check=False):
     """Run a shell command with logging and optional output display."""
-    global _LOG_INITIALIZED, DRY_RUN
+    global _LOG_INITIALIZED
 
     sep = "-" * 60
     timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
@@ -101,15 +104,6 @@ def run_command(cmd, log_out=True, show_output=False, check=False):
     with TMP_LOG_FILE.open(mode, encoding="utf-8") as fh:
         fh.write(header)
     _LOG_INITIALIZED = True
-
-    if DRY_RUN:
-        # In dry-run mode we only log the command
-        with TMP_LOG_FILE.open("a", encoding="utf-8") as fh:
-            fh.write("[DRY-RUN] " + cmd + "\n")
-        print(f"[DRY-RUN] {cmd}")
-        # Return a successful CompletedProcess-like object
-        fake = subprocess.CompletedProcess(args=cmd, returncode=0, stdout="", stderr="")
-        return fake
 
     process = subprocess.Popen(
         cmd, shell=True,
@@ -142,9 +136,6 @@ def run_command(cmd, log_out=True, show_output=False, check=False):
 
     return result
 
-# -----------------------
-# Utilities
-# -----------------------
 def choose_language():
     global lang
     print(SETUP.get("choose_language", {}).get(lang, "Please choose your language:"))
@@ -186,6 +177,301 @@ def install_apt_dependencies():
         run_command(f"sudo apt-get install -y {' '.join(missing)}", log_out=True, show_output=True, check=True)
 
     print(SETUP["apt_ok"][lang])
+
+def safe_read_file_as_lines(path, critical=True):
+    """Read file as lines as root."""
+    try:
+        res = run_command(f"cat {path}", log_out=True, show_output=False, check=False)
+        # run_command returns stdout as string for non-interactive
+        return res.stdout.splitlines()
+    except Exception as e1:
+        log_line(error=f"❌ Failed to read file with sudo: {e1}", context="safe_read_file_as_lines")
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                return f.readlines()
+        except Exception as e2:
+            log_line(error=f"❌ Direct read of {path} failed: {e2}", context="safe_read_file_as_lines")
+            if critical:
+                safe_exit(1, error=f"❌ Direct read of {path} failed: {e2}")
+            else:
+                print(f"⚠️ Could not read {path}, continuing anyway or ctrl+c to quit and check what wrong.")
+                return []
+
+def safe_write_file_as_root(path, lines, critical=True):
+    """Write file as root: create a tmp file then sudo mv into place (preserve content)."""
+    try:
+        with tempfile.NamedTemporaryFile('w', delete=False, encoding="utf-8") as tmp:
+            if isinstance(lines, list):
+                for line in lines:
+                    tmp.write(line if line.endswith("\n") else line + "\n")
+            else:
+                tmp.write(lines if lines.endswith("\n") else lines + "\n")
+            tmp_path = tmp.name
+        run_command(f"sudo cp {tmp_path} {path}", log_out=False, show_output=False, check=True)
+        run_command(f"sudo rm -f {tmp_path}", log_out=False, show_output=False, check=False)
+    except Exception as e:
+        log_line(error=f"❌ Write file as root of {path} failed: {e}", context="safe_write_file_as_root")
+        if critical:
+            safe_exit(1, error=f"❌ Write file as root of {path} failed: {e}")
+        else:
+            print(f"⚠️ Write file as root of {path} failed, continuing anyway or ctrl+c to quit and check what wrong.")
+            pass
+
+def create_backup(file_path, critical=True):
+    moode_version = get_moode_version()
+    if os.path.exists(file_path):
+        backup_path = f"{file_path}.olipi-back-moode{moode_version}"
+        if os.path.exists(backup_path):
+            print(SETUP["backup_exist"][lang].format(backup_path))
+            pass
+        else:
+            try:
+                run_command(f"sudo cp -p {file_path} {backup_path}", log_out=True, show_output=True, check=True)
+                print(SETUP["backup_created"][lang].format(backup_path))
+            except Exception as e:
+                log_line(error=f"⚠ Backup of {file_path} failed: {e}", context="create_backup")
+                if critical:
+                    safe_exit(1, error=f"❌ Direct read of {file_path} failed: {e}")
+                else:
+                    print(f"⚠ Backup of {file_path} failed, continuing anyway or ctrl+c to quit and check what wrong.")
+                    pass
+
+def update_olipi_section(lines, marker, new_lines=None, replace_prefixes=None, clear=False):
+    """
+    Update or clear a block under a specific marker inside the # --- Olipi-moode START/END --- section.
+
+    Args:
+        lines (list[str]): current config.txt file as a list of lines
+        marker (str): marker identifier (e.g. "screen overlay", "ir overlay")
+        new_lines (list[str] | None): lines to insert (ignored if clear=True)
+        replace_prefixes (list[str] | None): if given, remove any matching lines (even if commented) globally,
+                                             then insert only inside this marker block
+        clear (bool): if True, wipe all lines under this marker
+
+    Returns:
+        list[str]: updated list of lines
+    """
+
+    section_start = "# --- Olipi-moode START ---"
+    section_end = "# --- Olipi-moode END ---"
+    marker_line = f"# @marker: {marker}"
+
+    # Locate section boundaries
+    start_idx = None
+    end_idx = None
+    for i, line in enumerate(lines):
+        if line.strip() == section_start:
+            start_idx = i
+        elif line.strip() == section_end and start_idx is not None:
+            end_idx = i
+            break
+
+    # If section not found, create it at the end of file
+    if start_idx is None or end_idx is None:
+        if lines and lines[-1].strip() != "":
+            lines.append("")
+        lines.append(section_start)
+        lines.append(section_end)
+        start_idx = len(lines) - 2
+        end_idx = len(lines) - 1
+
+    # Extract block content between START and END
+    block = lines[start_idx + 1:end_idx]
+
+    # Look for marker inside the block
+    marker_idx = None
+    for i, line in enumerate(block):
+        if line.strip().lower() == marker_line.lower():
+            marker_idx = i
+            break
+
+    # If clear=True → remove the whole block under this marker
+    if marker_idx is not None and clear:
+        end_m = marker_idx + 1
+        while end_m < len(block) and not block[end_m].lstrip().startswith("# @marker:"):
+            end_m += 1
+        block[marker_idx+1:end_m] = []
+        lines[start_idx + 1:end_idx] = block
+        return lines
+
+    # Remove globally any lines matching replace_prefixes
+    if replace_prefixes:
+        prefixes = tuple(replace_prefixes)
+        cleaned_block = []
+        for line in block:
+            check = line.lstrip("# ").strip()
+            if any(check.startswith(p) for p in prefixes):
+                continue
+            cleaned_block.append(line)
+        block = cleaned_block
+
+    # Update or add marker section
+    if marker_idx is not None and not clear:
+        # Find block end (next marker or end of section)
+        end_m = marker_idx + 1
+        while end_m < len(block) and not block[end_m].lstrip().startswith("# @marker:"):
+            end_m += 1
+
+        if replace_prefixes is None:
+            if new_lines:
+                block[marker_idx+1:end_m] = [l.rstrip() + "\n" for l in new_lines]
+        else:
+            existing = block[marker_idx+1:end_m]
+            filtered = [l.rstrip() + "\n" for l in existing]
+            if new_lines:
+                filtered.extend([l.rstrip() + "\n" for l in new_lines])
+            block[marker_idx+1:end_m] = filtered
+    else:
+        # Marker not found → append inside section
+        block.append(marker_line + "\n")
+        if not clear and new_lines:
+            block.extend([l.rstrip() + "\n" for l in new_lines])
+
+    # Write back updated block into lines
+    lines[start_idx + 1:end_idx] = block
+    return lines
+
+def safe_cleanup(path: Path, preserve_files=None, base: Path = None):
+    """
+    Delete contents of a directory but preserve specific files (by relative path).
+    """
+    preserve_files = preserve_files or []
+    base = base or path
+
+    for item in path.iterdir():
+        rel_path = str(item.relative_to(base))
+        if item.is_dir():
+            safe_cleanup(item, preserve_files=preserve_files, base=base)
+            try:
+                item.rmdir()
+            except OSError as e:
+                log_line(error=f"Failed to remove {item}: {e}", context="install_repo_cleanup (safe_cleanup)")
+        else:
+            if rel_path in preserve_files:
+                continue
+            item.unlink()
+
+
+def move_contents(src: Path, dst: Path, preserve_files=None, base: Path = None):
+    """
+    Move all files/dirs from src into dst, preserving some files (by relative path).
+    """
+    preserve_files = preserve_files or []
+    base = base or src
+
+    for item in src.iterdir():
+        rel_path = str(item.relative_to(base))
+        target = dst / item.name
+        if item.is_dir():
+            target.mkdir(exist_ok=True)
+            move_contents(item, target, preserve_files, base=base)
+        else:
+            if rel_path in preserve_files and target.exists():
+                continue
+            shutil.move(str(item), str(target))
+
+def merge_ini_with_dist(user_file: Path, dist_file: Path):
+    """
+    Merge dist file into user config file while preserving comments, formatting,
+    and existing values. Adds missing keys (active or commented) and their comments.
+    Updates comments if they differ. Only considers comments starting with ###.
+    """
+    if not dist_file.exists():
+        return
+
+    if not user_file.exists():
+        user_file.write_text(dist_file.read_text(encoding="utf-8"), encoding="utf-8")
+        return
+
+    user_lines = user_file.read_text(encoding="utf-8").splitlines()
+    dist_lines = dist_file.read_text(encoding="utf-8").splitlines()
+
+    # --- collect existing keys (active or commented) ---
+    existing_keys = set()
+    current_section = None
+    for line in user_lines:
+        striped = line.strip()
+        if striped.startswith("[") and striped.endswith("]"):
+            current_section = striped
+        elif "=" in striped:
+            key = striped.lstrip("#;").split("=", 1)[0].strip()
+            existing_keys.add((current_section, key))
+
+    merged_lines = []
+    current_section = None
+
+    for line in user_lines:
+        striped = line.strip()
+        if striped.startswith("[") and striped.endswith("]"):
+            current_section = striped
+        elif "=" in striped:
+            key = striped.lstrip("#;").split("=", 1)[0].strip()
+
+            # --- find dist comments for this key ---
+            dist_idx = None
+            for i, dline in enumerate(dist_lines):
+                if dline.strip() == current_section:
+                    # search within this section
+                    for j in range(i + 1, len(dist_lines)):
+                        dstrip = dist_lines[j].strip()
+                        if dstrip.startswith("[") and dstrip.endswith("]"):
+                            break
+                        if "=" in dstrip:
+                            dkey = dstrip.lstrip("#;").split("=", 1)[0].strip()
+                            if dkey == key:
+                                dist_idx = j
+                                break
+                    break
+
+            if dist_idx is not None:
+                # collect ### comments above this key in dist
+                new_comments = []
+                j = dist_idx - 1
+                while j >= 0 and dist_lines[j].strip().startswith("###"):
+                    new_comments.insert(0, dist_lines[j])
+                    j -= 1
+
+                # replace existing ### comments if they differ
+                k = len(merged_lines) - 1
+                while k >= 0 and merged_lines[k].strip().startswith("###"):
+                    merged_lines.pop()
+                    k -= 1
+                merged_lines.extend(new_comments)
+
+        merged_lines.append(line)
+
+    # --- add missing keys/sections from dist ---
+    existing_sections = {l.strip() for l in user_lines if l.strip().startswith("[") and l.strip().endswith("]")}
+    current_section = None
+    additions = []
+
+    for idx, dline in enumerate(dist_lines):
+        dstrip = dline.strip()
+        if dstrip.startswith("[") and dstrip.endswith("]"):
+            current_section = dstrip
+            if current_section not in existing_sections:
+                additions.append("")
+                additions.append(dline)
+        elif current_section and current_section not in existing_sections:
+            additions.append(dline)
+        elif current_section and "=" in dstrip:
+            key = dstrip.lstrip("#;").split("=", 1)[0].strip()
+            if (current_section, key) not in existing_keys:
+                # collect preceding ### comments
+                comments_before = []
+                j = idx - 1
+                while j >= 0 and dist_lines[j].strip().startswith("###"):
+                    comments_before.insert(0, dist_lines[j])
+                    j -= 1
+                additions.append("")
+                additions.extend(comments_before)
+                additions.append(dline)
+
+    if additions:
+        merged_lines.append("")
+        merged_lines.extend(additions)
+
+    user_file.write_text("\n".join(merged_lines) + "\n", encoding="utf-8")
 
 def save_settings(settings: dict):
     """Save setup settings to a JSON file for later use (update/uninstall)."""
@@ -320,228 +606,354 @@ def version_is_newer(local: str, remote: str) -> bool:
     except Exception:
         return False
 
-# -----------------------
-# Repo install/update flow
-# -----------------------
-def install_repo(repo_name: str, repo_url: str, local_dir: Path, branch: str, settings_keys: dict,
-                 dev_mode: bool = False, force: bool = False):
+def compare_version(local, remote):
+    local_version = local.lstrip("v").split("-")[0]
+    remote_version = remote.lstrip("v").split("-")[0]
+
+    l_major, l_minor, l_patch = map(int, local_version.split("."))
+    r_major, r_minor, r_patch = map(int, remote_version.split("."))
+
+    if r_major == 0:
+        # Mode "unstable": minor bump = breaking
+        if r_minor > l_minor:
+            return "major"
+        elif r_minor == l_minor and r_patch > l_patch:
+            return "minor"
+    else:
+        # Mode stable: SemVer strict
+        if r_major > l_major:
+            return "major"
+        elif r_major == l_major and r_minor > l_minor:
+            return "minor"
+        elif r_major == l_major and r_minor == l_minor and r_patch > l_patch:
+            return "patch"
+
+    return "same"
+
+def load_mergeable_files(repo_dir: Path):
     """
-    Install or update a repo.
-    - dev_mode: clone/checkout latest commit on branch (no release).
-    - force: force re-clone / overwrite
+    Load mergeable files declared in .mergeable_files.json at the root of the repo.
+
+    Returns a tuple: (mergeable_files:list, force_on_major:list)
+
+    Accepts:
+      - {"mergeable": [...], "force_on_major": [...]} (preferred)
+      - {"mergeable": [...]} (no force_on_major)
+      - ["a","b"] (shorthand -> treated as mergeable)
     """
-    msg_install = SETUP.get(f"install_{repo_name.lower()}", {}).get(lang,
-        f"Installing {repo_name}...")
-    print(msg_install)
+    mergeable_file = Path(repo_dir) / ".mergeable_files.json"
+    if not mergeable_file.exists():
+        return [], []
+    try:
+        with mergeable_file.open("r", encoding="utf-8") as fh:
+            data = json.load(fh)
+        if isinstance(data, dict):
+            mergeable = data.get("mergeable", []) or []
+            force_on_major = data.get("force_on_major", []) or []
+            # normalize to list of strings
+            mergeable = [str(x) for x in mergeable]
+            force_on_major = [str(x) for x in force_on_major]
+            return mergeable, force_on_major
+        elif isinstance(data, list):
+            # shorthand: list == mergeable
+            return [str(x) for x in data], []
+    except Exception as e:
+        log_line(error=f"Failed to load mergeable files: {e}", context="load_mergeable_files")
+    return [], []
+
+# --- install_repo (refondue) -----------------------------------------------
+def install_repo(repo_name: str, repo_url: str, local_dir: Path, branch: str,
+                 settings_keys: dict, mode: str = "install") -> Path:
+    """
+    Clone/update a repository and handle mergeable files declared in .mergeable_files.json.
+    - If a major upgrade is detected, files in DEFAULT_FORCE_ON_MAJOR that are listed
+      as mergeable will be reset from their .dist (with backup).
+    - Merge .dist into user files for other mergeable files.
+    """
+    print(SETUP.get(f"install_{repo_name.lower()}", {}).get(lang,
+          f"Installing {repo_name}..."))
 
     local_dir = Path(local_dir)
-    remote_tag = "dev" if dev_mode else (get_latest_release_tag(repo_url, branch=branch) or "tag not found")
-    local_tag = "unknown"
+    repo_exists = local_dir.exists() and (local_dir / ".git").exists()
 
-    # Case: local exists
-    if local_dir.exists():
-        if not (local_dir / ".git").exists():
-            # Not a git repo: interactive decision
-            message = SETUP.get("repo_not_git_moode", {}).get(lang,
-                        "⚠️ Folder {} exists but is not a Git repository. Force clone (F) or Stop (S)?").format(local_dir)
-            ans = input(message + " [F/S] ").strip().lower()
-            if ans != "f":
-                print(SETUP.get("install_abort", {}).get(lang, "Installation aborted."))
-                safe_exit(1)
-            force = True
+    # determine remote and local tags
+    remote_tag = "dev" if mode == "dev_mode" else get_latest_release_tag(repo_url, branch=branch) or ""
+    local_tag = ""
+    if repo_exists:
+        local_tag = get_latest_release_tag(str(local_dir), branch=branch) or ""
+
+    # Decide whether to update/clone
+    update_needed = False
+    if mode == "install":
+        update_needed = True
+    elif mode == "dev_mode":
+        update_needed = True
+    elif mode == "update":
+        if not repo_exists:
+            print(SETUP.get("repo_not_git", {}).get(lang, "⚠️ Folder {} exists but is not a Git repository. Update needed").format(local_dir))
+            update_needed = True
         else:
-            # local is git — compute its current tag (if any)
-            local_tag = get_latest_release_tag(str(local_dir), branch=branch) or "tag not found"
-            print(SETUP.get(f"{repo_name.lower()}_exists", {}).get(lang, "{} already present.").format(local_dir))
+            # interactive prompt (keeps previous behaviour)
+            if version_is_newer(local_tag, remote_tag):
+                upd_msg = SETUP.get("update_prompt", {}).get(lang, "✅  A newer release (local {}, remote {}) is available. Update now? [Y/n] ").format(local_tag, remote_tag)
+            else:
+                upd_msg = SETUP.get("already_uptodate", {}).get(lang, "✅ Already up-to-date (local {}, remote {}). Force Update? [Y/n]").format(local_tag, remote_tag)
+            ans = input(upd_msg).strip().lower()
+            if ans in ("", "y", "o"):
+                update_needed = True
 
-            # If not forcing, compare local and remote and ask interactive if update needed
-            if not force and not dev_mode and remote_tag and remote_tag != "tag not found":
-                if version_is_newer(local_tag, remote_tag):
-                    upd_msg = SETUP.get("update_prompt", {}).get(lang, "✅ A newer release ({}) is available. Update now? [Y/n] ").format(local_tag, remote_tag)
-                elif local_tag == remote_tag:
-                    upd_msg = SETUP.get("already_uptodate", {}).get(lang, "✅ Already up-to-date (local {}, remote {}. Force Update? [Y/n]).").format(local_tag, remote_tag)
-                ans = input(upd_msg).strip().lower()
-                if ans in ("", "y", "o"):
-                    force = True
-                    # Ask user if backup should be made before update
-                    if repo_name.lower() == "moode" and local_dir.exists():
-                        backup_ans = input(SETUP.get("repo_backup_prompt", {}).get(lang, "⚠️ Folder {} already exists. Keep a backup before overwriting? [Y/n] ").format(local_dir)).strip().lower()
-                        if backup_ans in ("", "y", "o"):
-                            timestamp = time.strftime("%Y%m%d_%H%M%S")
-                            backup_dir = local_dir.parent / f"{local_dir.name}_backup_{timestamp}"
-                            copytree_safe(local_dir, backup_dir)
-                            print(SETUP.get("repo_backup", {}).get(lang, "📦 Existing folder {} copied to {} before cloning.").format(local_dir, backup_dir))
+    if not update_needed:
+        log_line(msg=f"{repo_name} is already up-to-date (local {local_tag}, remote {remote_tag})", context="install_repo")
+        return local_dir
 
-            elif not force and dev_mode:
-                ans = input(SETUP.get("dev_pull_prompt", {}).get(lang,
-                    "🔄 Development mode: Pull latest changes from branch {}? [Y/n] ").format(branch)).strip().lower()
-                if ans in ("", "y", "o"):
-                    run_command(f"git -C {local_dir} fetch origin {branch}", log_out=True, show_output=True, check=True)
-                    run_command(f"git -C {local_dir} checkout {branch}", log_out=True, show_output=True, check=True)
-                    run_command(f"git -C {local_dir} reset --hard origin/{branch}", log_out=True, show_output=True, check=True)
-                    local_tag = "dev"
-                    log_line(msg=f"{repo_name} updated in-place (dev branch {branch})", context=f"install_{repo_name.lower()}")
-                else:
-                    print(SETUP.get("skipping_update", {}).get(lang, "Skipping update."))
+    # clone into a temp dir
+    temp_dir = local_dir.parent / (local_dir.name + "_tmp_clone")
+    if temp_dir.exists():
+        shutil.rmtree(temp_dir)
+    run_command(f"git clone --branch {branch} {repo_url} {temp_dir}", log_out=True, show_output=True, check=True)
+    print(SETUP.get(f"{repo_name.lower()}_cloned", {}).get(lang, f"✅ {repo_name} has been cloned to {temp_dir}").format(temp_dir))
+
+    # checkout tag if not dev
+    effective_remote_tag = "dev"
+    if mode != "dev_mode" and remote_tag:
+        run_command(f"git -C {temp_dir} fetch --tags origin", log_out=True, show_output=False, check=False)
+        if remote_tag not in ("", "tag not found"):
+            run_command(f"git -C {temp_dir} checkout {remote_tag}", log_out=True, show_output=False, check=False)
+            effective_remote_tag = remote_tag
+
+    # load mergeable files declared in repo we just cloned
+    mergeable_files, repo_force_on_major = load_mergeable_files(temp_dir)
+    if mergeable_files:
+        print(SETUP.get("found_mergeable", {}).get(lang, "⚙️ Found mergeable files for {}: {}").format(repo_name, mergeable_files or "none"))
+    log_line(msg=f"Mergeable files for {repo_name}: {mergeable_files} / force_on_major: {repo_force_on_major}", context="install_repo")
+
+    # decide change_type (patch/minor/major) if we had a local repo
+    change_type = "same"
+    if repo_exists and effective_remote_tag and local_tag:
+        try:
+            change_type = compare_version(local_tag, effective_remote_tag)
+        except Exception:
+            change_type = "same"
+
+    if mode == "dev_mode":
+        print(f"⚙️ Dev mode detected for {repo_name}. Choose config handling:")
+        print(" [1] Preserve all mergeable files (same as Patch Update)")
+        print(" [2] Merge .dist into existing mergeable files (same as Minor Update)")
+        print(" [3] Force-reset mergeable files (overwrite from .dist) (same as Major Update)")
+        ans = input("Select [1-3] > ").strip()
+        if ans not in ("1","2","3"):
+            ans = "1"
+        if ans == "1":
+            change_type = "patch"
+        elif ans == "2":
+            change_type = "minor"
+        elif ans == "3":
+            change_type = "major"
+
+    # Force-reset files = intersection of repo-declared force_on_major and mergeable files
+    force_reset_files = []
+    if change_type == "major":
+        force_reset_files = [f for f in repo_force_on_major if f in mergeable_files]
+        if force_reset_files:
+            print(SETUP.get("found_force_dist", {}).get(lang, "⚙️ Major update → force new files for {}: {}").format(repo_name, force_reset_files or "none"))
+
+    # Update preserve files: mergeable files must be preserved during cleanup/move
+    current_preserve = set(PRESERVE_FILES.get(repo_name.lower(), []) or [])
+    current_preserve.update(mergeable_files)
+    preserve_files = list(current_preserve)
+
+    # ensure local dir exists then clean preserving listed files
+    if local_dir.exists():
+        print(SETUP.get("cleaning_local", {}).get(lang, "⚡ Cleaning up {} (preserve: {})").format(local_dir, preserve_files))
+        log_line(msg=f"Cleaning up {local_dir} (preserve: {preserve_files})", context="install_repo")
+        safe_cleanup(local_dir, preserve_files=preserve_files)
     else:
-        # not present => we will clone
-        force = True
         local_dir.mkdir(parents=True, exist_ok=True)
 
-    # Clone or update
-    if force:
-        clone_branch = branch
-        temp_dir = local_dir.parent / (local_dir.name + "_tmp_clone")
-        if temp_dir.exists():
-            shutil.rmtree(temp_dir)
+    # move cloned files into place, keeping preserved files
+    print(SETUP.get("moving_files", {}).get(lang, "📦 Moving cloned files from {} to {}").format(temp_dir, local_dir))
+    move_contents(temp_dir, local_dir, preserve_files=preserve_files)
+    shutil.rmtree(temp_dir)
+    print(SETUP.get("clone_done", {}).get(lang, "✅ Done! {} deleted.").format(temp_dir))
 
-        clone_cmd = f"git clone --branch {clone_branch} {repo_url} {temp_dir}"
-        run_command(clone_cmd, log_out=True, show_output=True, check=True)
+    # Handle mergeable files: either reset on major (with backup) or merge .dist into user file or skip
+    if change_type == "patch":
+        print(SETUP["patch_skip_merge"][lang])
+    else:
+        for f in mergeable_files:
+            user_file = local_dir / f
+            dist_file = local_dir / f"{f}.dist"
 
-        if not dev_mode and remote_tag and remote_tag != "tag not found":
-            run_command(f"git -C {temp_dir} fetch --tags origin", log_out=True, show_output=False, check=False)
-            run_command(f"git -C {temp_dir} checkout {remote_tag}", log_out=True, show_output=False, check=False)
+            # if explicit force-reset for this file (only on major)
+            if f in force_reset_files:
+                if user_file.exists():
+                    timestamp = time.strftime("%Y%m%d_%H%M%S")
+                    backup_file = user_file.parent / f"{user_file.name}_backup_{timestamp}"
+                    shutil.copy2(user_file, backup_file)
+                    print(SETUP["backup_file"][lang].format(user_file.name, backup_file))
+                    log_line(msg=f"Back up file {user_file.name} → {backup_file}", context="install_repo")
+                if dist_file.exists():
+                    shutil.copy2(dist_file, user_file)
+                    print(SETUP["forced_overwrite"][lang].format(user_file.name, dist_file.name))
+                    log_line(msg=f"Force overwrite for {dist_file} → {user_file}", context="install_repo")
+                continue
 
-        # Clear old folder contents before moving new files
-        for item in local_dir.iterdir():
-            try:
-                if item.is_dir():
-                    shutil.rmtree(item)
-                else:
-                    item.unlink()
-            except Exception as e:
-                log_line(error=f"Failed to remove {item}: {e}", context="install_repo_cleanup")
+            # normal merge if .dist exists
+            if dist_file.exists():
+                merge_ini_with_dist(user_file, dist_file)
+                print(SETUP["merged_file"][lang].format(user_file.name, dist_file.name))
+                log_line(msg=f"Merged file {user_file} with {dist_file}", context="install_repo")
+            else:
+                print(SETUP["no_dist"][lang].format(user_file.name))
 
-        # Move cloned files into place
-        print(SETUP.get("moving_files", {}).get(lang, "📦 Moving cloned files...").format(temp_dir, local_dir))
-        for item in temp_dir.iterdir():
-            shutil.move(str(item), str(local_dir))
-        temp_dir.rmdir()
-        print(SETUP.get("clone_done", {}).get(lang, "✅ Clone completed.").format(temp_dir))
-
-        local_tag = "dev" if dev_mode else (get_latest_release_tag(str(local_dir), branch=branch) or "tag not found")
-        log_line(msg=f"{repo_name} cloned successfully. branch:{branch} tag:{local_tag}", context=f"install_{repo_name.lower()}")
-
-    # Save settings
+    # Save/record installation metadata
     settings = load_settings()
     settings[settings_keys["branch"]] = branch
-    settings[settings_keys["local_tag"]] = local_tag
-    settings[settings_keys["remote_tag"]] = remote_tag
+    settings[settings_keys["local_tag"]] = local_tag or effective_remote_tag or "unknown"
+    settings[settings_keys["remote_tag"]] = effective_remote_tag or remote_tag or ""
     save_settings(settings)
 
+    log_line(msg=f"{repo_name} installed/updated. branch:{branch} tag:{settings[settings_keys['local_tag']]}", context="install_repo")
     return local_dir
 
-def install_olipi_core(dev_mode=False, force=False):
+# --- thin wrappers for specific repos --------------------------------------
+def install_olipi_core(mode="install"):
     return install_repo(
         repo_name="Core",
         repo_url=OLIPI_CORE_REPO,
         local_dir=Path(OLIPI_CORE_DIR),
-        branch=(OLIPI_CORE_DEV_BRANCH if dev_mode else "main"),
+        branch=(OLIPI_CORE_DEV_BRANCH if mode == "dev_mode" else "main"),
         settings_keys={
             "branch": "branch_olipi_core",
             "local_tag": "local_tag_core",
             "remote_tag": "remote_tag_core"
         },
-        dev_mode=dev_mode,
-        force=force
+        mode=mode
     )
 
-def install_olipi_moode(dev_mode=False, force=False):
+def install_olipi_moode(mode="install"):
     return install_repo(
         repo_name="Moode",
         repo_url=OLIPI_MOODE_REPO,
         local_dir=Path(OLIPI_MOODE_DIR),
-        branch=(OLIPI_MOODE_DEV_BRANCH if dev_mode else "main"),
+        branch=(OLIPI_MOODE_DEV_BRANCH if mode == "dev_mode" else "main"),
         settings_keys={
             "branch": "branch_olipi_moode",
             "local_tag": "local_tag_moode",
             "remote_tag": "remote_tag_moode"
         },
-        dev_mode=dev_mode,
-        force=force
+        mode=mode
     )
 
-def check_i2c():
+def check_i2c(core_config):
     print(SETUP["i2c_check"][lang])
+    lines = safe_read_file_as_lines(CONFIG_TXT, critical=True)
+    lines = update_olipi_section(lines, "screen overlay", clear=True)   
     result = run_command("sudo raspi-config nonint get_i2c", log_out=True, show_output=False, check=True)
     if result.returncode != 0 or result.stdout.strip() != "0":
         choice = input(SETUP["i2c_disabled"][lang] + " > ").strip().lower()
         if choice in ["", "y", "o"]:
             print(SETUP["i2c_enabling"][lang])
+            # dtparam=i2c_arm=on is normally already enabled by Moode audio, but just in case we tell raspi-config where to write it if disabled:
+            lines = update_olipi_section(lines, "screen overlay", ["#dtparam=i2c_arm=on"], replace_prefixes=["dtparam=i2c_arm=on"])
+            safe_write_file_as_root(CONFIG_TXT, lines, critical=True)
             # attempt to enable i2c (non-fatal here but requires reboot)
             run_command("sudo raspi-config nonint do_i2c 0", log_out=True, show_output=False, check=True)
             print(SETUP["i2c_enabled"][lang])
-            print(SETUP["i2c_reboot_required"][lang])
+            lines = safe_read_file_as_lines(CONFIG_TXT, critical=True)
         else:
             print(SETUP["i2c_enable_failed"][lang])
             safe_exit(1)
+    lines = update_olipi_section(lines, "screen overlay", ["dtparam=i2c_baudrate=400000"], replace_prefixes=["dtparam=i2c_baudrate"])
+    safe_write_file_as_root(CONFIG_TXT, lines, critical=True)
 
-    for _ in range(3):
+    for _ in range(10):
         res = run_command("i2cdetect -y 1", log_out=True, show_output=False, check=True)
         if res.stdout.strip():
             break
         time.sleep(1)
 
     detected_addresses = []
-    for line in result.stdout.splitlines():
+    for line in res.stdout.splitlines():
         if ":" in line:
             parts = line.split(":")[1].split()
             for part in parts:
                 if part != "--":
                     detected_addresses.append(part.lower())
     if detected_addresses:
-        print(SETUP["i2c_addresses_detected"][lang].format(", ".join(["0x" + addr for addr in detected_addresses])))
+        print(SETUP["i2c_addresses_detected"][lang].format(
+            ", ".join(["0x" + addr for addr in detected_addresses])
+        ))
+
+        # If standard address found
         if "3c" in detected_addresses or "3d" in detected_addresses:
-            print(SETUP["i2c_display_ok"][lang])
-        else:
-            print(SETUP["i2c_no_display"][lang])
-            print(SETUP["i2c_check_wiring"][lang])
+            default_addr = "3c" if "3c" in detected_addresses else "3d"
+            print(SETUP["i2c_display_ok"][lang].format("0x" + default_addr))
+            
+        # Ask user to choose
+        print(SETUP["i2c_choose_detected"][lang])
+        for i, addr in enumerate(detected_addresses, start=1):
+            print(f"[{i}] 0x{addr}")
+        choice = input("> ").strip()
+        try:
+            idx = int(choice) - 1
+            selected_addr = detected_addresses[idx]
+        except (ValueError, IndexError):
+            print("❌ Invalid choice.")
             safe_exit(1)
+
+        # Save in config.ini
+        core_config.save_config("i2c_address", "0x" + selected_addr, section="screen", preserve_case=True)
+        print(SETUP["i2c_saved"][lang].format("0x" + selected_addr))
     else:
         print(SETUP["i2c_no_display"][lang])
-        print(SETUP["i2c_no_devices"][lang])
+        print(SETUP["i2c_check_wiring"][lang])
         safe_exit(1)
 
-def check_spi():
+def check_spi(core_config):
     print(SETUP["spi_check"][lang])
+    lines = safe_read_file_as_lines(CONFIG_TXT, critical=True)
+    lines = update_olipi_section(lines, "screen overlay", clear=True)
     # Ask raspi-config whether SPI is enabled (nonint getter)
     result = run_command("sudo raspi-config nonint get_spi", log_out=True, show_output=False, check=True)
     if result.returncode != 0 or result.stdout.strip() != "0":
         # SPI reported disabled -> offer to enable (requires reboot)
         choice = input(SETUP["spi_disabled"][lang] + " > ").strip().lower()
         if choice in ["", "y", "o"]:
+            # dtparam=spi=on is absent by default on Moode audio, so we tell raspi-config where to write it:
+            lines = update_olipi_section(lines, "screen overlay", ["#dtparam=spi=on"], replace_prefixes=["dtparam=spi=on"])
+            safe_write_file_as_root(CONFIG_TXT, lines, critical=True)
             print(SETUP["spi_enabling"][lang])
             run_command("sudo raspi-config nonint do_spi 0", log_out=True, show_output=False, check=True)
             print(SETUP["spi_enabled"][lang])
-            print(SETUP["spi_reboot_required"][lang])
         else:
             print(SETUP["spi_enable_failed"][lang])
             safe_exit(1)
 
-    # Detect /dev/spidev* entries (common device nodes for SPI)
-    # Use a shell-friendly pattern and capture stdout
-    for _ in range(3):
-        res = run_command("ls /dev/spidev* 2>/dev/null || true", log_out=True, show_output=False, check=False)
-        if res.stdout.strip():
-            break
-        time.sleep(1)
-
+    fb_active = ""
+    res = run_command("dmesg | grep -i 'graphics fb.*spi'", log_out=True, show_output=False, check=False)
+    fb_active_lines = res.stdout.strip().splitlines()
+    if fb_active_lines:
+        clean_lines = []
+        for line in fb_active_lines:
+            # retirer le timestamp initial entre crochets si présent
+            clean_line = line
+            if line.startswith("["):
+                try:
+                    clean_line = line.split("]", 1)[1].strip()
+                except IndexError:
+                    pass
+            clean_lines.append(clean_line)
+        display = "\n    ".join(clean_lines)
+        print(SETUP["spi_fb_detected"][lang].format(display))
+        log_line(msg=f"SPI framebuffer active:\n{display}", context="check_spi")
     devices = []
-    if res.returncode == 0 and res.stdout.strip():
-        # split on whitespace in case multiple devices listed
-        for p in res.stdout.strip().split():
-            if p.startswith("/dev/"):
-                devices.append(p)
+    for entry in Path("/sys/bus/spi/devices").iterdir():
+        devices.append(entry.name)
     if devices:
         print(SETUP["spi_devices_detected"][lang].format(", ".join(devices)))
-        print(SETUP.get("spi_ready", {}).get(lang, "✅ SPI interface looks OK."))
         log_line(msg=f"SPI devices found: {', '.join(devices)}", context="check_spi")
-        return True
-    else:
-        print(SETUP["spi_no_devices"][lang])
-        print(SETUP["spi_check_wiring"][lang])
-        log_line(error="No SPI devices detected", context="check_spi")
-        safe_exit(1)
+    return True
 
 def discover_screens_from_olipicore(olipi_core_dir):
     discovered = {}
@@ -574,7 +986,6 @@ def configure_screen(olipi_moode_dir, olipi_core_dir):
     os.environ["OLIPI_DIR"] = str(Path(olipi_moode_dir))
     if str(Path(olipi_moode_dir)) not in sys.path:
         sys.path.insert(0, str(Path(olipi_moode_dir)))
-
     try:
         from olipi_core import core_config
     except Exception as e:
@@ -613,10 +1024,12 @@ def configure_screen(olipi_moode_dir, olipi_core_dir):
     print(SETUP.get("screen_selected", {}).get(lang, "Selected: {}").format(selected))
     log_line(msg=f"User selected screen {selected} (type={meta.get('type')})", context="configure_screen")
 
+    create_backup(CONFIG_TXT)
+
     if meta["type"] == "i2c":
-        check_i2c()
+        check_i2c(core_config)
     elif meta["type"] == "spi":
-        check_spi()
+        check_spi(core_config)
 
     try:
         core_config.save_config("current_screen", selected_id.upper(), section="screen", preserve_case=True)
@@ -629,22 +1042,26 @@ def configure_screen(olipi_moode_dir, olipi_core_dir):
     # If SPI -> ask pins and save them
     if meta.get("type") == "spi":
         print(SETUP.get("screen_spi_info", {}).get(lang, "SPI screen selected — Enter the GPIO pin number (BCM)."))
-        cs = safe_input(SETUP.get("screen_cs_prompt", {}).get(lang, "CS pin (chip select)"))
         dc = safe_input(SETUP.get("screen_dc_prompt", {}).get(lang, "DC pin (data/command)"))
         rst = safe_input(SETUP.get("screen_reset_prompt", {}).get(lang, "RESET pin"))
         bl = safe_input(SETUP.get("screen_bl_prompt", {}).get(lang, "BL pin (backlight) — leave empty if none)"))
 
-        try:
-            core_config.save_config("cs_pin", cs.upper(), section="screen", preserve_case=True)
-            core_config.save_config("dc_pin", dc.upper(), section="screen", preserve_case=True)
-            core_config.save_config("reset_pin", rst.upper(), section="screen", preserve_case=True)
-            if bl:
-                core_config.save_config("bl_pin", bl.upper(), section="screen", preserve_case=True)
-            log_line(msg=f"Saved SPI pins cs={cs}, dc={dc}, reset={rst}, bl={bl}", context="configure_screen")
-        except Exception as e:
-            print(SETUP.get("screen_save_fail", {}).get(lang, "❌ Failed to save pin configuration"))
-            safe_exit(1, error=f"❌ Failed to save pin configuration. {e}")
-            return False
+        speed = meta.get("speed", None)
+        txbuflen = meta.get("txbuflen", None)
+
+        lines = safe_read_file_as_lines(CONFIG_TXT, critical=True)
+        lines = update_olipi_section(lines, "screen overlay", ["dtparam=spi=on"], replace_prefixes=["dtparam=spi=on"])
+        overlay_line = f"dtoverlay=fbtft,spi0-0,{selected_id.lower()},reset_pin={rst},dc_pin={dc}"
+        if bl:
+            overlay_line += f",led_pin={bl}"
+        if speed:
+            overlay_line += f",speed={speed}"
+        if txbuflen:
+            overlay_line += f",txbuflen={txbuflen}"
+        new_lines = [overlay_line]
+        lines = update_olipi_section(lines, "screen overlay", new_lines, replace_prefixes=["dtoverlay=fbtft"])
+
+        safe_write_file_as_root(CONFIG_TXT, lines, critical=True)
 
         core_config.reload_config()
         print(SETUP.get("screen_saved_ok", {}).get(lang, "Screen configuration saved."))
@@ -975,10 +1392,6 @@ def detect_user():
     print(SETUP["user_detected"][lang].format(user))
     return user
 
-# -----------------------
-# Services & ready-script (merged)
-# -----------------------
-# Service templates (same as before)
 SERVICES = {
     "olipi-ui-playing": """[Unit]
 Description=OliPi MoOde Now-Playing Screen (ui_playing)
@@ -1026,6 +1439,25 @@ Wants=sound.target
 [Service]
 Type=simple
 ExecStart={venv}/bin/python3 {project}/ui_queue.py
+WorkingDirectory={project}
+User={user}
+Group={user}
+Restart=on-failure
+RestartSec=10
+StartLimitIntervalSec=200
+StartLimitBurst=10
+
+[Install]
+WantedBy=multi-user.target
+""",
+    "olipi-starting-wait": """[Unit]
+Description=OliPi UI playing Wait for Moode Audio to be ready
+After=network.target sound.target
+Wants=sound.target
+
+[Service]
+Type=simple
+ExecStart={venv}/bin/python3 {project}/ui_wait.py
 WorkingDirectory={project}
 User={user}
 Group={user}
@@ -1089,9 +1521,13 @@ def run_install_services(venv, user):
                 service_content = template.format(venv=venv, project=project_path, user=user)
                 try:
                     write_service(name, service_content)
-                    if name == "olipi-ui-off":
+                    if name == "olipi-starting-wait":
                         run_command(f"sudo systemctl enable {name}", log_out=True, show_output=False, check=True)
                         print(SETUP["service_enabled"][lang].format(name))
+                    elif name == "olipi-ui-off":
+                        run_command(f"sudo systemctl enable {name}", log_out=True, show_output=False, check=True)
+                        print(SETUP["service_enabled"][lang].format(name))
+
                 except PermissionError:
                     print(SETUP["permission_denied"][lang])
                     safe_exit(1, error="Permission denied while writing/enabling service")
@@ -1104,34 +1540,13 @@ def run_install_services(venv, user):
                 break
     log_line(msg="install_services finished", context="run_install_services")
 
-def update_ready_script():
-    READY_SCRIPT_TEMPLATE = os.path.join(INSTALL_DIR, "ready-script.sh")
-
-    print(SETUP["ready_script_update"][lang])
-    log_line(msg="Updating ready-script", context="update_ready_script")
-
-    READY_SCRIPT_PATH = "/var/local/www/commandw/ready-script.sh"
-    if os.path.exists(READY_SCRIPT_PATH):
-        READY_SCRIPT_BACKUP = "/var/local/www/commandw/ready-script.sh.olipi-bak"
-        if os.path.exists(READY_SCRIPT_BACKUP):
-            print(SETUP["ready_script_nobackup"][lang].format(READY_SCRIPT_BACKUP))
-            pass
-        else:
-            run_command(f"sudo cp {READY_SCRIPT_PATH} {READY_SCRIPT_BACKUP}", log_out=True, show_output=False, check=True)
-            print(SETUP["ready_script_backup"][lang].format(READY_SCRIPT_BACKUP))
-
-    run_command(f"sudo cp {READY_SCRIPT_TEMPLATE} {READY_SCRIPT_PATH}", log_out=True, show_output=False, check=True)
-    run_command(f"sudo chmod 755 {READY_SCRIPT_PATH}", log_out=True, show_output=False, check=True)
-    run_command(f"sudo chown root:root {READY_SCRIPT_PATH}", log_out=True, show_output=False, check=True)
-    print(SETUP["ready_script_done"][lang])
-    log_line(msg="Ready-script updated", context="update_ready_script")
-
 def append_to_profile():
     profile_path = os.path.expanduser("~/.profile")
     lines_to_add = [
         'echo " "',
         'echo "Moode debug => moodeutl -l"',
         'echo "Force Moode update => sudo /var/www/util/system-updater.sh moode9"',
+        f'echo "Update or Reinstall OliPi Moode => python3 {SETUP_SCRIPT_PATH}"',
         f'echo "Configure IR remote => python3 {INSTALL_LIRC_REMOTE_PATH}"'
     ]
     print(SETUP["profile_update"][lang])
@@ -1170,128 +1585,135 @@ def install_done():
 # Command-line entry
 # -----------------------
 def main():
-    global DRY_RUN
     parser = argparse.ArgumentParser(description="OliPi setup (install / update / develop)")
-    parser.add_argument("cmd", nargs="?", choices=["install", "update", "develop"], default=None,
-                        help="Action to run. If omitted, an interactive flow decides install or update.")
+    parser.add_argument("--install", action="store_true", help="Perform a full install of OliPi")
+    parser.add_argument("--update", action="store_true", help="Update existing OliPi installation")
     parser.add_argument("--dev", action="store_true", help="Developer mode: use branches/latest commits instead of releases")
-    parser.add_argument("--force", action="store_true", help="Force reinstall / overwrite")
-    parser.add_argument("--dry-run", action="store_true", help="Do not perform destructive actions; print what would be done")
     args = parser.parse_args()
-
-    DRY_RUN = args.dry_run
 
     choose_language()
     check_moode_version()
     install_apt_dependencies()
-
-    # Decide mode: dev or prod
-    dev_mode = args.dev
-
-    # Interactive default behavior: if cmd omitted, ask to install/update
-    cmd = args.cmd
     settings = load_settings()
+
+    # check if repos are present
     moode_present = Path(OLIPI_MOODE_DIR).exists() and (Path(OLIPI_MOODE_DIR) / ".git").exists()
     core_present = Path(OLIPI_CORE_DIR).exists() and (Path(OLIPI_CORE_DIR) / ".git").exists()
 
-    if cmd is None:
-        # interactive: propose install or update
-        if moode_present and core_present:
-            ans = input(SETUP.get("interactive_update_prompt", {}).get(lang,
-                        "⚙️ Do you want to update (U), force reinstall (F), or skip (S)? [U/F/S] ")).strip().lower()
-            if ans in ("u", ""):
-                cmd = "update"
-            elif ans == "f":
-                cmd = "install"
-                force = True
-            else:
-                print(SETUP.get("interactive_abort", {}).get(lang))
-                safe_exit(0)
-        else:
+    # interactive command selection if not passed
+    cmd = None
+    if args.dev:
+        cmd = "dev_mode"
+    elif args.install:
+        cmd = "install"
+    elif args.update:
+        cmd = "update"
+    else:
+        #local_tag_moode = settings.get("local_tag_moode", "")
+        #local_tag_core = settings.get("local_tag_core", "")
+        local_tag_moode = get_latest_release_tag(OLIPI_MOODE_DIR, branch="main") or ""
+        local_tag_core = get_latest_release_tag(OLIPI_CORE_DIR, branch="main") or ""
+        remote_tag_moode = get_latest_release_tag(OLIPI_MOODE_REPO, branch="main") or ""
+        remote_tag_core = get_latest_release_tag(OLIPI_CORE_REPO, branch="main") or ""
+
+        #moode_major_change = parse_semver_prefix(remote_tag_moode)[:1] != parse_semver_prefix(local_tag_moode)[:1]
+        #core_major_change = parse_semver_prefix(remote_tag_core)[:1] != parse_semver_prefix(local_tag_core)[:1]
+        #force_install = moode_major_change or core_major_change or not core_present
+
+        force_install = False
+        moode_major_change = compare_version(local_tag_moode, remote_tag_moode)
+        core_major_change = compare_version(local_tag_core, remote_tag_core)     
+        if moode_major_change == "major" or core_major_change == "major" or not core_present:
+            force_install = True
+
+        if force_install:
             ans = input(SETUP.get("interactive_install_prompt", {}).get(lang,
-                        "⚙️ Do you want to install (I) or abort (A)? [I/A] ")).strip().lower()
+                        "⚙️ First install or Major update, Do you want to re/install (I) or abort (A)? [I/A] ")).strip().lower()
             if ans in ("i", ""):
                 cmd = "install"
             else:
                 print(SETUP.get("interactive_abort", {}).get(lang))
                 safe_exit(0)
+        elif moode_present and core_present:
+            ans = input(SETUP.get("interactive_update_prompt", {}).get(lang, "⚙️ Do you want to update (U), force fresh reinstall (F), or skip (S)? [U/F/S] ")).strip().lower()
+            if ans in ("u", ""):
+                cmd = "update"
+            elif ans == "f":
+                cmd = "install"
+            else:
+                print(SETUP.get("interactive_abort", {}).get(lang))
+                safe_exit(0)
+        else:
+            cmd = "install"
 
-    # Run chosen command
-    force = args.force
     try:
-        if cmd == "install":
-            # install both repos
-            install_olipi_moode(dev_mode=dev_mode, force=force)
-            install_olipi_core(dev_mode=dev_mode, force=force)
-            settings = load_settings()
+        if cmd == "dev_mode":
+            # full dev rolling install
+            print("Setup.py launched on dev mode...")
+            install_olipi_moode(mode="dev_mode")
+            install_olipi_core(mode="dev_mode")
             configure_screen(OLIPI_MOODE_DIR, OLIPI_CORE_DIR)
             check_ram()
             venv_path = check_virtualenv()
             setup_virtualenv(venv_path)
             user = detect_user()
             run_install_services(venv_path, user)
-            update_ready_script()
             append_to_profile()
+            settings = load_settings()
             settings.update({
                 "venv_path": str(venv_path),
                 "project_dir": str(OLIPI_MOODE_DIR),
                 "core_dir": str(OLIPI_CORE_DIR),
                 "install_date": time.strftime("%Y-%m-%d %H:%M:%S"),
             })
+            #settings.pop("force_new_files", None)
             save_settings(settings)
             install_done()
+            print(SETUP.get("develop_done", {}).get(lang, "✅ Development mode setup complete."))
 
-        elif cmd == "update":
-            # update flow: if present in .git do fetch/checkout, else install
-            install_olipi_moode(dev_mode=dev_mode, force=force)
-            install_olipi_core(dev_mode=dev_mode, force=force)
-            settings = load_settings()
-            #venv_path = settings.get("venv_path") or
+        elif cmd == "install":
+            # full release install
+            install_olipi_moode(mode="install")
+            install_olipi_core(mode="install")
+            configure_screen(OLIPI_MOODE_DIR, OLIPI_CORE_DIR)
+            check_ram()
             venv_path = check_virtualenv()
             setup_virtualenv(venv_path)
             user = detect_user()
             run_install_services(venv_path, user)
-            update_ready_script()
             append_to_profile()
+            settings = load_settings()
             settings.update({
                 "venv_path": str(venv_path),
                 "project_dir": str(OLIPI_MOODE_DIR),
                 "core_dir": str(OLIPI_CORE_DIR),
                 "install_date": time.strftime("%Y-%m-%d %H:%M:%S"),
             })
+            #settings.pop("force_new_files", None)
+            save_settings(settings)
+            install_done()
+
+        elif cmd == "update":
+            # minor update only
+            install_olipi_moode(mode="update")
+            install_olipi_core(mode="update")
+            settings = load_settings()
+            settings.update({
+                "project_dir": str(OLIPI_MOODE_DIR),
+                "core_dir": str(OLIPI_CORE_DIR),
+                "update_date": time.strftime("%Y-%m-%d %H:%M:%S")
+            })
+            #settings.pop("force_new_files", None)
             save_settings(settings)
             print(SETUP.get("update_done", {}).get(lang, "✅ Update complete."))
             with TMP_LOG_FILE.open("a", encoding="utf-8") as fh:
-                    fh.write(f"+++++++++\n[SUCCESS] ✅ Update finished successfully")
+                fh.write(f"+++++++++\n[SUCCESS] ✅ Update finished successfully")
             finalize_log(0)
             reboot = input(SETUP["reboot_prompt"][lang]).strip().lower()
             if reboot in ["", "o", "y"]:
                 run_command("sudo reboot", log_out=True, show_output=True, check=False)
             else:
                 print(SETUP["reboot_cancelled"][lang])
-
-        elif cmd == "develop":
-            # develop == dev mode install/update
-            install_olipi_moode(dev_mode=True, force=force)
-            install_olipi_core(dev_mode=True, force=force)
-            configure_screen(OLIPI_MOODE_DIR, OLIPI_CORE_DIR)
-            check_ram()
-            settings = load_settings()
-            #venv_path = settings.get("venv_path") or
-            venv_path = check_virtualenv()
-            setup_virtualenv(venv_path)
-            user = detect_user()
-            run_install_services(venv_path, user)
-            update_ready_script()
-            append_to_profile()
-            settings.update({
-                "venv_path": str(venv_path),
-                "project_dir": str(OLIPI_MOODE_DIR),
-                "install_date": time.strftime("%Y-%m-%d %H:%M:%S"),
-            })
-            save_settings(settings)
-            install_done()
-            print(SETUP.get("develop_done", {}).get(lang, "✅ Development mode setup complete."))
 
         else:
             print("Unknown command")
@@ -1300,7 +1722,7 @@ def main():
     except KeyboardInterrupt:
         with TMP_LOG_FILE.open("a", encoding="utf-8") as fh:
             fh.write(f"+++++++++\n[ABORTED] ❌ Installation interrupted by user (Ctrl+C).\n")
-        print("❌ Installation interrupted by user (Ctrl+C).")
+        print(SETUP["install_abort"][lang])
         safe_exit(130)
 
     except Exception as e:

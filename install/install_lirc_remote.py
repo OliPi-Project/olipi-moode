@@ -9,7 +9,6 @@ import shutil
 import argparse
 import tempfile
 import re
-import glob
 import time
 import threading
 import configparser
@@ -35,8 +34,8 @@ MESSAGES = {
         "fr": "❌ LIRC n'est pas installé."
     },
     "lirc_prompt": {
-        "en": "Would you like to reinstall and reconfigure LIRC now? (requires an IR receiver connected to the GPIO pin) [Y/n] > ",
-        "fr": "Voulez-vous réinstaller et reconfigurer LIRC maintenant? (nécessite un récepteur ir branché sur broche gpio) [O/n] > "
+        "en": "Would you like to reinstall LIRC? Choose 'n' to go remote configuration [Y/n] > ",
+        "fr": "Voulez-vous réinstaller LIRC? Choissisez 'n' pour configurer la télécommande [O/n] > "
     },
     "lirc_installed": {
         "en": "✅ LIRC is installed.",
@@ -53,6 +52,7 @@ MESSAGES = {
     "explain": {
         "en": (
             "This will configure LIRC for IR remotes connected to a GPIO receiver.\n"
+            "(requires an IR receiver connected to the GPIO pin).\n"
             "Steps:\n"
             "  1. Install and configure LIRC if missing\n"
             "  2. Add or update dtoverlay=gpio-ir,gpio_pin=<pin> to /boot/firmware/config.txt\n"
@@ -62,6 +62,7 @@ MESSAGES = {
         ),
         "fr": (
             "Cette opération configure LIRC pour les télécommandes IR connectées sur GPIO.\n"
+            "(nécessite un récepteur ir branché sur broche gpio).\n"
             "Étapes:\n"
             "  1. Installe et configure LIRC si nécessaire\n"
             "  2. Ajoute ou mettre à jour dtoverlay=gpio-ir,gpio_pin=<pin> dans /boot/firmware/config.txt\n"
@@ -462,22 +463,29 @@ def safe_write_file_as_root(path, lines, critical=True):
             print(f"⚠️ Write file as root of {path} failed, continuing anyway or ctrl+c to quit and check what wrong.")
             pass
 
-def create_backup(file_path, lang, critical=True):
-    if os.path.exists(file_path):
-        backup_path = f"{file_path}.olipi-back"
+def get_moode_version():
+    res = run_command("moodeutl --mooderel", log_out=True, show_output=False, check=False)
+    if res.returncode == 0 and res.stdout:
+        return res.stdout.strip().split()[0]
+    return None
+
+def create_backup(path, lang, critical=True):
+    moode_version = get_moode_version()
+    if os.path.exists(path):
+        backup_path = f"{file_path}.olipi-back-moode{moode_version}"
         if os.path.exists(backup_path):
             print(MESSAGES["backup_exist"][lang].format(backup_path))
             pass
         else:
             try:
-                run_command(f"cp -p {file_path} {backup_path}", sudo=True, log_out=True, show_output=True, check=True)
+                run_command(f"cp -p {path} {backup_path}", sudo=True, log_out=True, show_output=True, check=True)
                 print(MESSAGES["backup_created"][lang].format(backup_path))
             except Exception as e:
-                log_line(error=f"⚠ Backup of {file_path} failed: {e}", context="create_backup")
+                log_line(error=f"⚠ Backup of {path} failed: {e}", context="create_backup")
                 if critical:
-                    safe_exit(1, error=f"❌ Direct read of {file_path} failed: {e}")
+                    safe_exit(1, error=f"❌ Direct read of {path} failed: {e}")
                 else:
-                    print(f"⚠ Backup of {file_path} failed, continuing anyway or ctrl+c to quit and check what wrong.")
+                    print(f"⚠ Backup of {path} failed, continuing anyway or ctrl+c to quit and check what wrong.")
                     pass
 
 # ---------- LIRC install / config functions ----------
@@ -488,57 +496,118 @@ def ask_gpio_pin(lang):
             return int(pin)
         print("❌ Invalid GPIO pin. Please enter a number between 0 and 40.")
 
+def update_olipi_section(lines, marker, new_lines=None, replace_prefixes=None, clear=False):
+    """
+    Update or clear a block under a specific marker inside the # --- Olipi-moode START/END --- section.
+
+    Args:
+        lines (list[str]): current config.txt file as a list of lines
+        marker (str): marker identifier (e.g. "screen overlay", "ir overlay")
+        new_lines (list[str] | None): lines to insert (ignored if clear=True)
+        replace_prefixes (list[str] | None): if given, remove any matching lines (even if commented) globally,
+                                             then insert only inside this marker block
+        clear (bool): if True, wipe all lines under this marker
+
+    Returns:
+        list[str]: updated list of lines
+    """
+
+    section_start = "# --- Olipi-moode START ---"
+    section_end = "# --- Olipi-moode END ---"
+    marker_line = f"# @marker: {marker}"
+
+    # Locate section boundaries
+    start_idx = None
+    end_idx = None
+    for i, line in enumerate(lines):
+        if line.strip() == section_start:
+            start_idx = i
+        elif line.strip() == section_end and start_idx is not None:
+            end_idx = i
+            break
+
+    # If section not found, create it at the end of file
+    if start_idx is None or end_idx is None:
+        if lines and lines[-1].strip() != "":
+            lines.append("")
+        lines.append(section_start)
+        lines.append(section_end)
+        start_idx = len(lines) - 2
+        end_idx = len(lines) - 1
+
+    # Extract block content between START and END
+    block = lines[start_idx + 1:end_idx]
+
+    # Look for marker inside the block
+    marker_idx = None
+    for i, line in enumerate(block):
+        if line.strip().lower() == marker_line.lower():
+            marker_idx = i
+            break
+
+    # If clear=True → remove the whole block under this marker
+    if marker_idx is not None and clear:
+        end_m = marker_idx + 1
+        while end_m < len(block) and not block[end_m].lstrip().startswith("# @marker:"):
+            end_m += 1
+        block[marker_idx+1:end_m] = []
+        lines[start_idx + 1:end_idx] = block
+        return lines
+
+    # Remove globally any lines matching replace_prefixes
+    if replace_prefixes:
+        prefixes = tuple(replace_prefixes)
+        cleaned_block = []
+        for line in block:
+            check = line.lstrip("# ").strip()
+            if any(check.startswith(p) for p in prefixes):
+                continue
+            cleaned_block.append(line)
+        block = cleaned_block
+
+    # Update or add marker section
+    if marker_idx is not None and not clear:
+        # Find block end (next marker or end of section)
+        end_m = marker_idx + 1
+        while end_m < len(block) and not block[end_m].lstrip().startswith("# @marker:"):
+            end_m += 1
+
+        if replace_prefixes is None:
+            if new_lines:
+                block[marker_idx+1:end_m] = [l.rstrip() + "\n" for l in new_lines]
+        else:
+            existing = block[marker_idx+1:end_m]
+            filtered = [l.rstrip() + "\n" for l in existing]
+            if new_lines:
+                filtered.extend([l.rstrip() + "\n" for l in new_lines])
+            block[marker_idx+1:end_m] = filtered
+    else:
+        # Marker not found → append inside section
+        block.append(marker_line + "\n")
+        if not clear and new_lines:
+            block.extend([l.rstrip() + "\n" for l in new_lines])
+
+    # Write back updated block into lines
+    lines[start_idx + 1:end_idx] = block
+    return lines
+
 def update_config_txt(lang):
     create_backup(CONFIG_TXT, lang)
     lines = safe_read_file_as_lines(CONFIG_TXT, critical=True)
     regex = re.compile(r"^dtoverlay=gpio-ir,\s*gpio_pin=(\d+)\s*$")
     existing_pin = None
-
     for line in lines:
         m = regex.match(line.strip())
         if m:
             existing_pin = int(m.group(1))
             break
-
     if existing_pin is not None:
         choice = input(MESSAGES["keep_existing_pin"][lang].format(existing_pin)).strip().lower()
         gpio_pin = existing_pin if choice not in ["n", "no"] else ask_gpio_pin(lang)
     else:
         gpio_pin = ask_gpio_pin(lang)
-
-    # Clean up any occurrence of gpio-ir (avoid duplicates)
-    new_lines = []
-    for line in lines:
-        if regex.match(line.strip()):
-            continue
-        new_lines.append(line if line.endswith("\n") else line + "\n")
-
-    new_entry = f"dtoverlay=gpio-ir,gpio_pin={gpio_pin}\n"
-    insert_index = None
-
-    for i, line in enumerate(new_lines):
-        if line.strip().lower().startswith("# do not alter this section"):
-            # s'assurer qu'on n'empile pas d'espaces
-            if i > 0 and new_lines[i-1].strip() != "":
-                new_lines.insert(i, "\n")
-                i += 1
-            insert_index = i
-            break
-
-    if insert_index is None:
-        for i, line in enumerate(new_lines):
-            if line.strip().lower() == "[all]":
-                insert_index = i + 1
-                break
-
-    if insert_index is None:
-        if len(new_lines) > 0 and new_lines[-1].strip() != "":
-            new_lines.append("\n")
-        insert_index = len(new_lines)
-
-    # Insertion
-    new_lines.insert(insert_index, new_entry)
-    safe_write_file_as_root(CONFIG_TXT, new_lines, critical=True)
+    lines = update_olipi_section(lines, "ir overlay", [f"dtoverlay=gpio-ir,gpio_pin={gpio_pin}"], replace_prefixes=["dtoverlay=gpio-ir,gpio_pin"])
+    safe_write_file_as_root(CONFIG_TXT, lines, critical=True)
     print(MESSAGES["updating_config"][lang])
     log_line(msg=f"Updated {CONFIG_TXT} with gpio_pin={gpio_pin}", context="update_config_txt")
 
@@ -572,7 +641,7 @@ def update_lirc_options(lang):
 
 def enable_use_lirc_in_config(lang):
     if not os.path.exists(CONFIG_INI):
-        print(MESSAGES["use_lirc_not_found"][lang])
+        print("⚠️ Config.ini not found. Please reinstall OliPi Moode.")
         log_line(msg=f"{CONFIG_INI} not found", context="enable_use_lirc_in_config")
         return
     try:

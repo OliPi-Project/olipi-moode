@@ -1,0 +1,4 @@
+{
+    "mergeable": ["config.ini"],
+    "force_on_major": ["config.ini"]
+  }
