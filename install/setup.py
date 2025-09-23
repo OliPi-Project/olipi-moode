@@ -539,16 +539,12 @@ def get_latest_release_tag(path_or_repo: str, branch: str = "main", include_prer
     """
     # Local repo case
     if Path(path_or_repo).exists():
-        # try to fetch tags and branch from origin
-        run_command(f"git -C {path_or_repo} fetch --tags origin", log_out=True, show_output=False)
-        run_command(f"git -C {path_or_repo} fetch origin {branch}", log_out=True, show_output=False)
         rc = subprocess.run(
-            f"git -C {path_or_repo} tag --sort=-creatordate --merged origin/{branch} | head -n 1",
+            f"git -C {path_or_repo} describe --tags --abbrev=0",
             shell=True, capture_output=True, text=True
         )
         if rc.returncode == 0:
-            tag = rc.stdout.strip()
-            return tag if tag else ""
+            return rc.stdout.strip()
         return ""
 
     # Remote repo case -> use GitHub API
@@ -1615,6 +1611,8 @@ def main():
         local_tag_core = get_latest_release_tag(OLIPI_CORE_DIR, branch="main") or ""
         remote_tag_moode = get_latest_release_tag(OLIPI_MOODE_REPO, branch="main") or ""
         remote_tag_core = get_latest_release_tag(OLIPI_CORE_REPO, branch="main") or ""
+        print(f"OliPi-core: local version: {local_tag_core} remote version: {remote_tag_core}")
+        print(f"OliPi-Moode: local version: {local_tag_moode} remote version: {remote_tag_moode}")
 
         #moode_major_change = parse_semver_prefix(remote_tag_moode)[:1] != parse_semver_prefix(local_tag_moode)[:1]
         #core_major_change = parse_semver_prefix(remote_tag_core)[:1] != parse_semver_prefix(local_tag_core)[:1]

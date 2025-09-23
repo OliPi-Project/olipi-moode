@@ -44,7 +44,7 @@ SETUP = {
     "update_prompt": {"en": "✅  A newer release (local {}, remote {}) is available. Update now? [Y/n] ",
                       "fr": "✅  Une nouvelle version (local {}, distant {}) est disponible. Voulez-vous mettre à jour maintenant ? [O/n] "},
     "interactive_update_prompt": {"en": "⚙️ Do you want to update (U), force fresh reinstall (F), or skip (S)? [U/F/S] ",
-                                  "fr": "⚙️ Voulez-vous mettre à jour (U), forcer la réinstallation complète (F) ou ignorer (S) ? [U/F/S] "},
+                                  "fr": "⚙️ Voulez-vous mettre à jour (U), forcer la réinstallation complète (F) ou annuler (S) ? [U/F/S] "},
     "interactive_install_prompt": {"en": "⚙️ First install or Major update, Do you want to re/install (I) or abort (A)? [I/A] ",
                                    "fr": "⚙️ Première installation ou mise à jour majeure, voulez-vous ré/installer (I) ou annuler (A) ? [I/A] "},
     "interactive_abort": {"en": "❌ Operation aborted.", "fr": "❌ Opération annulée."},
