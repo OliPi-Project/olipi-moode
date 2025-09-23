@@ -27,7 +27,7 @@ Video presentation:
 
 Retrieve the latest uninstall script:  
 ```
-curl -sSL https://github.com/OliPi-Project/olipi-moode/blob/main/install/uninstall-olipi-moode.sh -o uninstall-olipi-moode.sh
+curl -sSL https://raw.githubusercontent.com/OliPi-Project/olipi-moode/main/install/uninstall-olipi-moode.sh -o uninstall-olipi-moode.sh
 ```  
 And executed the script:
 
