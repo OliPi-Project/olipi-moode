@@ -21,7 +21,20 @@ Video presentation:
 ## ❔ What's new?
 **<u>V0.2.0-pre</u>**
 
-*Change of approach for SPI displays: they now use the FBTFT overlay directly instead of going through the Adafruit lib. For I2C screens, I've switched to Luma.oled. So it's best to [uninstall completely](#-uninstall) Olipi Moode if you've already installed it.*  
+*Change of approach for SPI displays: they now use the FBTFT overlay directly instead of going through the Adafruit lib. For I2C screens, I've switched to Luma.oled.* 
+
+**<u>You need to uninstall completely Olipi Moode</u>** if you've already installed it:  
+
+Retrieve the latest uninstall script:  
+```
+curl -sSL https://github.com/OliPi-Project/olipi-moode/blob/main/install/uninstall-olipi-moode.sh -o uninstall-olipi-moode.sh
+```  
+And executed the script:
+
+```
+sudo bash uninstall-olipi-moode.sh
+```
+
 > Release note:
 >   - Ready-script replaced by a systemd service with starting animation waiting for Moode to start. you can disable ready-script in Moode.
 >   - FBTFT overlay for SPI screens.
@@ -31,13 +44,17 @@ Video presentation:
 >       - Patch / Minor / Major Update are treated differently.
 >       - Force new config.ini on major update with full install/configuration.
 >       - Preserve config.ini and merge with .dist files on Minor update.
->       - Don't touch config.ini on Patch update.
+>       - Don't modify config.ini on Patch update.
 >       - Backup existing configs before overwriting.
 >       - Safe cleanup and move of cloned repo files.
 >       - Use dedicaced section `# --- Olipi-moode ---` and `# @marker:***` on config.txt.
 >   - A small performance improvement for Pi zero 2w / Pi3 A/B+ with highter screen resolution (still a lot of work to do).
 >       - refresh_interval is now set according to the model of raspberry detected. 
 >       - SPI speed and buffer size is now set according to the model of screen selected.
+>   - Improved spectrometer.
+>       - More audio formats supported.
+>       - Now spectro releases the loopback when a track changes (Output format is no longer locked to the format read at opening).
+>   - Delete some options and clean up config.ini
 >   - And other odds and ends...
 
 
@@ -122,11 +139,14 @@ Video presentation:
 
 ## 🚀 Installation
 
-If you have [MoodeOled](https://github.com/Trachou2Bois/MoodeOled) installed, check [here](https://github.com/Trachou2Bois/MoodeOled/blob/main/README.md#moodeoled-has-grown) to uninstall it before install OliPi Moode.
+**<u>If you have [MoodeOled](https://github.com/Trachou2Bois/MoodeOled) installed</u>**, check [**here**](https://github.com/Trachou2Bois/MoodeOled/blob/main/README.md#moodeoled-has-grown) to **uninstall it** before install OliPi Moode.
 
-First of all, make sure you've wired your screen, buttons and IR receiver correctly.
+First of all:
+- if you have already installed Olipi Moode check [here](#-whats-new) if new version require uninstalling.
+- Make sure you've wired your screen, buttons and IR receiver correctly.
 [See wiring guide](TROUBLESHOOTING.md#wiring--screen-does-not-turn-on-after-installation).
 
+After that you can:
 
 1. Clone this repository:
    
