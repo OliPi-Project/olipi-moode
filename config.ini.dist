@@ -15,27 +15,22 @@ current_screen =
 #rotation = 90
 
 [nowplaying]
-show_extra_infos = True
+### Extra_infos need Spectrum actived
+show_extra_infos = False
 show_progress_barre = True
 ### Spectrum need Loopback actived in Moode > configure > audio > alsa options
 show_spectrum = False
 
 [spectrum]
-device = hw:Loopback,1,0
 num_bars = 36
-fmin = 25
-fmax = 20000
-### height or level
-gradient_mode = height
-spectrum_profile = {"win_s":2048, "hop_s":1024, "smoothing":0.65, "attack":0.55, "release":0.75, "agc_alpha":0.02, "noise_gate_db":-85, "rms_factor_gain":1}
-### Optional manual bands: comma-separated ranges "fmin-fmax" (manual_bands = 20-60, 55-100, etc). Modify num_bars to match.
-### leave empty to use auto (Mel) bands
-manual_bands =
+fmin = 0
+fmax = 17000
+spectrum_profile = {"win_s":2048, "hop_s":1024, "smoothing":0.65, "attack":0.55, "release":0.75, "agc_alpha":0.02, "noise_gate_db":-75}
 
 [manual]
 ### Blacklist files or folders to avoid reading them via the randoms functions:
 blacklist_audio_paths = OSDISK/Stereo Test/LRMonoPhase4.flac, OSDISK/System Sounds/ReadyChime.flac
-### Add or modify genres according to your preferences:
+### Add or modify genres for tagging playlists, according to your preferences:
 genres = Varied, Relax, Rhythmic, Nocturne, Instru
 
 [input]
