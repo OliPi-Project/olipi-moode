@@ -458,42 +458,39 @@ def build_radio_map(pls_directory="/var/lib/mpd/music/RADIO"):
     RADIO_MAP = radio_map
 build_radio_map()
 
-def update_status_info():
+def player_status_thread():
     global last_title_seen, last_artist_seen, menu_context_flag
-
-    last_renderer_check = 0
-    last_song_time = 0
-    last_status_extra_time = 0
-    last_fav_time = 0
-    last_clock_time = 0
-
+    client = MPDClient()
+    client.timeout = 10
+    while True:
+        try:
+            client.connect("localhost", 6600)
+            break
+        except Exception as e:
+            print("Player MPD connect error, retry in 5s:", e)
+            time.sleep(5)
+    last_elapsed_update = 0
+    first_run = True
     while True:
         if is_sleeping:
             time.sleep(1)
             continue
         now = time.time()
-
-        if now - last_renderer_check > 1.5:
-            last_renderer_check = now
-            load_renderer_states_from_db()
-
-        if now - last_song_time > 2:
-            last_song_time = now
-            try:
-                client = MPDClient()
-                client.timeout = 5
-                client.connect("localhost", 6600)
+        try:
+            if not first_run:
+                events = client.idle("player")
+            else:
+                events = []
+            if "player" in events or first_run:
+                first_run = False
                 song_data = client.currentsong()
-                client.close()
-                client.disconnect()
-
+                status_extra = client.status()
                 path = song_data.get("file", "")
                 artist = song_data.get("artist", "")
                 album = song_data.get("album", "")
                 title = song_data.get("title", "")
-
                 if path.startswith("http"):
-                    artist = 'Radio station'
+                    artist = "Radio station"
                     menu_context_flag = "radio"
                     if path == "http://localhost:8080/stream.mp3":
                         menu_context_flag = "local_stream"
@@ -510,56 +507,23 @@ def update_status_info():
                 else:
                     menu_context_flag = "library"
                     artist_album = f"{artist} - {album}"
-                    
                 if title != last_title_seen:
                     core.reset_scroll("nowplaying_title")
                     last_title_seen = title
                 if artist_album != last_artist_seen:
                     core.reset_scroll("nowplaying_artist")
                     last_artist_seen = artist_album
-                    
                 global_state["title"] = title
                 global_state["album"] = album
                 global_state["artist"] = artist
                 global_state["artist_album"] = artist_album
-
-            except Exception as e:
-                #core.show_message(core.t("error_song", error=e))
-                if core.DEBUG:
-                    print("error song: ", e)
-
-        if now - last_status_extra_time > 1:
-            last_status_extra_time = now
-            try:
-                client = MPDClient()
-                client.timeout = 5
-                client.connect("localhost", 6600)
-                status_extra = client.status()
-                client.close()
-                client.disconnect()
-                
-                global_state["state"] = status_extra.get("state", "unknown")
-                global_state["repeat"] = status_extra.get("repeat", "0")
-                global_state["random"] = status_extra.get("random", "0")
-                global_state["single"] = status_extra.get("single", "0")
-                global_state["consume"] = status_extra.get("consume", "0")
-
-                volume_state = status_extra.get("volume", "N/A")
-                if volume_state == "0":
-                    global_state["volume"] = "Mute"
-                else:
-                    global_state["volume"] = volume_state
-
-                # Timing
-                global_state["elapsed"] = float(status_extra.get("elapsed", 0.0))
                 global_state["duration"] = float(status_extra.get("duration", 0.0))
-
-                # Audio Formats decoded by MPD
+                global_state["state"] = status_extra.get("state", "unknown")
                 audio_fmt = status_extra.get("audio", "")
                 if audio_fmt:
                     try:
                         samplerate, bits, channels = audio_fmt.split(":")
-                        samplerate = round(int(samplerate) / 1000, 1)  # kHz
+                        samplerate = round(int(samplerate)/1000, 1)
                         if samplerate.is_integer():
                             samplerate = int(samplerate)
                         if core.screen.width >= 160:
@@ -570,17 +534,111 @@ def update_status_info():
                         global_state["audio"] = audio_fmt
                 else:
                     global_state["audio"] = "No Info"
+        except Exception as e:
+            print("Player idle error:", e)
+            try:
+                client.disconnect()
+                client.connect("localhost", 6600)
+            except Exception:
+                time.sleep(5)
+        if now - last_elapsed_update > 1:
+            last_elapsed_update = now
+            try:
+                status_extra = client.status()
+                global_state["elapsed"] = float(status_extra.get("elapsed", 0.0))
                 global_state["bitrate"] = status_extra.get("bitrate", "")
-
             except Exception as e:
-                #core.show_message(core.t("error_mpd_status", error=e))
-                if core.DEBUG:
-                    print("error mpd status: ", e)
+                print("Elapsed update error:", e)
+        time.sleep(0.1)
 
+def mixer_status_thread():
+    client = MPDClient()
+    client.timeout = 10
+    while True:
+        try:
+            client.connect("localhost", 6600)
+            break
+        except Exception as e:
+            print("Mixer MPD connect error, retry in 5s:", e)
+            time.sleep(5)
+    first_run = True
+    while True:
+        if is_sleeping:
+            time.sleep(1)
+            continue
+        try:
+            if not first_run:
+                events = client.idle("mixer")
+            else:
+                events = []
+            if "mixer" in events or first_run:
+                first_run = False
+                status_extra = client.status()
+                volume_state = status_extra.get("volume", "N/A")
+                if volume_state == "0":
+                    global_state["volume"] = "Mute"
+                else:
+                    global_state["volume"] = volume_state
+        except Exception as e:
+            print("Mixer idle error:", e)
+            try:
+                client.disconnect()
+                client.connect("localhost", 6600)
+            except Exception:
+                time.sleep(5)
+        time.sleep(0.1)
+
+def options_status_thread():
+    client = MPDClient()
+    client.timeout = 10
+    while True:
+        try:
+            client.connect("localhost", 6600)
+            break
+        except Exception as e:
+            print("Options MPD connect error, retry in 5s:", e)
+            time.sleep(5)
+    first_run = True
+    while True:
+        if is_sleeping:
+            time.sleep(1)
+            continue
+        try:
+            if not first_run:
+                events = client.idle("options")
+            else:
+                events = []     
+            if "options" in events or first_run:
+                first_run = False
+                status_extra = client.status()
+                global_state["repeat"] = status_extra.get("repeat", "0")
+                global_state["random"] = status_extra.get("random", "0")
+                global_state["single"] = status_extra.get("single", "0")
+                global_state["consume"] = status_extra.get("consume", "0")
+        except Exception as e:
+            print("Options idle error:", e)
+            try:
+                client.disconnect()
+                client.connect("localhost", 6600)
+            except Exception:
+                time.sleep(5)
+        time.sleep(0.1)
+
+def non_mpd_status_thread():
+    last_fav_time = 0
+    last_clock_time = 0
+    last_renderer_check = 0
+    while True:
+        if is_sleeping:
+            time.sleep(1)
+            continue
+        now = time.time()
+        if now - last_renderer_check > 1.5:
+            last_renderer_check = now
+            load_renderer_states_from_db()
         if now - last_fav_time > 1.5:
             last_fav_time = now
-            global_state["favorite"] = is_current_song_favorite(path)
-
+            global_state["favorite"] = is_current_song_favorite(global_state.get("title", ""))
         if now - last_clock_time > 10:
             last_clock_time = now
             global_state["clock"] = time.strftime("%Hh%M")
@@ -3387,7 +3445,10 @@ set_custom_hooks(core.show_message, next_stream, previous_stream, set_stream_man
 
 def main():
     global previous_blocking_render, idle_timer
-    threading.Thread(target=update_status_info, daemon=True).start()
+    threading.Thread(target=player_status_thread, daemon=True).start()
+    threading.Thread(target=mixer_status_thread, daemon=True).start()
+    threading.Thread(target=options_status_thread, daemon=True).start()
+    threading.Thread(target=non_mpd_status_thread, daemon=True).start()
     try:
         while True:
             if previous_blocking_render != blocking_render:
