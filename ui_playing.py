@@ -2290,7 +2290,6 @@ def stop_spectrum(timeout=2.0):
         spectrum = None
 
 def mpd_monitor():
-    from mpd import MPDClient
     client = MPDClient()
     client.timeout = 10
     try:
@@ -2334,8 +2333,8 @@ if core.height > 64:
 
 if core.height >= 128:
     if show_spectrum:
-        threading.Thread(target=mpd_monitor, daemon=True).start()
         start_spectrum()
+        threading.Thread(target=mpd_monitor, daemon=True).start()
 
 def interpolate_palette(value, palette):
     """Interpolate between colors in a palette (value ∈ [0,1])."""
