@@ -190,16 +190,17 @@ After that you can:
 
 The following systemd services are created during installation:
 
-| Service              | Description                           |
-| -------------------- | ------------------------------------- |
-| `olipi-ui-playing`   | Displays "Now Playing" screen         |
-| `olipi-ui-browser`   | Music library navigation              |
-| `olipi-ui-queue`     | Playback queue display                |
-| `olipi-ui-off`       | Turns off (clear) screen at shutdown  |
+| Service               | Description                                      |
+| --------------------- | ------------------------------------------------ |
+| `olipi-ui-playing`    | Displays "Now Playing" screen (ui_playing.py)    |
+| `olipi-ui-browser`    | Music library navigation (ui_browser.py)         |
+| `olipi-ui-queue`      | Playback queue display (ui_queue.py)             |
+| `olipi-starting-wait` | Launch ui_wait.py at startup for waiting Moode   |
+| `olipi-ui-off`        | Turns off (clear) screen at shutdown (ui_off.py) |
 
 Switch between the 3 main display scripts using the `KEY_BACK` button.  
 Service `olipi-ui-off` is enabled and execute ui_off.py for clearing display at shutdown. (Need better handling for turning off LCD backlight)
-
+Service `olipi-starting-wait` is enabled and launch ui_wait.py who play animation for waiting Moode to be ready.
 
 ## 📡 IR remote configuration
 
