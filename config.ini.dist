@@ -15,8 +15,7 @@ current_screen =
 #rotation = 90
 
 [nowplaying]
-### Extra_infos need Spectrum actived
-show_extra_infos = False
+show_extra_infos = True
 show_progress_barre = True
 ### Spectrum need Loopback actived in Moode > configure > audio > alsa options
 show_spectrum = False
