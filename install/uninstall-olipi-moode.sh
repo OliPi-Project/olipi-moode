@@ -81,7 +81,10 @@ fi
 
 echo "--------------------------"
 if [ ${#MISSING_ELEMENTS[@]} -gt 0 ]; then
-    echo "WARNING: Some expected elements are already missing: ${MISSING_ELEMENTS[*]}"
+    # join with ", " and remove trailing comma+space
+    missing_joined=$(printf "%s, " "${MISSING_ELEMENTS[@]}")
+    missing_joined=${missing_joined%, }
+    echo "WARNING: Some expected elements are already missing: ${missing_joined}"
     echo "The script will attempt to clean whatever remains."
 else
     echo "All expected elements detected. Ready to proceed."
