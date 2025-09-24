@@ -8,6 +8,8 @@ import time
 import dis
 import re
 
+_last_volume = None
+
 # Injectable global dependencies (via set_hooks)
 show_message = None
 next_stream = None
@@ -66,22 +68,25 @@ def handle_audio_keys(key, final_code, menu_context_flag=""):
         subprocess.run(["mpc", "seek", "-00:00:10"], check=True)
         return True
     elif key == "KEY_VOLUMEUP":
-        try:
-            requests.get("http://127.0.0.1/command/?cmd=set_volume+up+2")
-        except requests.RequestException:
-            pass
+        subprocess.run(["mpc", "volume", "+1"], check=True)
         return True
     elif key == "KEY_VOLUMEDOWN":
-        try:
-            requests.get("http://127.0.0.1/command/?cmd=set_volume+dn+2")
-        except requests.RequestException:
-            pass
+        subprocess.run(["mpc", "volume", "-1"], check=True)
         return True
     elif key == "KEY_MUTE":
-        try:
-            requests.get("http://127.0.0.1/command/?cmd=set_volume+mute")
-        except requests.RequestException:
-            pass
+        global _last_volume
+        result = subprocess.run(["mpc", "status"], capture_output=True, text=True)
+        m = re.search(r"volume:\s*(\d+)%", result.stdout)
+        if m:
+            current_vol = int(m.group(1))
+            if current_vol > 0:
+                _last_volume = current_vol
+                subprocess.run(["mpc", "volume", "0"], check=True)
+            else:
+                restore_vol = _last_volume if _last_volume is not None else 3
+                subprocess.run(["mpc", "volume", str(restore_vol)], check=True)
+        else:
+            subprocess.run(["mpc", "volume", "3"], check=True)
         return True
     return False
 

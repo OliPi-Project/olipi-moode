@@ -434,15 +434,37 @@ def load_renderer_states_from_db():
         if core.DEBUG:
             print("error db: ", e)
 
+RADIO_MAP = {}
+def build_radio_map(pls_directory="/var/lib/mpd/music/RADIO"):
+    global RADIO_MAP
+    radio_map = {}
+    for filename in os.listdir(pls_directory):
+        if filename.lower().endswith(".pls"):
+            full_path = os.path.join(pls_directory, filename)
+            try:
+                url = ""
+                title = ""
+                with open(full_path, "r", encoding="utf-8", errors="ignore") as f:
+                    for line in f:
+                        if line.startswith("File1="):
+                            url = line.split("=", 1)[1].strip()
+                        elif line.startswith("Title1="):
+                            title = line.split("=", 1)[1].strip()
+                if url and title:
+                    radio_map[url] = title
+            except Exception as e:
+                if core.DEBUG:
+                    print(f"Error reading {filename}: {e}")
+    RADIO_MAP = radio_map
+build_radio_map()
+
 def update_status_info():
     global last_title_seen, last_artist_seen, menu_context_flag
 
     last_renderer_check = 0
-    last_status_time = 0
     last_song_time = 0
     last_status_extra_time = 0
     last_fav_time = 0
-    last_volume_time = 0
     last_clock_time = 0
 
     while True:
@@ -455,31 +477,23 @@ def update_status_info():
             last_renderer_check = now
             load_renderer_states_from_db()
 
-        if now - last_status_time > 1.5:
-            last_status_time = now
-            try:
-                r = requests.get("http://localhost/command/?cmd=status", timeout=5)
-                status_data = r.json()
-                global_state["state"] = status_data.get("9", "state: unknown").split(": ")[-1].strip()
-                global_state["repeat"] = status_data.get("1", "repeat: 0").split(": ")[-1].strip()
-                global_state["random"] = status_data.get("2", "random: 0").split(": ")[-1].strip()
-                global_state["single"] = status_data.get("3", "single: 0").split(": ")[-1].strip()
-                global_state["consume"] = status_data.get("4", "consume: 0").split(": ")[-1].strip()
-            except Exception as e:
-                #core.show_message(core.t("error_status", error=e))
-                if core.DEBUG:
-                    print("error status: ", e)
-
-        if now - last_song_time > 1.5:
+        if now - last_song_time > 2:
             last_song_time = now
             try:
-                r = requests.get("http://localhost/command/?cmd=get_currentsong", timeout=5)
-                song_data = r.json()
-                artist = html.unescape(song_data.get("artist", ""))
-                album = html.unescape(song_data.get("album", ""))
-                title = html.unescape(song_data.get("title", ""))
+                client = MPDClient()
+                client.timeout = 5
+                client.connect("localhost", 6600)
+                song_data = client.currentsong()
+                client.close()
+                client.disconnect()
+
                 path = song_data.get("file", "")
-                if artist == 'Radio station' or path.startswith("http"):
+                artist = song_data.get("artist", "")
+                album = song_data.get("album", "")
+                title = song_data.get("title", "")
+
+                if path.startswith("http"):
+                    artist = 'Radio station'
                     menu_context_flag = "radio"
                     if path == "http://localhost:8080/stream.mp3":
                         menu_context_flag = "local_stream"
@@ -491,6 +505,7 @@ def update_status_info():
                             artist_album = f"{album} | [Album: {album_yt}]" if album_yt else album
                             title = final_title_yt
                     else:
+                        album = RADIO_MAP.get(path, "Unknown Radio")
                         artist_album = album
                 else:
                     menu_context_flag = "library"
@@ -513,21 +528,48 @@ def update_status_info():
                 if core.DEBUG:
                     print("error song: ", e)
 
-        if now - last_status_extra_time > 1.5:
+        if now - last_status_extra_time > 1:
             last_status_extra_time = now
             try:
                 client = MPDClient()
-                client.timeout = 2
-                client.idletimeout = None
+                client.timeout = 5
                 client.connect("localhost", 6600)
                 status_extra = client.status()
                 client.close()
                 client.disconnect()
+                
+                global_state["state"] = status_extra.get("state", "unknown")
+                global_state["repeat"] = status_extra.get("repeat", "0")
+                global_state["random"] = status_extra.get("random", "0")
+                global_state["single"] = status_extra.get("single", "0")
+                global_state["consume"] = status_extra.get("consume", "0")
+
+                volume_state = status_extra.get("volume", "N/A")
+                if volume_state == "0":
+                    global_state["volume"] = "Mute"
+                else:
+                    global_state["volume"] = volume_state
 
                 # Timing
                 global_state["elapsed"] = float(status_extra.get("elapsed", 0.0))
                 global_state["duration"] = float(status_extra.get("duration", 0.0))
-                # Bitrate                
+
+                # Audio Formats decoded by MPD
+                audio_fmt = status_extra.get("audio", "")
+                if audio_fmt:
+                    try:
+                        samplerate, bits, channels = audio_fmt.split(":")
+                        samplerate = round(int(samplerate) / 1000, 1)  # kHz
+                        if samplerate.is_integer():
+                            samplerate = int(samplerate)
+                        if core.screen.width >= 160:
+                            global_state["audio"] = f"{samplerate} kHz / {bits} bit"
+                        else:
+                            global_state["audio"] = f"{samplerate}k / {bits}b"
+                    except Exception:
+                        global_state["audio"] = audio_fmt
+                else:
+                    global_state["audio"] = "No Info"
                 global_state["bitrate"] = status_extra.get("bitrate", "")
 
             except Exception as e:
@@ -539,24 +581,10 @@ def update_status_info():
             last_fav_time = now
             global_state["favorite"] = is_current_song_favorite(path)
 
-        if now - last_volume_time > 1.5:
-            last_volume_time = now
-            try:
-                r = requests.get("http://localhost/command/?cmd=get_volume", timeout=5)
-                volume_data = r.json()
-                if volume_data.get("muted") == "yes":
-                    global_state["volume"] = "Mute"
-                else:
-                    global_state["volume"] = volume_data.get("volume", "N/A")
-            except Exception as e:
-                #core.show_message(core.t("error_volume", error=e))
-                if core.DEBUG:
-                    print("error volume: ", e)
-
         if now - last_clock_time > 10:
             last_clock_time = now
             global_state["clock"] = time.strftime("%Hh%M")
-        time.sleep(1)
+        time.sleep(0.5)
 
 def update_hardware_info():
     global hardware_info_lines
@@ -2181,20 +2209,10 @@ def start_spectrum():
         profile=profile_dict
     )
     spectrum.start()
-    
-    samplerate = spectrum.samplerate
-    samplerate = round(int(samplerate) / 1000, 1)  # kHz
-    if samplerate.is_integer():
-        samplerate = int(samplerate)
-    if core.screen.width >= 160:
-        global_state["audio"] = f"{samplerate} kHz / {spectrum.nominal_bits} bit"
-    else:
-        global_state["audio"] = f"{samplerate}k / {spectrum.nominal_bits}b"
-
     if core.DEBUG:
         print(f"Samplerate: {spectrum.samplerate} Hz, Channels: {spectrum.channels}, Format: {spectrum.format_name}")
 
-def stop_spectrum(timeout=3.0):
+def stop_spectrum(timeout=2.0):
     global spectrum
     if spectrum:
         try:
@@ -2545,11 +2563,11 @@ def nav_right_short():
 
 def nav_up():
     if now_playing_mode:
-        subprocess.run(["curl", "-s", "http://127.0.0.1/command/?cmd=set_volume+up+2"])
+        subprocess.run(["mpc", "volume", "+1"])
 
 def nav_down():
     if now_playing_mode:
-        subprocess.run(["curl", "-s", "http://127.0.0.1/command/?cmd=set_volume+dn+2"])
+        subprocess.run(["mpc", "volume", "-1"])
 
 def nav_right_long():
     if now_playing_mode:
