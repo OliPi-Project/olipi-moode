@@ -101,7 +101,7 @@ sudo bash uninstall-olipi-moode.sh
   | SSD1306     | 128×64     | 0.96     | 149 | Monochrome | SSD1306.py                   |
   | SSD1315     | 128×64     | 0.96     | 149 | Monochrome | SSD1306.py                   |
   | SSD1351     | 128×128    | 1.5      | 120 | RGB        | SSD1351.py                   |
-  | ST7735R     | 128×160    | 1.77     | 116 | BGR        | ST7735R.py                   |
+  | ST7735R     | 128×160    | 1.77     | 116 | RGB        | ST7735R.py                   |
   | ST7789 1.9" | 170×320    | 1.9      | 191 | RGB        | ST7789W.py                   |
   | ST7789 2"   | 240×320    | 2.0      | 200 | RGB        | ST7789V.py                   |
   
