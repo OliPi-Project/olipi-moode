@@ -182,9 +182,7 @@ After that you can:
 
 4. ❗ <u>Moode configuration reminder</u>
 
-    ```
-    In Moode > System Config > Peripherals: Enable LCD Updater.
-    ```
+    To display the spectrometer you need to enable loopback in Moode UI: `configure > Audio > ALSA Options`. And change `show_spectrum = false` to `true` in `~/olipi-moode/config.ini`.
 
 ## 🖥 Services
 
@@ -277,9 +275,10 @@ These keys are **required** to navigate and control all interfaces:
 | **KEY_CHANNELDOWN** | Context action                                      | Remove from queue                                  |
 | **KEY_PLAY**        | Only on Now Playing UI                              | Play/Pause / Shutdown (long press)                 |
 
+**For more info, press `KEY_INFO` in each context.**
+
 These keys must be configured either via LIRC (`python3 ~/olipi-moode/install/install_lirc_remote.py`) or via GPIO (`[buttons]` section in `config.ini`).
 
-**For more info, press `KEY_INFO` in each context.**
 
 ### 🎵 Optional media keys
 
