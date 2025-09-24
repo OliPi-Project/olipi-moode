@@ -52,8 +52,7 @@ This guide covers common problems and their solutions when using OliPi MoOde.
 
 ## ➰ I don't have enough gpio ports to connect everything!
 
-If you use SPI screen and no other SPI peripheriphe You can use CE1 (GPIO 8) as normal GPIOs (CE0 must remain activated for the screen):  
-CE1 must be disabled in the system (otherwise conflicts may occur) with add `dtoverlay=spi0-1cs` in `/boot/firmware/config.txt`.  
+If you use SPI screen and no other SPI device, you can disable and use CE1 (GPIO 7) as normal GPIOs (CE0 must remain activated for the screen) with add `dtoverlay=spi0-1cs` in `/boot/firmware/config.txt`.  
 If you don't use SPI you can disable CE0 and CE1 with `dtoverlay=spi0-0cs`
 
 ## 🧠 Low memory devices (512 MB RAM)
