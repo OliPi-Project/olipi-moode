@@ -163,8 +163,8 @@ SETUP = {
                              "fr": "\n⚙️ Configuration des Controle:"
                                    "\n- Boutons GPIO ou encodeur rotatif: configurez les broches dans config.ini."
                                    "\n- Télécommande IR: Executez ' python3 {} ' pour installer et configurer LIRC."},
-    "moode_reminder": {"en": "\n⚠️ Reminder: In Moode, enable:\n  - LCD Updater (Peripherals)\n",
-                       "fr": "\n⚠️ Rappel: Dans Moode, activez:\n  - LCD Updater (Périphériques)\n"},
+    "moode_reminder": {"en": "\n⚠️ Reminder: In Moode, enable:\n  - Loopback for Spectrum and change show_spectrum = false to true in ~/olipi-moode/config.ini\n",
+                       "fr": "\n⚠️ Rappel: Dans Moode, activez:\n  - Loopback pour le Spectro et changer show_spectrum = false à true dans ~/olipi-moode/config.ini\n"},
     "develop_done": {"en": "✅ Development mode setup complete.",
                      "fr": "✅ La branche de développement a été installée avec succès."},
     "reboot_prompt": {"en": "\n⇨ Do you want to reboot now? [Y/n] > ", "fr": "\n⇨ Voulez-vous redémarrer maintenant ? [O/n] > "},
