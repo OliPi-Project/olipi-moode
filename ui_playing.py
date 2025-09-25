@@ -491,7 +491,6 @@ def player_status_thread():
                 title = song_data.get("title", "")
                 if path.startswith("http"):
                     artist = "Radio station"
-                    menu_context_flag = "radio"
                     if path == "http://localhost:8080/stream.mp3":
                         menu_context_flag = "local_stream"
                         if stream_queue:
@@ -502,6 +501,7 @@ def player_status_thread():
                             artist_album = f"{album} | [Album: {album_yt}]" if album_yt else album
                             title = final_title_yt
                     else:
+                        menu_context_flag = "radio"
                         album = RADIO_MAP.get(path, "Unknown Radio")
                         artist_album = album
                 else:
@@ -2546,7 +2546,7 @@ def draw_nowplaying():
 
         # --- Extra Infos ---
         y_extra_info = y_title + title_h + spacing + 2
-        if core.height > 64 and show_extra_infos and show_spectrum:
+        if core.height > 64 and show_extra_infos:
             extra_info = global_state.get("audio", "")
             bitrate = global_state.get("bitrate", "")
             if bitrate:
