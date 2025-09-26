@@ -1396,6 +1396,8 @@ SERVICES = {
 Description=OliPi MoOde Now-Playing Screen (ui_playing)
 After=network.target sound.target
 Wants=sound.target
+StartLimitIntervalSec=200
+StartLimitBurst=10
 
 [Service]
 Type=simple
@@ -1405,8 +1407,6 @@ User={user}
 Group={user}
 Restart=on-failure
 RestartSec=10
-StartLimitIntervalSec=200
-StartLimitBurst=10
 
 [Install]
 WantedBy=multi-user.target
@@ -1415,6 +1415,8 @@ WantedBy=multi-user.target
 Description=OliPi MoOde Library Browser Screen (ui_browser)
 After=network.target sound.target
 Wants=sound.target
+StartLimitIntervalSec=200
+StartLimitBurst=10
 
 [Service]
 Type=simple
@@ -1424,8 +1426,6 @@ User={user}
 Group={user}
 Restart=on-failure
 RestartSec=10
-StartLimitIntervalSec=200
-StartLimitBurst=10
 
 [Install]
 WantedBy=multi-user.target
@@ -1434,6 +1434,8 @@ WantedBy=multi-user.target
 Description=OliPi MoOde Queue Management Screen (ui_queue)
 After=network.target sound.target
 Wants=sound.target
+StartLimitIntervalSec=200
+StartLimitBurst=10
 
 [Service]
 Type=simple
@@ -1443,8 +1445,6 @@ User={user}
 Group={user}
 Restart=on-failure
 RestartSec=10
-StartLimitIntervalSec=200
-StartLimitBurst=10
 
 [Install]
 WantedBy=multi-user.target
@@ -1453,6 +1453,8 @@ WantedBy=multi-user.target
 Description=OliPi UI playing Wait for Moode Audio to be ready
 After=network.target sound.target
 Wants=sound.target
+StartLimitIntervalSec=200
+StartLimitBurst=10
 
 [Service]
 Type=simple
@@ -1462,8 +1464,6 @@ User={user}
 Group={user}
 Restart=on-failure
 RestartSec=10
-StartLimitIntervalSec=200
-StartLimitBurst=10
 
 [Install]
 WantedBy=multi-user.target
