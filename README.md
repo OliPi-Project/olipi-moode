@@ -113,11 +113,10 @@ sudo bash uninstall-olipi-moode.sh
   
   For more information about wiring, check the [FAQ & Troubleshooting guide](./TROUBLESHOOTING.md).
   
-- **APT dependencies** (installed automatically):
+- **APT dependencies** (installed automatically if needed):
   
   ```
-  git python3-pil python3-venv python3-pip python3-tk libatlas-base-dev
-  i2c-tools libgpiod-dev python3-libgpiod python3-lgpio python3-setuptools
+  git python3-pil python3-venv python3-pip python3-tk libatlas-base-dev libopenblas0-pthread libgfortran5 i2c-tools libgpiod-dev python3-libgpiod python3-lgpio python3-setuptools
   ```
 
 - **Python dependencies** (installed automatically with the virtual environment):
