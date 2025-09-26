@@ -536,6 +536,7 @@ def player_status_thread():
                     global_state["audio"] = "No Info"
         except Exception as e:
             print("Player idle error:", e)
+            first_run = True
             try:
                 client.disconnect()
                 client.connect("localhost", 6600)
@@ -581,6 +582,7 @@ def mixer_status_thread():
                     global_state["volume"] = volume_state
         except Exception as e:
             print("Mixer idle error:", e)
+            first_run = True
             try:
                 client.disconnect()
                 client.connect("localhost", 6600)
@@ -617,6 +619,7 @@ def options_status_thread():
                 global_state["consume"] = status_extra.get("consume", "0")
         except Exception as e:
             print("Options idle error:", e)
+            first_run = True
             try:
                 client.disconnect()
                 client.connect("localhost", 6600)
@@ -2289,39 +2292,41 @@ def stop_spectrum(timeout=2.0):
             pass
         spectrum = None
 
-def mpd_monitor():
+def monitor_spectrum():
     client = MPDClient()
     client.timeout = 10
-    try:
-        client.connect("localhost", 6600)
-    except Exception as e:
-        print("MPD connection failed:", e)
-        return
-    last_toggle = 0
     while True:
-        try:
-            events = client.idle()
-            if 'player' in events:
-                if time.time() - last_toggle < 0.2:
-                    continue
-                stop_spectrum()
-                if core.DEBUG:
-                    print("idle event -> stop spectrum now")
-                client.pause()
-                time.sleep(0.1)
-                client.pause()
-                last_toggle = time.time()
-                time.sleep(0.1)
-                try:
-                    status = client.status()
-                except Exception:
-                    status = {}
-                if status.get("state") == "play":
+        # Try to connect until success
+        while True:
+            try:
+                client.connect("localhost", 6600)
+                break
+            except Exception as e:
+                print("MPD monitor connect error, retry in 5s:", e)
+                time.sleep(5)
+        last_toggle = 0
+        while True:
+            try:
+                events = client.idle()
+                if 'player' in events:
+                    if time.time() - last_toggle < 0.2:
+                        continue
+                    stop_spectrum()
+                    time.sleep(0.1)
+                    client.pause()
+                    time.sleep(0.03)
+                    client.pause()
+                    last_toggle = time.time()
+                    time.sleep(0.1)
                     start_spectrum()
-        except Exception as e:
-            if core.DEBUG:
+            except Exception as e:
                 print("MPD monitor error:", e)
-            time.sleep(1.0)
+                try:
+                    client.disconnect()
+                except Exception:
+                    pass
+                time.sleep(2)
+                break  # leave inner loop, go back to reconnect
 
 if core.height > 64:
     try:
@@ -2334,7 +2339,7 @@ if core.height > 64:
 if core.height >= 128:
     if show_spectrum:
         start_spectrum()
-        threading.Thread(target=mpd_monitor, daemon=True).start()
+        threading.Thread(target=monitor_spectrum, daemon=True).start()
 
 def interpolate_palette(value, palette):
     """Interpolate between colors in a palette (value ∈ [0,1])."""
@@ -2521,16 +2526,22 @@ def draw_nowplaying():
                 centered_x = (core.width - text_width) // 2
                 core.draw.text((centered_x, y), text, font=font_artist, fill=color)
 
-        top_bar_h = icon_width
-        if core.height <= 128:
+        
+        if core.height <= 96:
             spacing = 3
+            top_bar_h = icon_width
+        elif core.height <= 128:
+            spacing = 3 if show_spectrum else 10
+            top_bar_h = icon_width if show_spectrum else icon_width + 8 
         elif core.height <= 160:
-            spacing = 8
+            spacing = 8 if show_spectrum else 16
+            top_bar_h = icon_width if show_spectrum else icon_width * 2 
         elif core.height == 170 and core.width == 320:
-            spacing = 4
+            spacing = 4 if show_spectrum else 12
+            top_bar_h = icon_width if show_spectrum else icon_width + 10 
         else:
-            spacing = 12
-            top_bar_h = icon_width + 6
+            spacing = 12 if show_spectrum else 24
+            top_bar_h = icon_width + 4 if show_spectrum else icon_width * 2
 
         # --- Artist / Album ---
         bbox_artist = font_artist.getbbox("Ay")
