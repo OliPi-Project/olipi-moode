@@ -37,6 +37,7 @@ sudo bash uninstall-olipi-moode.sh
 
 > Release note:
 >   - Ready-script replaced by a systemd service with starting animation waiting for Moode to start. you can disable ready-script in Moode.
+>   - It is no longer necessary to activate the "lcd updater", infos is retrieved via mpd or locally.
 >   - FBTFT overlay for SPI screens.
 >   - Luma.oled for I2C screens (Now you need to select the I2C address of your screen during installation).
 >   - Setup script improved for install/update, with OliPi Moode folder backup.
