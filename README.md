@@ -19,11 +19,11 @@ Video presentation:
 ---
 
 ## ❔ What's new?
-**<u>V0.2.0-pre</u>**
+**<u>V0.2.x-pre</u>**
 
 *Change of approach for SPI displays: they now use the FBTFT overlay directly instead of going through the Adafruit lib. For I2C screens, I've switched to Luma.oled.* 
 
-**<u>You need to uninstall completely Olipi Moode</u>** if you've already installed it:  
+**<u>You need to uninstall completely Olipi Moode</u>** if you have version v0.1.x installed:  
 
 Retrieve the latest uninstall script:  
 ```
@@ -36,6 +36,7 @@ sudo bash uninstall-olipi-moode.sh
 ```
 
 > Release note:
+>   - Improved  management of rotary encoder and its parameters in config.ini.
 >   - Ready-script replaced by a systemd service with starting animation waiting for Moode to start. you can disable ready-script in Moode.
 >   - It is no longer necessary to activate the "lcd updater", infos is retrieved via mpd or locally.
 >   - FBTFT overlay for SPI screens.
@@ -85,7 +86,7 @@ sudo bash uninstall-olipi-moode.sh
 - **Browser UI**: Browse the mpd music library, search, move, copy, delete to/from local or USB storage.
 - **Playlist/Queue UI**: Display and manage the playback queue. Can create or replace Playlist from queue.
 - **Configuration help and IR remote mapping**: Assisted and fully customizable LIRC configuration with conflict detection. Ability to add custom actions to unused keys in OliPi MoOde (see the `handle_custom_key` function in `media_key_actions.py`... *to be made more user-friendly*).
-- **GPIO button and rotary encoder support** using `rpi_lgpio` . Enable and configure pins in `config.ini` under the "manual" section (rotary not tested).
+- **GPIO button and rotary encoder support** using `rpi_lgpio` . Enable and configure pins in `config.ini` under the "manual" section.
 
 
 ## 📦 System requirements
@@ -253,7 +254,6 @@ KEY_RIGHT = 27
 [rotary]
 pin_a = 22
 pin_b = 23
-pin_btn = 24
 ```
 
 ## ⌨ Key configuration

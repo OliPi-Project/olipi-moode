@@ -53,13 +53,13 @@ use_rotary = false
 #KEY_PLAY = 25
 
 [rotary]
-### if you use rotary encoder, uncomment and modify the gpio pins to suit your configuration.
-### KEY_PLAY/UP/DOWN need to be commented in [buttons] section if you use:
-### up/down / volume (in now-playing screen)
+### if you use rotary encoder, uncomment and modify to suit your configuration.
+#rotary_divider = 2
+#rotary_invert = False
+#rotary_min_poll_ms = 1
+### KEY_UP/DOWN (volume in now-playing screen) need to be commented in [buttons] section if you use:
 #pin_a = 4
 #pin_b = 5
-### toggle play/pause (in now-playing screen) + shutdown on long press:
-#pin_btn = 25
 
 [remote_mapping]
 ### Use install_lirc_remote.py for remap your remote key or modify manualy here.
