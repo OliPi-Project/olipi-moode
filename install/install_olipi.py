@@ -1548,6 +1548,7 @@ def append_to_profile():
     ]
     print(SETUP["profile_update"][lang])
     log_line(msg="Appending to ~/.profile", context="append_to_profile")
+
     try:
         if os.path.exists(profile_path):
             with open(profile_path, "r", encoding="utf-8") as f:
@@ -1555,15 +1556,34 @@ def append_to_profile():
         else:
             content_lines = []
 
-        with open(profile_path, "a", encoding="utf-8") as f:
-            for line in lines_to_add:
-                if not any(existing_line.startswith(line.split()[0:3][0]) for existing_line in content_lines):
-                    f.write("\n" + line)
+        updated_lines = []
+        for existing_line in content_lines:
+            # pour chaque ligne à ajouter, si la ligne existante commence pareil, on remplace
+            replaced = False
+            for line_to_add in lines_to_add:
+                prefix = line_to_add.split()[0:5]  # prend les premiers mots (ajuste si nécessaire)
+                if all(word in existing_line for word in prefix):
+                    updated_lines.append(line_to_add + "\n")
+                    replaced = True
+                    break
+            if not replaced:
+                updated_lines.append(existing_line)
+
+        # ajouter les lignes qui n'étaient pas dans le fichier
+        existing_prefixes = [" ".join(l.split()[0:5]) for l in updated_lines]
+        for line_to_add in lines_to_add:
+            prefix_str = " ".join(line_to_add.split()[0:5])
+            if prefix_str not in existing_prefixes:
+                updated_lines.append(line_to_add + "\n")
+
+        with open(profile_path, "w", encoding="utf-8") as f:
+            f.writelines(updated_lines)
+
         print(SETUP["profile_updated"][lang])
+
     except Exception as e:
         log_line(error=f"Failed to update profile: {e}", context="append_to_profile")
         print(SETUP["profile_update_error"][lang].format(e))
-
 
 def install_done():
     print(SETUP["install_done"][lang])
