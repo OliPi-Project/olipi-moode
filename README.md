@@ -345,7 +345,7 @@ Possible future improvements:
 - Translation into more languages.
 - Documentation improvements.
 
-Come [discuss it on Discord](https://discord.gg/pku67XsFEE)!
+Open a discussion [here](https://github.com/OliPi-Project/olipi-moode/discussions) or come on [Discord](https://discord.gg/pku67XsFEE)!
 
 ---
 
