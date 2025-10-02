@@ -11,7 +11,7 @@ color_theme = autumn
 
 [screen]
 current_screen =
-#refresh_interval = 0.01
+#refresh_interval = 0.03
 #rotation = 90
 
 [nowplaying]
