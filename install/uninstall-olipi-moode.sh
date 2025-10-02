@@ -118,7 +118,7 @@ PROFILE_FILE="$USER_HOME/.profile"
 if [ -f "$PROFILE_FILE" ]; then
     echo ">> Cleaning $PROFILE_FILE"
     run_cmd "sudo -u $REAL_USER sed -i '\#install_lirc_remote.py#d' $PROFILE_FILE"
-    run_cmd "sudo -u $REAL_USER sed -i '\#install/setup.py#d' $PROFILE_FILE"
+    run_cmd "sudo -u $REAL_USER sed -i '\#install/install_olipi.py#d' $PROFILE_FILE"
 fi
 
 # --- 5. Remove Python virtual environment ---

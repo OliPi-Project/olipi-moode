@@ -1,8 +1,9 @@
  ![License](https://img.shields.io/github/license/OliPi-Project/olipi-moode)
 ![Python](https://img.shields.io/badge/python-3.9+-blue)
 ![Platform](https://img.shields.io/badge/platform-Raspberry%20Pi-red)
-![Discord](https://img.shields.io/discord/1410910825870266391?logo=discord&logoColor=white&logoSize=auto&label=Discord&color=blue&link=https%3A%2F%2Fdiscord.gg%2Fpku67XsFEE)
 ![GitHub Release](https://img.shields.io/github/v/release/OliPi-Project/olipi-moode?include_prereleases&sort=date&display_name=tag)
+![Discord](https://img.shields.io/discord/1410910825870266391?logo=discord&logoColor=white&logoSize=auto&label=Discord&color=blue&link=https%3A%2F%2Fdiscord.gg%2Fpku67XsFEE)
+
 
 # OliPi MoOde
 
@@ -58,6 +59,13 @@ sudo bash uninstall-olipi-moode.sh
 >       - Now spectro releases the loopback when a track changes (Output format is no longer locked to the format read at opening).
 >   - Delete some options and clean up config.ini
 >   - And other odds and ends...
+
+
+## 💖 Support OliPi
+
+*If you find OliPi useful, consider supporting the project — every donation helps keep it alive.*
+
+[![Donate](https://img.shields.io/badge/Donate-PayPal-blue.svg)](https://www.paypal.com/donate/?business=QN7HL6CB2H3QJ&no_recurring=0&item_name=Thanks+for+supporting+OliPi+Project%21+%0A&currency_code=EUR)
 
 
 ## 📚 Table of Contents
@@ -159,7 +167,7 @@ After that you can:
 2. Run the setup script:
    
    ```bash
-   python3 ~/olipi-moode/install/setup.py
+   python3 ~/olipi-moode/install/install_olipi.py
    ```
 
 3. Follow the on-screen instructions.  
@@ -337,15 +345,24 @@ If you want to learn more about OliPi Moode or if you encounter issues (black sc
 ## 🤝 Contributing
 
 Contributions and feature suggestions are welcome!  
-Possible future improvements:
 
-- Support for additional displays.
-- Offers more themes color
-- Show other infos on display (covers, screensaver with picture from web/local or animation, etc...)
-- Translation into more languages.
-- Documentation improvements.
+You can contribute in several ways:  
 
-Open a discussion [here](https://github.com/OliPi-Project/olipi-moode/discussions) or come on [Discord](https://discord.gg/pku67XsFEE)!
+  - Participating in the development of current or future features/project.
+  - Reporting bugs, typo errors, security problems etc...  
+  - Suggesting new ideas.  
+  - Create more themes color.  
+  - Translate into more languages.  
+  - Documentation improvements.  
+  
+Possible future improvements:  
+
+  - Support for additional displays.  
+  - Show other infos on display according to project (covers, screensaver with picture from web/local or animation, meteo, etc...)  
+
+If you want to help you can take a look on [issues](https://github.com/OliPi-Project/olipi-moode/issues) or [discussions](https://github.com/OliPi-Project/olipi-moode/discussions), open a new [issue](https://github.com/OliPi-Project/olipi-moode/issues/new/choose), or come tchat on [Discord](https://discord.gg/pku67XsFEE)!  
+Also you can make a [donation](#💖-support-olipi) that could be used to acquire new equipment to test/integrate into the project.  
+
 
 ---
 

@@ -39,12 +39,12 @@ PRESERVE_FILES = {
 
 lang = "en"
 
-INSTALL_DIR = os.path.dirname(os.path.abspath(__file__))  # directory containing setup.py
+INSTALL_DIR = os.path.dirname(os.path.abspath(__file__))  # directory containing this script
 OLIPI_MOODE_DIR = os.path.dirname(INSTALL_DIR)  # parent → olipi-moode
 OLIPI_CORE_DIR = os.path.join(OLIPI_MOODE_DIR, "olipi_core")
 DEFAULT_VENV_PATH = os.path.expanduser("~/.olipi-moode-venv")
 INSTALL_LIRC_REMOTE_PATH = os.path.join(INSTALL_DIR, "install_lirc_remote.py")
-SETUP_SCRIPT_PATH = os.path.join(INSTALL_DIR, "setup.py")
+SETUP_SCRIPT_PATH = os.path.join(INSTALL_DIR, "install_olipi.py")
 SETTINGS_FILE = Path(INSTALL_DIR) / ".setup-settings.json"
 TMP_LOG_FILE = Path("/tmp/setup.log")
 CONFIG_TXT = "/boot/firmware/config.txt"
@@ -1499,7 +1499,6 @@ def write_service(name, content):
     log_line(msg=f"Service {name} installed at {target_path}", context="write_service")
 
 def run_install_services(venv, user):
-    """Interactive install services flow executed inside setup.py process."""
     project_path = OLIPI_MOODE_DIR
     log_line(msg=f"install_services started (user={user}, venv={venv})", context="run_install_services")
     print(SETUP["install_services"][lang])
@@ -1510,7 +1509,6 @@ def run_install_services(venv, user):
             try:
                 choice = input(" > ").strip()
             except EOFError:
-                # if stdin closed, treat as skip
                 choice = "3"
             if choice == "2":
                 print(SETUP["service_view_header"][lang].format(name))
@@ -1553,17 +1551,19 @@ def append_to_profile():
     try:
         if os.path.exists(profile_path):
             with open(profile_path, "r", encoding="utf-8") as f:
-                content = f.read()
+                content_lines = f.readlines()
         else:
-            content = ""
+            content_lines = []
+
         with open(profile_path, "a", encoding="utf-8") as f:
             for line in lines_to_add:
-                if line not in content:
+                if not any(existing_line.startswith(line.split()[0:3][0]) for existing_line in content_lines):
                     f.write("\n" + line)
         print(SETUP["profile_updated"][lang])
     except Exception as e:
         log_line(error=f"Failed to update profile: {e}", context="append_to_profile")
         print(SETUP["profile_update_error"][lang].format(e))
+
 
 def install_done():
     print(SETUP["install_done"][lang])
@@ -1571,7 +1571,7 @@ def install_done():
     print(SETUP["controle_explanation"][lang].format(lirc_script))
     print(SETUP["moode_reminder"][lang])
     with TMP_LOG_FILE.open("a", encoding="utf-8") as fh:
-            fh.write(f"+++++++++\n[SUCCESS] ✅ Setup.py finished successfully")
+            fh.write(f"+++++++++\n[SUCCESS] ✅ install_olipi.py finished successfully")
     finalize_log(0)
     reboot = input(SETUP["reboot_prompt"][lang]).strip().lower()
     if reboot in ["", "o", "y"]:
@@ -1653,7 +1653,7 @@ def main():
     try:
         if cmd == "dev_mode":
             # full dev rolling install
-            print("Setup.py launched on dev mode...")
+            print("install_olipi.py launched on dev mode...")
             install_olipi_moode(mode="dev_mode")
             install_olipi_core(mode="dev_mode")
             configure_screen(OLIPI_MOODE_DIR, OLIPI_CORE_DIR)
@@ -1670,7 +1670,6 @@ def main():
                 "core_dir": str(OLIPI_CORE_DIR),
                 "install_date": time.strftime("%Y-%m-%d %H:%M:%S"),
             })
-            #settings.pop("force_new_files", None)
             save_settings(settings)
             install_done()
             print(SETUP.get("develop_done", {}).get(lang, "✅ Development mode setup complete."))
@@ -1693,12 +1692,10 @@ def main():
                 "core_dir": str(OLIPI_CORE_DIR),
                 "install_date": time.strftime("%Y-%m-%d %H:%M:%S"),
             })
-            #settings.pop("force_new_files", None)
             save_settings(settings)
             install_done()
 
         elif cmd == "update":
-            # minor update only
             install_olipi_moode(mode="update")
             install_olipi_core(mode="update")
             settings = load_settings()
@@ -1707,7 +1704,6 @@ def main():
                 "core_dir": str(OLIPI_CORE_DIR),
                 "update_date": time.strftime("%Y-%m-%d %H:%M:%S")
             })
-            #settings.pop("force_new_files", None)
             save_settings(settings)
             print(SETUP.get("update_done", {}).get(lang, "✅ Update complete."))
             with TMP_LOG_FILE.open("a", encoding="utf-8") as fh:
