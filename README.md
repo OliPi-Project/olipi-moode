@@ -361,7 +361,7 @@ Possible future improvements:
   - Show other infos on display according to project (covers, screensaver with picture from web/local or animation, meteo, etc...)  
 
 If you want to help you can take a look on [issues](https://github.com/OliPi-Project/olipi-moode/issues) or [discussions](https://github.com/OliPi-Project/olipi-moode/discussions), open a new [issue](https://github.com/OliPi-Project/olipi-moode/issues/new/choose), or come tchat on [Discord](https://discord.gg/pku67XsFEE)!  
-Also you can make a [donation](#💖-support-olipi) that could be used to acquire new equipment to test/integrate into the project.  
+Also you can make a [donation](#-support-olipi) that could be used to acquire new equipment to test/integrate into the project.  
 
 
 ---
