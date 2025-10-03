@@ -1020,7 +1020,6 @@ def configure_screen(olipi_moode_dir, olipi_core_dir):
     selected = keys[idx - 1]
     meta = screens[selected]
     selected_id = meta["id"]
-    selected_fbname = meta["fbname"]
     print(SETUP.get("screen_selected", {}).get(lang, "Selected: {}").format(selected))
     log_line(msg=f"User selected screen {selected} (type={meta.get('type')})", context="configure_screen")
 
@@ -1046,6 +1045,7 @@ def configure_screen(olipi_moode_dir, olipi_core_dir):
         rst = safe_input(SETUP.get("screen_reset_prompt", {}).get(lang, "RESET pin"))
         bl = safe_input(SETUP.get("screen_bl_prompt", {}).get(lang, "BL pin (backlight) — leave empty if none)"))
 
+        selected_fbname = meta.get("fbname")
         speed = meta.get("speed", None)
         txbuflen = meta.get("txbuflen", None)
 

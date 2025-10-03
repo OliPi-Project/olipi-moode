@@ -472,7 +472,7 @@ def get_moode_version():
 def create_backup(path, lang, critical=True):
     moode_version = get_moode_version()
     if os.path.exists(path):
-        backup_path = f"{file_path}.olipi-back-moode{moode_version}"
+        backup_path = f"{path}.olipi-back-moode{moode_version}"
         if os.path.exists(backup_path):
             print(MESSAGES["backup_exist"][lang].format(backup_path))
             pass
