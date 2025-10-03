@@ -63,15 +63,15 @@ If you don't use SPI you can disable CE0 and CE1 with `dtoverlay=spi0-0cs`
 
 ## 🧠 Low memory devices (512 MB RAM)
 
-- Devices like Pi Zero 2W or Pi 3 A+ may run into audio glitches with yt-dlp
+- Devices like Pi Zero 2W or Pi 3 A+ may run into audio glitches with yt-dlp in some cases.
 - The installer will propose installing **ZRAM** automatically.
 - Swap is disabled to improve performance and avoid SD card wear.
 
 
 ## 💡 Can OliPi MoOde be used without Moode?
 
-- Not directly. OliPi MoOde is tightly integrated with Moode’s API and scripts.
-- For more generic cases, you can use base [OliPi-Core](https://github.com/OliPi-Project/olipi-core). (need to be documented)
+Not directly. I've started replacing Moode API requests and a few other odds and ends with MPC and Python-mpd2 commands but OliPi-Moode still requires access to Moode Audio's sql database and a few php scripts. (e.g. for renderers, radios etc)
+
 
 
 
