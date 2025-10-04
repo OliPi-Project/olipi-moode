@@ -31,6 +31,7 @@ OLIPI_CORE_REPO = "https://github.com/OliPi-Project/olipi-core.git"
 OLIPI_MOODE_REPO = "https://github.com/OliPi-Project/olipi-moode.git"
 OLIPI_MOODE_DEV_BRANCH = "dev"
 OLIPI_CORE_DEV_BRANCH = "dev"
+
 # path relative to local_dir e.g. ["config/user_key.ini, something.ini"]
 PRESERVE_FILES = {
     "moode": ["songlog.txt"],
@@ -52,7 +53,6 @@ CONFIG_TXT = "/boot/firmware/config.txt"
 _LOG_INITIALIZED = False
 
 def finalize_log(exit_code=0):
-    """Move the temporary log file to INSTALL_DIR/logs with status."""
     try:
         if TMP_LOG_FILE.exists():
             status = "success" if exit_code == 0 else "aborted" if exit_code == 130 else "error"
@@ -65,7 +65,6 @@ def finalize_log(exit_code=0):
         pass
 
 def safe_exit(code=1, error=None):
-    """Exit safely, log error if any, and finalize log."""
     try:
         if error is not None:
             with TMP_LOG_FILE.open("a", encoding="utf-8") as fh:
@@ -77,7 +76,6 @@ def safe_exit(code=1, error=None):
     sys.exit(code)
 
 def log_line(msg=None, error=None, context=None):
-    """Append a short message to TMP_LOG_FILE."""
     try:
         prefix = "INFO" if msg else "ERROR"
         log_text = msg if msg else error
@@ -92,7 +90,6 @@ def log_line(msg=None, error=None, context=None):
         pass
 
 def run_command(cmd, log_out=True, show_output=False, check=False):
-    """Run a shell command with logging and optional output display."""
     global _LOG_INITIALIZED
 
     sep = "-" * 60
@@ -172,14 +169,12 @@ def install_apt_dependencies():
 
     if missing:
         print(SETUP["apt_missing"][lang].format(", ".join(missing)))
-        # critical: apt install must succeed -> use check=True but hide verbose apt output
-        run_command(f"sudo apt-get update", log_out=False, show_output=True, check=True)
+        run_command(f"sudo apt-get update", log_out=False, show_output=True, check=False)
         run_command(f"sudo apt-get install -y {' '.join(missing)}", log_out=True, show_output=True, check=True)
 
     print(SETUP["apt_ok"][lang])
 
 def safe_read_file_as_lines(path, critical=True):
-    """Read file as lines as root."""
     try:
         res = run_command(f"cat {path}", log_out=True, show_output=False, check=False)
         # run_command returns stdout as string for non-interactive
@@ -198,7 +193,6 @@ def safe_read_file_as_lines(path, critical=True):
                 return []
 
 def safe_write_file_as_root(path, lines, critical=True):
-    """Write file as root: create a tmp file then sudo mv into place (preserve content)."""
     try:
         with tempfile.NamedTemporaryFile('w', delete=False, encoding="utf-8") as tmp:
             if isinstance(lines, list):
@@ -237,21 +231,6 @@ def create_backup(file_path, critical=True):
                     pass
 
 def update_olipi_section(lines, marker, new_lines=None, replace_prefixes=None, clear=False):
-    """
-    Update or clear a block under a specific marker inside the # --- Olipi-moode START/END --- section.
-
-    Args:
-        lines (list[str]): current config.txt file as a list of lines
-        marker (str): marker identifier (e.g. "screen overlay", "ir overlay")
-        new_lines (list[str] | None): lines to insert (ignored if clear=True)
-        replace_prefixes (list[str] | None): if given, remove any matching lines (even if commented) globally,
-                                             then insert only inside this marker block
-        clear (bool): if True, wipe all lines under this marker
-
-    Returns:
-        list[str]: updated list of lines
-    """
-
     section_start = "# --- Olipi-moode START ---"
     section_end = "# --- Olipi-moode END ---"
     marker_line = f"# @marker: {marker}"
@@ -332,9 +311,6 @@ def update_olipi_section(lines, marker, new_lines=None, replace_prefixes=None, c
     return lines
 
 def safe_cleanup(path: Path, preserve_files=None, base: Path = None):
-    """
-    Delete contents of a directory but preserve specific files (by relative path).
-    """
     preserve_files = preserve_files or []
     base = base or path
 
@@ -353,9 +329,6 @@ def safe_cleanup(path: Path, preserve_files=None, base: Path = None):
 
 
 def move_contents(src: Path, dst: Path, preserve_files=None, base: Path = None):
-    """
-    Move all files/dirs from src into dst, preserving some files (by relative path).
-    """
     preserve_files = preserve_files or []
     base = base or src
 
@@ -371,11 +344,6 @@ def move_contents(src: Path, dst: Path, preserve_files=None, base: Path = None):
             shutil.move(str(item), str(target))
 
 def merge_ini_with_dist(user_file: Path, dist_file: Path):
-    """
-    Merge dist file into user config file while preserving comments, formatting,
-    and existing values. Adds missing keys (active or commented) and their comments.
-    Updates comments if they differ. Only considers comments starting with ###.
-    """
     if not dist_file.exists():
         return
 
@@ -474,7 +442,6 @@ def merge_ini_with_dist(user_file: Path, dist_file: Path):
     user_file.write_text("\n".join(merged_lines) + "\n", encoding="utf-8")
 
 def save_settings(settings: dict):
-    """Save setup settings to a JSON file for later use (update/uninstall)."""
     try:
         with SETTINGS_FILE.open("w", encoding="utf-8") as fh:
             json.dump(settings, fh, indent=2)
@@ -507,7 +474,6 @@ def copytree_safe(src, dst):
     shutil.copytree(src, dst, dirs_exist_ok=True, ignore=ignore_special_files)
 
 def repo_url_to_slug(repo_url: str) -> str:
-    """Convert 'https://github.com/owner/repo.git' -> 'owner/repo'"""
     # Accept either ssh or https
     if repo_url.startswith("git@github.com:"):
         slug = repo_url[len("git@github.com:"):].rstrip(".git")
@@ -517,7 +483,6 @@ def repo_url_to_slug(repo_url: str) -> str:
     return slug
 
 def github_get_releases(slug: str):
-    """Return list of releases (raw JSON) for a repo from GitHub API, or [] on error."""
     url = f"https://api.github.com/repos/{slug}/releases"
     headers = {"User-Agent": "OliPi-Setup-Script"}
     try:
@@ -532,11 +497,6 @@ def github_get_releases(slug: str):
     return []
 
 def get_latest_release_tag(path_or_repo: str, branch: str = "main", include_prerelease: bool = True) -> str:
-    """
-    Return the latest release tag for the branch.
-    - If path_or_repo is a local path and exists, inspect local repo tags reachable from branch.
-    - If remote URL, call GitHub API and pick a release associated with the branch (or fallback).
-    """
     # Local repo case
     if Path(path_or_repo).exists():
         rc = subprocess.run(
@@ -578,7 +538,6 @@ def get_latest_release_tag(path_or_repo: str, branch: str = "main", include_prer
     return ""
 
 def parse_semver_prefix(tag: str):
-    """Extract numeric prefix from tag like v1.2.3 or 1.2.3-moode -> returns (1,2,3)."""
     if not tag:
         return ()
     # match leading digits and dots
@@ -589,7 +548,6 @@ def parse_semver_prefix(tag: str):
     return parts
 
 def version_is_newer(local: str, remote: str) -> bool:
-    """Return True if remote > local according to semantic-ish compare."""
     try:
         lp = parse_semver_prefix(local)
         rp = parse_semver_prefix(remote)
@@ -630,16 +588,6 @@ def compare_version(local, remote):
     return "same"
 
 def load_mergeable_files(repo_dir: Path):
-    """
-    Load mergeable files declared in .mergeable_files.json at the root of the repo.
-
-    Returns a tuple: (mergeable_files:list, force_on_major:list)
-
-    Accepts:
-      - {"mergeable": [...], "force_on_major": [...]} (preferred)
-      - {"mergeable": [...]} (no force_on_major)
-      - ["a","b"] (shorthand -> treated as mergeable)
-    """
     mergeable_file = Path(repo_dir) / ".mergeable_files.json"
     if not mergeable_file.exists():
         return [], []
@@ -660,15 +608,9 @@ def load_mergeable_files(repo_dir: Path):
         log_line(error=f"Failed to load mergeable files: {e}", context="load_mergeable_files")
     return [], []
 
-# --- install_repo (refondue) -----------------------------------------------
 def install_repo(repo_name: str, repo_url: str, local_dir: Path, branch: str,
                  settings_keys: dict, mode: str = "install") -> Path:
-    """
-    Clone/update a repository and handle mergeable files declared in .mergeable_files.json.
-    - If a major upgrade is detected, files in DEFAULT_FORCE_ON_MAJOR that are listed
-      as mergeable will be reset from their .dist (with backup).
-    - Merge .dist into user files for other mergeable files.
-    """
+
     print(SETUP.get(f"install_{repo_name.lower()}", {}).get(lang,
           f"Installing {repo_name}..."))
 
@@ -975,7 +917,6 @@ def discover_screens_from_olipicore(olipi_core_dir):
     return discovered
 
 def safe_input(prompt, default=None):
-    """Ask the user for input and return either typed value or default."""
     if default is None:
         return input(prompt + " > ").strip()
     resp = input(f"{prompt} [{default}] > ").strip()
@@ -1072,7 +1013,6 @@ def configure_screen(olipi_moode_dir, olipi_core_dir):
     return True
 
 def get_active_swaps():
-    """Return a list of active swap device names (e.g. ['/dev/zram0', '/var/swap'])."""
     swaps = []
     try:
         with open("/proc/swaps", "r", encoding="utf-8") as f:
@@ -1087,7 +1027,6 @@ def get_active_swaps():
     return swaps
 
 def is_zram_active():
-    """Return True if a zram swap appears active."""
     try:
         res = run_command("swapon --show --noheadings", log_out=True, show_output=False, check=False)
         if res.returncode == 0 and res.stdout.strip():
@@ -1103,7 +1042,6 @@ def is_zram_active():
     return False
 
 def is_dphys_active():
-    """Return True if dphys-swapfile service is active (if systemctl exists)."""
     try:
         res = run_command("systemctl is-active dphys-swapfile", log_out=True, show_output=False, check=False)
         return res.returncode == 0 and res.stdout.strip() == "active"
@@ -1112,7 +1050,6 @@ def is_dphys_active():
         return False
 
 def stop_and_disable_dphys():
-    """Stop/disable dphys-swapfile and swapoff non-zram swaps; optionally propose removal of swap files."""
     # Stop and disable service if present
     try:
         run_command("sudo systemctl stop dphys-swapfile", log_out=True, show_output=True, check=False)
@@ -1143,11 +1080,6 @@ def stop_and_disable_dphys():
     print(SETUP["disable_swap_done"][lang])
 
 def configure_zram(reconfigure=False):
-    """
-    Install/configure zramswap using /etc/default/zramswap.
-    - critical operations (apt install, writing /etc) use check=True.
-    - enabling/restarting systemd services is attempted but non-fatal when failing.
-    """
     if is_zram_active() and not reconfigure:
         print(SETUP.get("zram_already_active", {}).get(lang, "ZRAM already active."))
         return True
@@ -1599,10 +1531,6 @@ def install_done():
     else:
         print(SETUP["reboot_cancelled"][lang])
 
-
-# -----------------------
-# Command-line entry
-# -----------------------
 def main():
     parser = argparse.ArgumentParser(description="OliPi setup (install / update / develop)")
     parser.add_argument("--install", action="store_true", help="Perform a full install of OliPi")
