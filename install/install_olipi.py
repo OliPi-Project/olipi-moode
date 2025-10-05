@@ -1471,48 +1471,48 @@ def run_install_services(venv, user):
 
 def append_to_profile():
     profile_path = os.path.expanduser("~/.profile")
+    block_start = "# --- OliPi Reminder Start ---"
+    block_end = "# --- OliPi Reminder Finish ---"
     lines_to_add = [
-        'echo " "',
+        'echo ""',
         'echo "Moode debug => moodeutl -l"',
         'echo "Force Moode update => sudo /var/www/util/system-updater.sh moode9"',
         f'echo "Update or Reinstall OliPi Moode => python3 {SETUP_SCRIPT_PATH}"',
-        f'echo "Configure IR remote => python3 {INSTALL_LIRC_REMOTE_PATH}"'
+        f'echo "Configure IR remote => python3 {INSTALL_LIRC_REMOTE_PATH}"',
+        'echo ""'
     ]
+    prefixes = [line.split()[0] for line in lines_to_add]  # ici "echo"
     print(SETUP["profile_update"][lang])
     log_line(msg="Appending to ~/.profile", context="append_to_profile")
-
     try:
         if os.path.exists(profile_path):
             with open(profile_path, "r", encoding="utf-8") as f:
-                content_lines = f.readlines()
+                content_lines = [line.rstrip("\n") for line in f.readlines()]
         else:
             content_lines = []
-
-        updated_lines = []
-        for existing_line in content_lines:
-            # pour chaque ligne à ajouter, si la ligne existante commence pareil, on remplace
-            replaced = False
-            for line_to_add in lines_to_add:
-                prefix = line_to_add.split()[0:5]  # prend les premiers mots (ajuste si nécessaire)
-                if all(word in existing_line for word in prefix):
-                    updated_lines.append(line_to_add + "\n")
-                    replaced = True
-                    break
-            if not replaced:
-                updated_lines.append(existing_line)
-
-        # ajouter les lignes qui n'étaient pas dans le fichier
-        existing_prefixes = [" ".join(l.split()[0:5]) for l in updated_lines]
-        for line_to_add in lines_to_add:
-            prefix_str = " ".join(line_to_add.split()[0:5])
-            if prefix_str not in existing_prefixes:
-                updated_lines.append(line_to_add + "\n")
-
+        filtered_lines = []
+        inside_old_block = False
+        for line in content_lines:
+            stripped = line.strip()
+            if stripped == block_start:
+                inside_old_block = True
+                continue
+            if stripped == block_end:
+                inside_old_block = False
+                continue
+            if inside_old_block:
+                continue
+            if stripped == 'echo ""':
+                continue
+            if any(stripped.startswith(p) for p in prefixes):
+                continue
+            filtered_lines.append(line)
+        filtered_lines.append(block_start)
+        filtered_lines.extend(lines_to_add)
+        filtered_lines.append(block_end)
         with open(profile_path, "w", encoding="utf-8") as f:
-            f.writelines(updated_lines)
-
+            f.write("\n".join(filtered_lines) + "\n")
         print(SETUP["profile_updated"][lang])
-
     except Exception as e:
         log_line(error=f"Failed to update profile: {e}", context="append_to_profile")
         print(SETUP["profile_update_error"][lang].format(e))
@@ -1646,6 +1646,8 @@ def main():
         elif cmd == "update":
             install_olipi_moode(mode="update")
             install_olipi_core(mode="update")
+            user = detect_user()
+            append_to_profile()
             settings = load_settings()
             settings.update({
                 "project_dir": str(OLIPI_MOODE_DIR),
