@@ -469,7 +469,6 @@ def player_status_thread():
         except Exception as e:
             print("Player MPD connect error, retry in 5s:", e)
             time.sleep(5)
-    last_elapsed_update = 0
     first_run = True
     while True:
         if is_sleeping:
@@ -542,15 +541,7 @@ def player_status_thread():
                 client.connect("localhost", 6600)
             except Exception:
                 time.sleep(5)
-        if now - last_elapsed_update > 1:
-            last_elapsed_update = now
-            try:
-                status_extra = client.status()
-                global_state["elapsed"] = float(status_extra.get("elapsed", 0.0))
-                global_state["bitrate"] = status_extra.get("bitrate", "")
-            except Exception as e:
-                print("Elapsed update error:", e)
-        time.sleep(0.1)
+        time.sleep(0.5)
 
 def mixer_status_thread():
     client = MPDClient()
@@ -588,7 +579,7 @@ def mixer_status_thread():
                 client.connect("localhost", 6600)
             except Exception:
                 time.sleep(5)
-        time.sleep(0.1)
+        time.sleep(0.5)
 
 def options_status_thread():
     client = MPDClient()
@@ -625,17 +616,35 @@ def options_status_thread():
                 client.connect("localhost", 6600)
             except Exception:
                 time.sleep(5)
-        time.sleep(0.1)
+        time.sleep(0.5)
 
-def non_mpd_status_thread():
+def non_idle_status_thread():
     last_fav_time = 0
     last_clock_time = 0
     last_renderer_check = 0
+    last_elapsed_update = 0
+    client = MPDClient()
+    client.timeout = 10
+    while True:
+        try:
+            client.connect("localhost", 6600)
+            break
+        except Exception as e:
+            print("Player MPD connect error, retry in 5s:", e)
+            time.sleep(5)
     while True:
         if is_sleeping:
             time.sleep(1)
             continue
         now = time.time()
+        if now - last_elapsed_update > 1:
+            last_elapsed_update = now
+            try:
+                status_extra = client.status()
+                global_state["elapsed"] = float(status_extra.get("elapsed", 0.0))
+                global_state["bitrate"] = status_extra.get("bitrate", "")
+            except Exception as e:
+                print("Elapsed update error:", e)
         if now - last_renderer_check > 1.5:
             last_renderer_check = now
             load_renderer_states_from_db()
@@ -3458,7 +3467,7 @@ def main():
     threading.Thread(target=player_status_thread, daemon=True).start()
     threading.Thread(target=mixer_status_thread, daemon=True).start()
     threading.Thread(target=options_status_thread, daemon=True).start()
-    threading.Thread(target=non_mpd_status_thread, daemon=True).start()
+    threading.Thread(target=non_idle_status_thread, daemon=True).start()
     try:
         while True:
             if previous_blocking_render != blocking_render:
