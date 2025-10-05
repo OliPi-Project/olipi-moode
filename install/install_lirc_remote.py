@@ -983,7 +983,7 @@ def install_lirc(lang):
     try:
         print(MESSAGES["installing_lirc"][lang])
         log_line(msg="Installing lirc via apt", context="install_lirc")
-        run_command("apt-get update", sudo=True, log_out=True, show_output=True, check=True)
+        run_command("apt-get update", sudo=True, log_out=True, show_output=True, check=False)
         run_command("apt-get install -y lirc", sudo=True, log_out=True, show_output=True, check=True)
         log_line(msg="lirc installed", context="install_lirc")
     except Exception as e:
