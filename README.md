@@ -52,8 +52,9 @@ sudo bash uninstall-olipi-moode.sh
 >       - Safe cleanup and move of cloned repo files.
 >       - Use dedicaced section `# --- Olipi-moode ---` and `# @marker:***` on config.txt.
 >   - A small performance improvement for Pi zero 2w / Pi3 A/B+ with highter screen resolution (still a lot of work to do).
->       - refresh_interval is now set according to the model of raspberry detected. 
+>       - Refresh_interval is now set according to the model of raspberry detected. 
 >       - SPI speed and buffer size is now set according to the model of screen selected.
+>       - Code optimization.
 >   - Improved spectrometer.
 >       - More audio formats supported.
 >       - Now spectro releases the loopback when a track changes (Output format is no longer locked to the format read at opening).
@@ -67,7 +68,7 @@ sudo bash uninstall-olipi-moode.sh
 
 [![Donate](https://img.shields.io/badge/Donate-PayPal-blue.svg)](https://www.paypal.com/donate/?business=QN7HL6CB2H3QJ&no_recurring=0&item_name=Thanks+for+supporting+OliPi+Project%21+%0A&currency_code=EUR)
 
-
+*And especially  consider supporting [Moode Audio Project](https://moodeaudio.org/) without which OliPi Moode could not exist.*
 ## 📚 Table of Contents
 
 - [Features](#-features)
