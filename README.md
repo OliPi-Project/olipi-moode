@@ -1,4 +1,4 @@
- ![License](https://img.shields.io/github/license/OliPi-Project/olipi-moode)
+![License](https://img.shields.io/github/license/OliPi-Project/olipi-moode)
 ![Python](https://img.shields.io/badge/python-3.9+-blue)
 ![Platform](https://img.shields.io/badge/platform-Raspberry%20Pi-red)
 ![GitHub Release](https://img.shields.io/github/v/release/OliPi-Project/olipi-moode?include_prereleases&sort=date&display_name=tag)
