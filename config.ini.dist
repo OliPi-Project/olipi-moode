@@ -11,7 +11,7 @@ color_theme = autumn
 
 [screen]
 current_screen =
-#refresh_interval = 0.03
+#refresh_interval = 0.05
 #rotation = 90
 
 [nowplaying]
@@ -24,7 +24,7 @@ show_spectrum = False
 num_bars = 36
 fmin = 0
 fmax = 17000
-spectrum_profile = {"win_s":2048, "hop_s":1024, "smoothing":0.65, "attack":0.55, "release":0.75, "agc_alpha":0.02, "noise_gate_db":-75}
+spectrum_profile = {"win_s":2048, "hop_s":1024, "smoothing":0.65, "attack":0.55, "release":0.75, "agc_alpha":0.02, "noise_gate_db":-85}
 
 [manual]
 ### Blacklist files or folders to avoid reading them via the randoms functions:

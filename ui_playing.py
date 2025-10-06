@@ -11,6 +11,7 @@ import time
 import datetime
 import threading
 import requests
+import math
 import html
 import http.server
 import sqlite3
@@ -154,7 +155,8 @@ config_menu_options = [
     {"id": "language", "label": core.t("menu_language")},
     {"id": "debug", "label": core.t("menu_debug")}
 ]
-if core.screen.DISPLAY_FORMAT != "MONO":
+
+if core.display_format != "MONO":
     config_menu_options.insert(3, {"id": "theme", "label": core.t("menu_theme")})
 sleep_timeout_options = [0, 15, 30, 60, 300, 600]
 sleep_timeout_labels = {0: "Off", 15: "15s", 30: "30s", 60: "1m", 300: "5m", 600: "10m"}
@@ -2481,91 +2483,112 @@ def draw_nowplaying():
 
         core.draw.text((3, y_bottom), f"Vol: {volume}", font=font_vol_clock, fill=core.COLOR_VOL_CLOCK)
     else:
+        # compute text height reliably from font bbox
+        bbox = font_artist.getbbox("Ay")  # (x0, y0, x1, y1)
+        text_h = max(1, int(bbox[3] - bbox[1]))
         def draw_scrolling(text, scroll_state, y, color):
-            text_width = core.draw.textlength(text, font=font_artist)
-            if text_width > core.width:
-                full_width = text_width
-                display_width = core.width
+            """
+            Scroll rendering using a cached pre-rendered image of the text.
+            Fixes float->int issues for Image.new by forcing integer sizes.
+            """
+            # measure text width (may be float) -> make it an int
+            text_width_f = core.draw.textlength(text, font=font_artist)
+            text_width = max(1, int(math.ceil(text_width_f)))
 
+            # Normalize color to integer tuple (in case colors are floats)
+            if isinstance(color, (tuple, list)):
+                fill_color = tuple(int(round(c)) for c in color)
+            else:
+                fill_color = color
+
+            # Re-render cached image only when the text changes
+            if scroll_state.get("cached_text") != text or "render" not in scroll_state:
+                # create image exactly sized to text; use bbox[1] as vertical baseline offset
+                mode = "RGB" if core.display_format != "MONO" else "1"
+                img = core.Image.new(mode, (text_width, text_h), core.COLOR_BG)
+                d = core.screen.ImageDraw.Draw(img)
+                # vertical offset to align baseline; using -bbox[1] positions text correctly
+                d.text((0, -bbox[1]), text, font=font_artist, fill=fill_color)
+                scroll_state["render"] = img
+                scroll_state["cached_text"] = text
+                # reset offset/phase when text changes
+                scroll_state.setdefault("offset", 0)
+                scroll_state.setdefault("phase", "pause_start")
+                scroll_state.setdefault("pause_start_time", time.time())
+                scroll_state.setdefault("last_update", time.time())
+
+            render_img = scroll_state["render"]
+            display_width = core.width
+            now = time.time()
+
+            # If the text is larger than display, do scrolling logic (unchanged)
+            if text_width > display_width:
                 phase = scroll_state.get("phase", "pause_start")
-                PAUSE_DURATION = 1.5       # long pause at start/end (seconds)
-                BLANK_DURATION = 0.12     # very short blank at end (seconds)
+                PAUSE_DURATION = 1.5
+                BLANK_DURATION = 0.12
 
                 if phase == "pause_start":
-                    # initial pause before starting to scroll
                     scroll_state["offset"] = 0
                     if now - scroll_state.get("pause_start_time", 0) > PAUSE_DURATION:
                         scroll_state["phase"] = "scrolling"
                         scroll_state["last_update"] = now
 
                 elif phase == "scrolling":
-                    # advance scroll at fixed speed
                     if now - scroll_state.get("last_update", 0) > SCROLL_SPEED_NOWPLAYING:
                         scroll_state["offset"] += 1
                         scroll_state["last_update"] = now
-                        if scroll_state["offset"] >= (full_width - display_width):
-                            # reached end -> enter pause_end and record start time
+                        if scroll_state["offset"] >= (text_width - display_width):
                             scroll_state["phase"] = "pause_end"
                             scroll_state["pause_start_time"] = now
 
                 elif phase == "pause_end":
-                    # remain visible during most of pause_end, only blank at the very end
                     elapsed = now - scroll_state.get("pause_start_time", 0)
                     if elapsed >= PAUSE_DURATION:
-                        # finished pause_end => reset to pause_start
                         scroll_state["offset"] = 0
                         scroll_state["phase"] = "pause_start"
                         scroll_state["pause_start_time"] = now
-                    # otherwise keep offset at end (no change) and remain visible except for final blank
 
-                # Draw text: hide it only during the final BLANK_DURATION of pause_end
                 draw_text = True
                 if scroll_state.get("phase") == "pause_end":
                     elapsed = now - scroll_state.get("pause_start_time", 0)
-                    # hide text only during the last BLANK_DURATION seconds of pause_end
                     if elapsed >= (PAUSE_DURATION - BLANK_DURATION) and elapsed < PAUSE_DURATION:
                         draw_text = False
 
                 if draw_text:
-                    core.draw.text((0 - scroll_state["offset"], y), text, font=font_artist, fill=color)
-                # else: skip drawing text -> creates a very short disappearance before restart
+                    # paste the pre-rendered image at the scrolled X position
+                    core.image.paste(render_img, (-scroll_state["offset"], y))
 
             else:
-                # text fits, draw centered
-                centered_x = (core.width - text_width) // 2
-                core.draw.text((centered_x, y), text, font=font_artist, fill=color)
+                # fits: center it by pasting the cached image
+                x = (display_width - text_width) // 2
+                core.image.paste(render_img, (x, y))
 
-        
         if core.height <= 96:
             spacing = 3
-            top_bar_h = icon_width
+            top_bar_h = icon_width + 4
         elif core.height <= 128:
             spacing = 3 if show_spectrum else 10
-            top_bar_h = icon_width if show_spectrum else icon_width + 8 
+            top_bar_h = icon_width + 4 if show_spectrum else icon_width + 10
         elif core.height <= 160:
             spacing = 8 if show_spectrum else 16
-            top_bar_h = icon_width if show_spectrum else icon_width * 2 
+            top_bar_h = icon_width + 9 if show_spectrum else icon_width + 16
         elif core.height == 170 and core.width == 320:
             spacing = 4 if show_spectrum else 12
-            top_bar_h = icon_width if show_spectrum else icon_width + 10 
+            top_bar_h = icon_width + 5 if show_spectrum else icon_width + 12
         else:
             spacing = 12 if show_spectrum else 24
-            top_bar_h = icon_width + 4 if show_spectrum else icon_width * 2
+            top_bar_h = icon_width + 13 if show_spectrum else icon_width + 24
 
         # --- Artist / Album ---
-        bbox_artist = font_artist.getbbox("Ay")
-        artist_h = bbox_artist[3] - bbox_artist[1]
         y_artist = top_bar_h
         draw_scrolling(artist_album, scroll_artist, y_artist, core.COLOR_ARTIST)
 
         # --- Title ---
-        bbox_title = font_artist.getbbox("Ay")
-        title_h = bbox_title[3] - bbox_title[1]
-        y_title = y_artist + artist_h + spacing
+        y_title = y_artist + text_h + spacing
         draw_scrolling(title, scroll_title, y_title, core.COLOR_TRACK_TITLE)
 
         # --- Extra Infos ---
-        y_extra_info = y_title + title_h + spacing + 2
+        y_extra_info = y_title + text_h + spacing
         if core.height > 64 and show_extra_infos:
             extra_info = global_state.get("audio", "")
             bitrate = global_state.get("bitrate", "")
