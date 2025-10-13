@@ -1249,6 +1249,15 @@ def setup_virtualenv(venv_path):
         log_line(error=f"❌ pip not found in the virtual environment at {pip_path}.", context="setup_virtualenv")
         safe_exit(1)
     print("⬆️ Upgrading pip ...")
+    # ----- Free memory before heavy install -----
+    # Stop services
+    run_command("sudo systemctl stop olipi-ui-playing", log_out=True, show_output=True)
+    run_command("mpc stop", log_out=True, show_output=True)
+    run_command("sudo systemctl stop mpd", log_out=True, show_output=True)
+    # Drop caches
+    run_command("sudo sync", log_out=True, show_output=True)
+    run_command("sudo sh -c 'echo 3 > /proc/sys/vm/drop_caches'", log_out=True, show_output=True)
+    # -------------------------------------------
     run_command(f"{pip_path} install --upgrade pip", log_out=True, show_output=True, check=True)
     print(SETUP["install_requirement"][lang])
     if not os.path.isfile(requirements_path):
@@ -1256,6 +1265,8 @@ def setup_virtualenv(venv_path):
         log_line(error="❌ requirements.txt not found — Cancel install", context="setup_virtualenv")
         safe_exit(1)
     run_command(f"{pip_path} install --prefer-binary --no-cache-dir --upgrade --requirement {requirements_path}", log_out=True, show_output=True, check=True)
+    # Restart MPD service after install
+    run_command("sudo systemctl start mpd", log_out=True, show_output=True)
     log_line(msg="Virtual environment setup/update complete", context="setup_virtualenv")
 
 def detect_user():
