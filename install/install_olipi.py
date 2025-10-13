@@ -1209,38 +1209,6 @@ def check_ram():
             configure_zram(reconfigure=True)
         return
 
-def is_valid_venv(path):
-    return os.path.isfile(os.path.join(path, "bin", "python"))
-
-def validate_venv_path(path):
-    try:
-        path = os.path.expanduser(path.strip())
-        path = os.path.abspath(path)
-        path = path.rstrip("/")
-
-        parent_dir = os.path.dirname(path)
-        if not os.path.exists(parent_dir):
-            print(SETUP["venv_invalid_parent"][lang].format(parent_dir))
-            return None
-        if not os.access(parent_dir, os.W_OK):
-            print(SETUP["venv_invalid_parent"][lang].format(parent_dir))
-            return None
-        return path
-    except Exception as e:
-        log_line(error=e, context="validate_venv_path")
-        print(f"❌ Exception during path validation: {e}")
-        return None
-
-def prompt_yes_no(message):
-    while True:
-        response = input(message + " > ").strip().lower()
-        if response in ["", "y", "o"]:
-            return True
-        elif response == "n":
-            return False
-        else:
-            print(SETUP["prompt_invalid"][lang])
-
 def check_virtualenv():
     if os.path.exists(DEFAULT_VENV_PATH):
         print(SETUP["venv_found"][lang].format(DEFAULT_VENV_PATH))
@@ -1248,76 +1216,47 @@ def check_virtualenv():
         while True:
             choice = input(" > ").strip()
             if choice == "1":
+                print(SETUP["venv_reuse_update"][lang].format(DEFAULT_VENV_PATH))
+                log_line(msg="Reuse and update Virtual environment", context="setup_virtualenv")
                 return DEFAULT_VENV_PATH
             elif choice == "2":
                 print(SETUP["venv_delete"][lang])
+                log_line(msg="Virtual environment deleted", context="check_virtualenv")
                 try:
                     shutil.rmtree(DEFAULT_VENV_PATH)
                 except Exception as e:
                     print(f"❌ Failed to delete {DEFAULT_VENV_PATH}: {e}")
                     safe_exit(1, e)
-                break
+                return DEFAULT_VENV_PATH
             elif choice == "3":
-                print(SETUP["venv_cancelled"][lang])
-                log_line(msg="❌ venv Installation cancelled.", context="check_virtualenv")
-                safe_exit(130)
+                print(SETUP["venv_skipped"][lang])
+                log_line(msg="venv configuration skipped by user", context="check_virtualenv")
+                return None
             else:
                 print(SETUP["prompt_invalid"][lang])
-
-    print(SETUP["venv_main_choice"][lang].format(DEFAULT_VENV_PATH))
-    while True:
-        choice = input(" > ").strip()
-        if choice in ["1", ""]:
-            return DEFAULT_VENV_PATH
-        elif choice == "2":
-            while True:
-                print(SETUP["venv_enter_path"][lang])
-                user_path = input(" > ").strip()
-                if user_path == "":
-                    print(SETUP["venv_cancelled"][lang])
-                    safe_exit(0)
-
-                venv_path = validate_venv_path(user_path)
-                if not venv_path:
-                    continue
-
-                if os.path.exists(venv_path):
-                    if is_valid_venv(venv_path):
-                        return venv_path
-                    else:
-                        print(SETUP["venv_invalid_path"][lang])
-                        continue
-                else:
-                    if prompt_yes_no(SETUP["venv_confirm_create"][lang].format(venv_path)):
-                        return venv_path
-                    else:
-                        print(SETUP["venv_invalid_path"][lang])
-                        continue
-        elif choice == "3":
-            print(SETUP["venv_cancelled"][lang])
-            log_line(msg="❌ venv Installation cancelled.", context="check_virtualenv")
-            safe_exit(130)
-        else:
-            print(SETUP["prompt_invalid"][lang])
+    return DEFAULT_VENV_PATH
 
 def setup_virtualenv(venv_path):
+    if venv_path is None:
+        return
     requirements_path = os.path.join(OLIPI_MOODE_DIR, "requirements.txt")
-
     if not os.path.exists(venv_path):
-        print(f"Creating virtual environment at {venv_path} ...")
-        # critical: venv creation must succeed
+        print(SETUP["venv_install"][lang].format(venv_path))
         run_command(f"python3 -m venv {venv_path}", log_out=True, show_output=True, check=True)
-
     pip_path = os.path.join(venv_path, "bin", "pip")
     if not os.path.isfile(pip_path):
         print(f"❌ pip not found in the virtual environment at {pip_path}.")
+        log_line(error=f"❌ pip not found in the virtual environment at {pip_path}.", context="setup_virtualenv")
         safe_exit(1)
-
-    # upgrade pip and install requirements inside venv (critical)
+    print("⬆️ Upgrading pip ...")
     run_command(f"{pip_path} install --upgrade pip", log_out=True, show_output=True, check=True)
-    print(SETUP["install_pip"][lang])
-    run_command(f"{pip_path} install --requirement {requirements_path}", log_out=True, show_output=True, check=True)
-    log_line(msg="Installing venv finished", context="setup_virtualenv")
+    print(SETUP["install_requirement"][lang])
+    if not os.path.isfile(requirements_path):
+        print(f"⚠️ requirements.txt not found at {requirements_path}, skipping dependency install.")
+        log_line(error="❌ requirements.txt not found — Cancel install", context="setup_virtualenv")
+        safe_exit(1)
+    run_command(f"{pip_path} install --upgrade --requirement {requirements_path}", log_out=True, show_output=True, check=True)
+    log_line(msg="Virtual environment setup/update complete", context="setup_virtualenv")
 
 def detect_user():
     user = os.getenv("SUDO_USER") or os.getenv("USER") or "unknown"
