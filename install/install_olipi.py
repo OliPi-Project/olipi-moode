@@ -1255,7 +1255,7 @@ def setup_virtualenv(venv_path):
         print(f"⚠️ requirements.txt not found at {requirements_path}, skipping dependency install.")
         log_line(error="❌ requirements.txt not found — Cancel install", context="setup_virtualenv")
         safe_exit(1)
-    run_command(f"{pip_path} install --upgrade --requirement {requirements_path}", log_out=True, show_output=True, check=True)
+    run_command(f"{pip_path} install --prefer-binary --no-cache-dir --upgrade --requirement {requirements_path}", log_out=True, show_output=True, check=True)
     log_line(msg="Virtual environment setup/update complete", context="setup_virtualenv")
 
 def detect_user():
