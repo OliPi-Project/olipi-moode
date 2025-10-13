@@ -47,6 +47,7 @@ DEFAULT_VENV_PATH = os.path.expanduser("~/.olipi-moode-venv")
 INSTALL_LIRC_REMOTE_PATH = os.path.join(INSTALL_DIR, "install_lirc_remote.py")
 SETUP_SCRIPT_PATH = os.path.join(INSTALL_DIR, "install_olipi.py")
 SETTINGS_FILE = Path(INSTALL_DIR) / ".setup-settings.json"
+REEXEC_FLAG = Path(tempfile.gettempdir()) / f"olipi_reexec_{os.getuid()}.flag"
 TMP_LOG_FILE = Path("/tmp/setup.log")
 CONFIG_TXT = "/boot/firmware/config.txt"
 
@@ -1539,8 +1540,19 @@ def main():
     args = parser.parse_args()
 
     choose_language()
-    check_moode_version()
-    install_apt_dependencies()
+
+    reexecuted = False
+    if REEXEC_FLAG.exists():
+        try:
+            REEXEC_FLAG.unlink()
+        except Exception:
+            pass
+        reexecuted = True
+
+    if not reexecuted:
+        check_moode_version()
+        install_apt_dependencies()
+
     settings = load_settings()
 
     # check if repos are present
@@ -1556,7 +1568,6 @@ def main():
     elif args.update:
         cmd = "update"
     else:
-
         force_install = False
         moode_major_change = ""
         core_major_change = ""
@@ -1602,8 +1613,25 @@ def main():
         if cmd == "dev_mode":
             # full dev rolling install
             print("install_olipi.py launched on dev mode...")
-            install_olipi_moode(mode="dev_mode")
-            install_olipi_core(mode="dev_mode")
+            if not reexecuted:
+                install_olipi_moode(mode="dev_mode")
+                install_olipi_core(mode="dev_mode")
+                try:
+                    REEXEC_FLAG.parent.mkdir(parents=True, exist_ok=True)
+                    REEXEC_FLAG.touch()
+                except Exception as e:
+                    log_line(error=f"Failed creating reexec flag: {e}", context="main")
+                script_path = os.path.abspath(__file__)
+                print("🔁 Re-executing freshly cloned install_olipi.py to pick up updates...")
+                new_args = []
+                if cmd == "install":
+                    new_args.append("--install")
+                elif cmd == "update":
+                    new_args.append("--update")
+                elif cmd == "dev_mode":
+                    new_args.append("--dev")
+                print(f"   → relaunching with args: {' '.join(new_args)}")
+                os.execv(sys.executable, [sys.executable, script_path] + new_args)
             configure_screen(OLIPI_MOODE_DIR, OLIPI_CORE_DIR)
             check_ram()
             venv_path = check_virtualenv()
@@ -1624,8 +1652,24 @@ def main():
 
         elif cmd == "install":
             # full release install
-            install_olipi_moode(mode="install")
-            install_olipi_core(mode="install")
+            if not reexecuted:
+                install_olipi_moode(mode="install")
+                install_olipi_core(mode="install")
+                try:
+                    REEXEC_FLAG.parent.mkdir(parents=True, exist_ok=True)
+                    REEXEC_FLAG.touch()
+                except Exception as e:
+                    log_line(error=f"Failed creating reexec flag: {e}", context="main")
+                script_path = os.path.abspath(__file__)
+                print("🔁 Re-executing freshly cloned install_olipi.py to pick up updates...")
+                new_args = []
+                if cmd == "install":
+                    new_args.append("--install")
+                elif cmd == "update":
+                    new_args.append("--update")
+                elif cmd == "dev_mode":
+                    new_args.append("--dev")
+                os.execv(sys.executable, [sys.executable, script_path] + new_args)
             configure_screen(OLIPI_MOODE_DIR, OLIPI_CORE_DIR)
             check_ram()
             venv_path = check_virtualenv()
@@ -1644,8 +1688,24 @@ def main():
             install_done()
 
         elif cmd == "update":
-            install_olipi_moode(mode="update")
-            install_olipi_core(mode="update")
+            if not reexecuted:
+                install_olipi_moode(mode="update")
+                install_olipi_core(mode="update")
+                try:
+                    REEXEC_FLAG.parent.mkdir(parents=True, exist_ok=True)
+                    REEXEC_FLAG.touch()
+                except Exception as e:
+                    log_line(error=f"Failed creating reexec flag: {e}", context="main")
+                script_path = os.path.abspath(__file__)
+                print("🔁 Re-executing freshly cloned install_olipi.py to pick up updates...")
+                new_args = []
+                if cmd == "install":
+                    new_args.append("--install")
+                elif cmd == "update":
+                    new_args.append("--update")
+                elif cmd == "dev_mode":
+                    new_args.append("--dev")
+                os.execv(sys.executable, [sys.executable, script_path] + new_args)
             user = detect_user()
             append_to_profile()
             settings = load_settings()
