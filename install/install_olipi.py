@@ -1251,12 +1251,12 @@ def setup_virtualenv(venv_path):
     print("⬆️ Upgrading pip ...")
     # ----- Free memory before heavy install -----
     # Stop services
-    run_command("sudo systemctl stop olipi-ui-playing", log_out=True, show_output=True)
-    run_command("mpc stop", log_out=True, show_output=True)
-    run_command("sudo systemctl stop mpd", log_out=True, show_output=True)
+    run_command("sudo systemctl stop olipi-ui-playing", log_out=True, show_output=False, check=False)
+    run_command("mpc stop", log_out=True, show_output=False, check=False)
+    run_command("sudo systemctl stop mpd", log_out=True, show_output=False, check=False)
     # Drop caches
-    run_command("sudo sync", log_out=True, show_output=True)
-    run_command("sudo sh -c 'echo 3 > /proc/sys/vm/drop_caches'", log_out=True, show_output=True)
+    run_command("sudo sync", log_out=True, show_output=True, check=False)
+    run_command("sudo sh -c 'echo 3 > /proc/sys/vm/drop_caches'", log_out=True, show_output=True, check=False)
     # -------------------------------------------
     run_command(f"{pip_path} install --upgrade pip", log_out=True, show_output=True, check=True)
     print(SETUP["install_requirement"][lang])
