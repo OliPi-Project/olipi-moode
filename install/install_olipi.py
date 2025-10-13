@@ -19,7 +19,7 @@ from pathlib import Path
 from lang import SETUP
 
 APT_DEPENDENCIES = [
-    "git", "python3-pil", "python3-venv", "python3-pip", "python3-tk", "libasound2-dev", "libatlas-base-dev",
+    "git", "python3-pil", "python3-venv", "python3-pip", "python3-tk", "python3-alsaaudio", "libasound2-dev", "libatlas-base-dev",
     "libopenblas0-pthread", "libgfortran5", "i2c-tools", "libgpiod-dev", "python3-libgpiod", "python3-lgpio", "python3-setuptools"
 ]
 
