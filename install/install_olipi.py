@@ -251,7 +251,7 @@ def update_olipi_section(lines, marker, new_lines=None, replace_prefixes=None, c
         cleaned = []
         for ln in lines:
             stripped = ln.rstrip("\n")
-            # never remove our section markers
+            # never remove section markers
             if stripped.strip() in (section_start, section_end) or stripped.lstrip().lower().startswith("# @marker:"):
                 cleaned.append(ln)
                 continue
@@ -1006,7 +1006,7 @@ def configure_screen(olipi_moode_dir, olipi_core_dir):
         print(SETUP.get("screen_cancel_option", {}).get(lang, "  [x] Cancel installation"))
 
         # ask user (no default)
-        choice = input(SETUP.get("screen_choose_prompt", {}).get(lang, "\nChoose your screen by number >")).strip().lower()
+        choice = input(SETUP.get("screen_choose_prompt", {}).get(lang, "\nChoose your screen by number > ")).strip().lower()
         if not choice:
             print(SETUP.get("screen_invalid_choice", {}).get(lang, "Invalid choice. Please enter a number, 0 to skip, or x to cancel."))
             continue
@@ -1078,9 +1078,9 @@ def configure_screen(olipi_moode_dir, olipi_core_dir):
         # If SPI -> ask pins and save them
         if meta.get("type") == "spi":
             print(SETUP.get("screen_spi_info", {}).get(lang, "SPI screen selected — Enter the GPIO pin number (BCM)."))
-            dc = input(SETUP.get("screen_dc_prompt", {}).get(lang, "DC pin (data/command) >"))
-            rst = input(SETUP.get("screen_reset_prompt", {}).get(lang, "RESET pin >"))
-            bl = input(SETUP.get("screen_bl_prompt", {}).get(lang, "BL pin (backlight) — leave empty if none) >"))
+            dc = input(SETUP.get("screen_dc_prompt", {}).get(lang, "DC pin (data/command) > "))
+            rst = input(SETUP.get("screen_reset_prompt", {}).get(lang, "RESET pin > "))
+            bl = input(SETUP.get("screen_bl_prompt", {}).get(lang, "BL pin (backlight) — leave empty if none) > "))
 
             selected_fbname = meta.get("fbname")
             speed = meta.get("speed", None)
