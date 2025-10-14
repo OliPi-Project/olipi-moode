@@ -788,76 +788,121 @@ def install_olipi_moode(mode="install"):
     )
 
 def check_i2c(core_config):
+    """
+    Detect I2C devices, allow user to choose an address or:
+      - 0 / back  -> return "BACK" (back to screen selection)
+      - s / skip  -> return "SKIP" (skip screen configuration)
+      - x / cancel -> safe_exit(0)
+    On success returns "OK".
+    """
     print(SETUP["i2c_check"][lang])
     lines = safe_read_file_as_lines(CONFIG_TXT, critical=True)
-    lines = update_olipi_section(lines, "screen overlay", clear=True)   
-    result = run_command("sudo raspi-config nonint get_i2c", log_out=True, show_output=False, check=True)
+    lines = update_olipi_section(lines, "screen overlay", clear=True)
+
+    # Ask raspi-config whether I2C is enabled
+    result = run_command("sudo raspi-config nonint get_i2c", log_out=True, show_output=False, check=False)
     if result.returncode != 0 or result.stdout.strip() != "0":
         choice = input(SETUP["i2c_disabled"][lang] + " > ").strip().lower()
         if choice in ["", "y", "o"]:
             print(SETUP["i2c_enabling"][lang])
-            # dtparam=i2c_arm=on is normally already enabled by Moode audio, but just in case we tell raspi-config where to write it if disabled:
+            # add commented dtparam in olipi section so that raspi-config doesn't add the overlay anywhere
             lines = update_olipi_section(lines, "screen overlay", ["#dtparam=i2c_arm=on"], replace_prefixes=["dtparam=i2c_arm=on"])
             safe_write_file_as_root(CONFIG_TXT, lines, critical=True)
-            # attempt to enable i2c (non-fatal here but requires reboot)
             run_command("sudo raspi-config nonint do_i2c 0", log_out=True, show_output=False, check=True)
             print(SETUP["i2c_enabled"][lang])
             lines = safe_read_file_as_lines(CONFIG_TXT, critical=True)
         else:
             print(SETUP["i2c_enable_failed"][lang])
-            safe_exit(1)
+            return "CANCEL"
+
     lines = update_olipi_section(lines, "screen overlay", ["dtparam=i2c_baudrate=400000"], replace_prefixes=["dtparam=i2c_baudrate"])
     safe_write_file_as_root(CONFIG_TXT, lines, critical=True)
 
+    # run i2cdetect (retry a few times)
+    res = None
     for _ in range(10):
-        res = run_command("i2cdetect -y 1", log_out=True, show_output=False, check=True)
-        if res.stdout.strip():
+        res = run_command("i2cdetect -y 1", log_out=True, show_output=False, check=False)
+        if res and res.stdout.strip():
             break
         time.sleep(1)
 
     detected_addresses = []
-    for line in res.stdout.splitlines():
-        if ":" in line:
-            parts = line.split(":")[1].split()
-            for part in parts:
-                if part != "--":
-                    detected_addresses.append(part.lower())
-    if detected_addresses:
-        print(SETUP["i2c_addresses_detected"][lang].format(
-            ", ".join(["0x" + addr for addr in detected_addresses])
-        ))
+    if res and res.stdout:
+        for line in res.stdout.splitlines():
+            if ":" in line:
+                parts = line.split(":")[1].split()
+                for part in parts:
+                    if part != "--":
+                        detected_addresses.append(part.lower())
 
-        # If standard address found
-        if "3c" in detected_addresses or "3d" in detected_addresses:
-            default_addr = "3c" if "3c" in detected_addresses else "3d"
-            print(SETUP["i2c_display_ok"][lang].format("0x" + default_addr))
-            
-        # Ask user to choose
-        print(SETUP["i2c_choose_detected"][lang])
-        for i, addr in enumerate(detected_addresses, start=1):
-            print(f"[{i}] 0x{addr}")
-        choice = input("> ").strip()
+    if not detected_addresses:
+        # no devices found -> offer options
+        print(SETUP["i2c_no_devices"][lang])
+        print(SETUP["i2c_check_wiring"][lang])
+        # give user choices: retry / back / skip / cancel
+        while True:
+            ans = input(SETUP.get("i2c_no_dev_options", {}).get(lang,
+                         "[0] Back to screens / [s] Skip config / [x] Cancel install > ")).strip().lower()
+            if not ans:
+                print(SETUP["prompt_invalid"][lang])
+                continue
+            if ans in ("0", "b", "r", "back"):
+                return "BACK"
+            if ans in ("s", "p", "skip"):
+                return "SKIP"
+            if ans in ("x", "q", "a", "cancel"):
+                return "CANCEL"
+            print(SETUP["prompt_invalid"][lang])
+
+    # If we have addresses, show them and allow selection with navigation options
+    print(SETUP["i2c_addresses_detected"][lang].format(", ".join(["0x" + addr for addr in detected_addresses])))
+
+    if "3c" in detected_addresses or "3d" in detected_addresses:
+        default_addr = "3c" if "3c" in detected_addresses else "3d"
+        print(SETUP["i2c_display_ok"][lang].format("0x" + default_addr))
+
+    print()
+    print(SETUP.get("i2c_choose_detected", {}).get(lang, "Choose the I2C address from the list above:"))
+    for i, addr in enumerate(detected_addresses, start=1):
+        print(f"[{i}] 0x{addr}")
+    print(SETUP.get("i2c_choose_actions", {}).get(lang, "[0] Back to screens / [s] Skip config / [x] Cancel install")) 
+
+    while True:
+        choice = input("> ").strip().lower()
+        if not choice:
+            print(SETUP["prompt_invalid"][lang])
+            continue
+        if choice in ("0", "b", "back"):
+            return "BACK"
+        if choice in ("s", "skip"):
+            return "SKIP"
+        if choice in ("x", "q", "cancel"):
+            return "CANCEL"
         try:
             idx = int(choice) - 1
-            selected_addr = detected_addresses[idx]
-        except (ValueError, IndexError):
-            print("❌ Invalid choice.")
-            safe_exit(1)
+            if not (0 <= idx < len(detected_addresses)):
+                raise IndexError()
+        except Exception:
+            print(SETUP["prompt_invalid"][lang])
+            continue
 
+        selected_addr = detected_addresses[idx]
         # Save in config.ini
-        core_config.save_config("i2c_address", "0x" + selected_addr, section="screen", preserve_case=True)
-        print(SETUP["i2c_saved"][lang].format("0x" + selected_addr))
-    else:
-        print(SETUP["i2c_no_display"][lang])
-        print(SETUP["i2c_check_wiring"][lang])
-        safe_exit(1)
+        try:
+            core_config.save_config("i2c_address", "0x" + selected_addr, section="screen", preserve_case=True)
+            print(SETUP["i2c_saved"][lang].format("0x" + selected_addr))
+            log_line(msg=f"Saved i2c_address = 0x{selected_addr} to config.ini", context="check_i2c")
+        except Exception as e:
+            print(SETUP.get("screen_save_fail", {}).get(lang, "❌ Failed to save to config.ini"))
+            safe_exit(1, error=f"❌ Failed to save to config.ini {e}")
+        return "OK"
 
 def check_spi(core_config):
     print(SETUP["spi_check"][lang])
     lines = safe_read_file_as_lines(CONFIG_TXT, critical=True)
     lines = update_olipi_section(lines, "screen overlay", clear=True)
     # Ask raspi-config whether SPI is enabled (nonint getter)
-    result = run_command("sudo raspi-config nonint get_spi", log_out=True, show_output=False, check=True)
+    result = run_command("sudo raspi-config nonint get_spi", log_out=True, show_output=False, check=False)
     if result.returncode != 0 or result.stdout.strip() != "0":
         # SPI reported disabled -> offer to enable (requires reboot)
         choice = input(SETUP["spi_disabled"][lang] + " > ").strip().lower()
@@ -870,7 +915,7 @@ def check_spi(core_config):
             print(SETUP["spi_enabled"][lang])
         else:
             print(SETUP["spi_enable_failed"][lang])
-            safe_exit(1)
+            return "CANCEL"
 
     fb_active = ""
     res = run_command("dmesg | grep -i 'graphics fb.*spi'", log_out=True, show_output=False, check=False)
@@ -895,7 +940,7 @@ def check_spi(core_config):
     if devices:
         print(SETUP["spi_devices_detected"][lang].format(", ".join(devices)))
         log_line(msg=f"SPI devices found: {', '.join(devices)}", context="check_spi")
-    return True
+    return "OK"
 
 def discover_screens_from_olipicore(olipi_core_dir):
     discovered = {}
@@ -917,12 +962,6 @@ def discover_screens_from_olipicore(olipi_core_dir):
     log_line(msg=f"Discovered {len(discovered)} supported screens", context="discover_screens")
     return discovered
 
-def safe_input(prompt, default=None):
-    if default is None:
-        return input(prompt + " > ").strip()
-    resp = input(f"{prompt} [{default}] > ").strip()
-    return resp if resp else default
-
 def configure_screen(olipi_moode_dir, olipi_core_dir):
     os.environ["OLIPI_DIR"] = str(Path(olipi_moode_dir))
     if str(Path(olipi_moode_dir)) not in sys.path:
@@ -930,88 +969,129 @@ def configure_screen(olipi_moode_dir, olipi_core_dir):
     try:
         from olipi_core import core_config
     except Exception as e:
-        print(SETUP.get("screen_discovery_fail", {}).get(lang,
-              "❌ Could not import olipi_core.core_config; screen setup will be skipped."))
+        print(SETUP.get("screen_discovery_fail", {}).get(lang, "❌ Could not import olipi_core.core_config; screen setup will be skipped."))
         safe_exit(1, error=f"❌ Could not import olipi_core.core_config; screen setup will be skipped. {e}")
         return False
 
-    # discover available screens
     screens = discover_screens_from_olipicore(olipi_core_dir)
     if not screens:
         print(SETUP.get("screen_none_found", {}).get(lang, "No screen modules found."))
         safe_exit(1, error=f"❌ No screen found.")
         return False
 
-    # present choices
     keys = sorted(screens.keys())
-    print(SETUP.get("screen_choose_list", {}).get(lang, "Available screens:"))
-    for i, key in enumerate(keys, start=1):
-        info = screens[key]
-        print(f"  [{i}] {key} — {info.get('resolution')} — {info.get('type').upper()} — {info.get('color')}")
 
-    choice = safe_input(SETUP.get("screen_choose_prompt", {}).get(lang, "Choose your screen by number"), "1")
-    try:
-        idx = int(choice)
-        if not (1 <= idx <= len(keys)):
-            raise ValueError("out of range")
-    except Exception:
-        print(SETUP.get("screen_invalid_choice", {}).get(lang, "Invalid choice. Aborting screen configuration."))
-        safe_exit(1, error=f"❌ Invalid choice. Aborting screen configuration. {e}")
-        return False
+    while True:
+        print(SETUP.get("screen_choose_list", {}).get(lang, "Available screens:"))
+        for i, key in enumerate(keys, start=1):
+            info = screens[key]
+            print(f"  [{i}] {key} — {info.get('resolution')} — {info.get('type').upper()} — {info.get('color')}")
+        print()
+        print(SETUP.get("screen_skip_option", {}).get(lang, "[0] Skip screen configuration"))
+        print(SETUP.get("screen_cancel_option", {}).get(lang, "[x] Cancel installation"))
 
-    selected = keys[idx - 1]
-    meta = screens[selected]
-    selected_id = meta["id"]
-    print(SETUP.get("screen_selected", {}).get(lang, "Selected: {}").format(selected))
-    log_line(msg=f"User selected screen {selected} (type={meta.get('type')})", context="configure_screen")
+        # ask user (no default)
+        choice = input(SETUP.get("screen_choose_prompt", {}).get(lang, "Choose your screen by number >")).strip().lower()
+        if not choice:
+            print(SETUP.get("screen_invalid_choice", {}).get(lang, "Invalid choice. Please enter a number, 0 to skip, or x to cancel."))
+            continue
 
-    create_backup(CONFIG_TXT)
+        if choice in ("0", "s", "skip"):
+            # save NONE and return True to continue install
+            try:
+                core_config.save_config("current_screen", "NONE", section="screen", preserve_case=True)
+                log_line(msg="User skipped screen configuration (saved NONE)", context="configure_screen")
+                print(SETUP.get("screen_skipped", {}).get(lang, "⏭ Screen configuration skipped."))
+            except Exception as e:
+                log_line(error=f"Failed saving NONE for current_screen: {e}", context="configure_screen")
+            return True
 
-    if meta["type"] == "i2c":
-        check_i2c(core_config)
-    elif meta["type"] == "spi":
-        check_spi(core_config)
+        if choice in ("x", "q", "cancel"):
+            print(SETUP.get("interactive_abort", {}).get(lang))
+            safe_exit(0)
 
-    try:
-        core_config.save_config("current_screen", selected_id.upper(), section="screen", preserve_case=True)
-        log_line(msg=f"Saved current_screen = {selected_id} to config.ini", context="configure_screen")
-    except Exception as e:
-        print(SETUP.get("screen_save_fail", {}).get(lang, "❌ Failed to save screen to config.ini"))
-        safe_exit(1, error=f"❌ Failed to save screen to config.ini. {e}")
-        return False
+        # numeric selection
+        try:
+            idx = int(choice)
+            if not (1 <= idx <= len(keys)):
+                raise ValueError("out of range")
+        except Exception:
+            print(SETUP.get("screen_invalid_choice", {}).get(lang, "Invalid choice. Please enter a valid number."))
+            continue
 
-    # If SPI -> ask pins and save them
-    if meta.get("type") == "spi":
-        print(SETUP.get("screen_spi_info", {}).get(lang, "SPI screen selected — Enter the GPIO pin number (BCM)."))
-        dc = safe_input(SETUP.get("screen_dc_prompt", {}).get(lang, "DC pin (data/command)"))
-        rst = safe_input(SETUP.get("screen_reset_prompt", {}).get(lang, "RESET pin"))
-        bl = safe_input(SETUP.get("screen_bl_prompt", {}).get(lang, "BL pin (backlight) — leave empty if none)"))
+        selected = keys[idx - 1]
+        meta = screens[selected]
+        selected_id = meta["id"]
+        print(SETUP.get("screen_selected", {}).get(lang, "Selected: {}").format(selected))
+        log_line(msg=f"User selected screen {selected} (type={meta.get('type')})", context="configure_screen")
 
-        selected_fbname = meta.get("fbname")
-        speed = meta.get("speed", None)
-        txbuflen = meta.get("txbuflen", None)
+        create_backup(CONFIG_TXT)
 
-        lines = safe_read_file_as_lines(CONFIG_TXT, critical=True)
-        overlay_line = f"dtoverlay=fbtft,spi0-0,{selected_fbname.lower()},reset_pin={rst},dc_pin={dc}"
-        if bl:
-            overlay_line += f",led_pin={bl}"
-        if speed:
-            overlay_line += f",speed={speed}"
-        if txbuflen:
-            overlay_line += f",txbuflen={txbuflen}"
-        new_lines = [overlay_line]
-        lines = update_olipi_section(lines, "screen overlay", new_lines, replace_prefixes=["dtoverlay=fbtft"])
+        # If I2C or SPI do their checks; check_i2c may ask to go BACK or SKIP
+        if meta["type"] == "i2c":
+            res = check_i2c(core_config)
+            if res == "BACK":
+                # loop again to rechoose a screen
+                continue
+            if res == "SKIP":
+                # user asked to skip -> save NONE and return True
+                try:
+                    core_config.save_config("current_screen", "NONE", section="screen", preserve_case=True)
+                    log_line(msg="Saved current_screen = NONE (user skipped during i2c)", context="configure_screen")
+                except Exception:
+                    pass
+                print(SETUP.get("screen_skipped", {}).get(lang, "⏭ Screen configuration skipped."))
+                return True
+            if res == "CANCEL":
+                safe_exit(130)
+            # res == "OK" -> continue
 
-        safe_write_file_as_root(CONFIG_TXT, lines, critical=True)
+        elif meta["type"] == "spi":
+            res = check_spi(core_config)
+            if res == "CANCEL":
+                safe_exit(130)
+            # res == "OK" -> continue
 
+        try:
+            core_config.save_config("current_screen", selected_id.upper(), section="screen", preserve_case=True)
+            log_line(msg=f"Saved current_screen = {selected_id} to config.ini", context="configure_screen")
+        except Exception as e:
+            print(SETUP.get("screen_save_fail", {}).get(lang, "❌ Failed to save screen to config.ini"))
+            safe_exit(1, error=f"❌ Failed to save screen to config.ini. {e}")
+            return False
+
+        # If SPI -> ask pins and save them
+        if meta.get("type") == "spi":
+            print(SETUP.get("screen_spi_info", {}).get(lang, "SPI screen selected — Enter the GPIO pin number (BCM)."))
+            dc = input(SETUP.get("screen_dc_prompt", {}).get(lang, "DC pin (data/command) >"))
+            rst = input(SETUP.get("screen_reset_prompt", {}).get(lang, "RESET pin >"))
+            bl = input(SETUP.get("screen_bl_prompt", {}).get(lang, "BL pin (backlight) — leave empty if none) >"))
+
+            selected_fbname = meta.get("fbname")
+            speed = meta.get("speed", None)
+            txbuflen = meta.get("txbuflen", None)
+
+            lines = safe_read_file_as_lines(CONFIG_TXT, critical=True)
+            overlay_line = f"dtoverlay=fbtft,spi0-0,{selected_fbname.lower()},reset_pin={rst},dc_pin={dc}"
+            if bl:
+                overlay_line += f",led_pin={bl}"
+            if speed:
+                overlay_line += f",speed={speed}"
+            if txbuflen:
+                overlay_line += f",txbuflen={txbuflen}"
+            new_lines = [overlay_line]
+            lines = update_olipi_section(lines, "screen overlay", new_lines, replace_prefixes=["dtoverlay=fbtft"])
+
+            safe_write_file_as_root(CONFIG_TXT, lines, critical=True)
+
+            core_config.reload_config()
+            print(SETUP.get("screen_saved_ok", {}).get(lang, "Screen configuration saved."))
+            return True
+
+        # If I2C just reload config and finish
         core_config.reload_config()
         print(SETUP.get("screen_saved_ok", {}).get(lang, "Screen configuration saved."))
         return True
-
-    # If I2C just reload config and finish
-    core_config.reload_config()
-    print(SETUP.get("screen_saved_ok", {}).get(lang, "Screen configuration saved."))
-    return True
 
 def get_active_swaps():
     swaps = []
