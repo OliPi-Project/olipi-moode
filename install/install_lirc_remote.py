@@ -498,23 +498,34 @@ def ask_gpio_pin(lang):
 
 def update_olipi_section(lines, marker, new_lines=None, replace_prefixes=None, clear=False):
     """
-    Update or clear a block under a specific marker inside the # --- Olipi-moode START/END --- section.
-
-    Args:
-        lines (list[str]): current config.txt file as a list of lines
-        marker (str): marker identifier (e.g. "screen overlay", "ir overlay")
-        new_lines (list[str] | None): lines to insert (ignored if clear=True)
-        replace_prefixes (list[str] | None): if given, remove any matching lines (even if commented) globally,
-                                             then insert only inside this marker block
-        clear (bool): if True, wipe all lines under this marker
-
-    Returns:
-        list[str]: updated list of lines
+    Update the '# --- Olipi-moode START ---' / END section and a '# @marker: {marker}' sub-block.
+    - replace_prefixes: list of prefixes; any line in the whole file matching ^\s*(#\s*)?{prefix} will be removed first.
+    - clear=True: remove the contents under the marker (not the marker itself).
     """
-
     section_start = "# --- Olipi-moode START ---"
     section_end = "# --- Olipi-moode END ---"
     marker_line = f"# @marker: {marker}"
+
+    # Normalize input
+    new_lines = new_lines or []
+
+    # If requested, remove any lines matching replace_prefixes **anywhere** in the file.
+    if replace_prefixes:
+        # Build regexes that match optional leading whitespace, optional comment sign, then the prefix
+        patterns = [re.compile(r'^\s*(?:#\s*)?' + re.escape(p)) for p in replace_prefixes]
+        cleaned = []
+        for ln in lines:
+            stripped = ln.rstrip("\n")
+            # never remove section markers
+            if stripped.strip() in (section_start, section_end) or stripped.lstrip().lower().startswith("# @marker:"):
+                cleaned.append(ln)
+                continue
+            # if any pattern matches the line (after lstrip), skip it
+            if any(pat.match(stripped) for pat in patterns):
+                # skip this line (do not include in cleaned)
+                continue
+            cleaned.append(ln)
+        lines = cleaned
 
     # Locate section boundaries
     start_idx = None
@@ -529,23 +540,23 @@ def update_olipi_section(lines, marker, new_lines=None, replace_prefixes=None, c
     # If section not found, create it at the end of file
     if start_idx is None or end_idx is None:
         if lines and lines[-1].strip() != "":
-            lines.append("")
-        lines.append(section_start)
-        lines.append(section_end)
+            lines.append("\n")
+        lines.append(section_start + "\n")
+        lines.append(section_end + "\n")
         start_idx = len(lines) - 2
         end_idx = len(lines) - 1
 
-    # Extract block content between START and END
+    # Extract block content between START and END (list of lines, with newlines preserved)
     block = lines[start_idx + 1:end_idx]
 
-    # Look for marker inside the block
+    # Find marker inside the block
     marker_idx = None
     for i, line in enumerate(block):
         if line.strip().lower() == marker_line.lower():
             marker_idx = i
             break
 
-    # If clear=True → remove the whole block under this marker
+    # If clear=True → remove the whole block under this marker (only inside block)
     if marker_idx is not None and clear:
         end_m = marker_idx + 1
         while end_m < len(block) and not block[end_m].lstrip().startswith("# @marker:"):
@@ -554,17 +565,6 @@ def update_olipi_section(lines, marker, new_lines=None, replace_prefixes=None, c
         lines[start_idx + 1:end_idx] = block
         return lines
 
-    # Remove globally any lines matching replace_prefixes
-    if replace_prefixes:
-        prefixes = tuple(replace_prefixes)
-        cleaned_block = []
-        for line in block:
-            check = line.lstrip("# ").strip()
-            if any(check.startswith(p) for p in prefixes):
-                continue
-            cleaned_block.append(line)
-        block = cleaned_block
-
     # Update or add marker section
     if marker_idx is not None and not clear:
         # Find block end (next marker or end of section)
@@ -572,20 +572,20 @@ def update_olipi_section(lines, marker, new_lines=None, replace_prefixes=None, c
         while end_m < len(block) and not block[end_m].lstrip().startswith("# @marker:"):
             end_m += 1
 
-        if replace_prefixes is None:
-            if new_lines:
-                block[marker_idx+1:end_m] = [l.rstrip() + "\n" for l in new_lines]
-        else:
-            existing = block[marker_idx+1:end_m]
-            filtered = [l.rstrip() + "\n" for l in existing]
-            if new_lines:
-                filtered.extend([l.rstrip() + "\n" for l in new_lines])
-            block[marker_idx+1:end_m] = filtered
+        # Replace or append new_lines under marker. Keep existing non-matching lines.
+        # We keep existing lines, then append new_lines (like your "filtered extend" behavior).
+        existing = block[marker_idx+1:end_m]
+        # strip trailing newlines, re-add newline to ensure consistent formatting
+        filtered = [l.rstrip("\n") + "\n" for l in existing]
+        if new_lines:
+            filtered.extend([l.rstrip("\n") + "\n" for l in new_lines])
+        block[marker_idx+1:end_m] = filtered
     else:
-        # Marker not found → append inside section
+        # Marker not found → append marker inside section, then new_lines
+        # ensure marker line ends with newline
         block.append(marker_line + "\n")
         if not clear and new_lines:
-            block.extend([l.rstrip() + "\n" for l in new_lines])
+            block.extend([l.rstrip("\n") + "\n" for l in new_lines])
 
     # Write back updated block into lines
     lines[start_idx + 1:end_idx] = block
