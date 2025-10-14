@@ -678,7 +678,7 @@ def install_repo(repo_name: str, repo_url: str, local_dir: Path, branch: str,
             change_type = "same"
 
     if mode == "dev_mode":
-        print(f"⚙️ Dev mode detected for {repo_name}. Choose config handling:")
+        print(f"\n⚙️ Dev mode detected for {repo_name}. Choose config handling:")
         print(" [1] Preserve all mergeable files (same as Patch Update)")
         print(" [2] Merge .dist into existing mergeable files (same as Minor Update)")
         print(" [3] Force-reset mergeable files (overwrite from .dist) (same as Major Update)")
@@ -982,16 +982,16 @@ def configure_screen(olipi_moode_dir, olipi_core_dir):
     keys = sorted(screens.keys())
 
     while True:
-        print(SETUP.get("screen_choose_list", {}).get(lang, "Available screens:"))
+        print(SETUP.get("screen_choose_list", {}).get(lang, "\nAvailable screens:"))
         for i, key in enumerate(keys, start=1):
             info = screens[key]
             print(f"  [{i}] {key} — {info.get('resolution')} — {info.get('type').upper()} — {info.get('color')}")
-        print()
-        print(SETUP.get("screen_skip_option", {}).get(lang, "[0] Skip screen configuration"))
-        print(SETUP.get("screen_cancel_option", {}).get(lang, "[x] Cancel installation"))
+        
+        print(SETUP.get("screen_skip_option", {}).get(lang, "\n  [0] Skip screen configuration"))
+        print(SETUP.get("screen_cancel_option", {}).get(lang, "  [x] Cancel installation"))
 
         # ask user (no default)
-        choice = input(SETUP.get("screen_choose_prompt", {}).get(lang, "Choose your screen by number >")).strip().lower()
+        choice = input(SETUP.get("screen_choose_prompt", {}).get(lang, "\nChoose your screen by number >")).strip().lower()
         if not choice:
             print(SETUP.get("screen_invalid_choice", {}).get(lang, "Invalid choice. Please enter a number, 0 to skip, or x to cancel."))
             continue
@@ -1652,7 +1652,7 @@ def main():
                 except Exception as e:
                     log_line(error=f"Failed creating reexec flag: {e}", context="main")
                 script_path = os.path.abspath(__file__)
-                print("🔁 Re-executing freshly cloned install_olipi.py to pick up updates...")
+                print(SETUP.get("reexecut_script", {}).get(lang, "\n🔁 Re-executing freshly cloned install_olipi.py to pick up updates..."))
                 new_args = []
                 if cmd == "install":
                     new_args.append("--install")
@@ -1660,7 +1660,7 @@ def main():
                     new_args.append("--update")
                 elif cmd == "dev_mode":
                     new_args.append("--dev")
-                print(f"   → relaunching with args: {' '.join(new_args)}")
+                print(f"[debug] → relaunching with args: {' '.join(new_args)}")
                 os.execv(sys.executable, [sys.executable, script_path] + new_args)
             configure_screen(OLIPI_MOODE_DIR, OLIPI_CORE_DIR)
             check_ram()
@@ -1691,7 +1691,7 @@ def main():
                 except Exception as e:
                     log_line(error=f"Failed creating reexec flag: {e}", context="main")
                 script_path = os.path.abspath(__file__)
-                print("🔁 Re-executing freshly cloned install_olipi.py to pick up updates...")
+                print(SETUP.get("reexecut_script", {}).get(lang, "\n🔁 Re-executing freshly cloned install_olipi.py to pick up updates..."))
                 new_args = []
                 if cmd == "install":
                     new_args.append("--install")
@@ -1727,7 +1727,7 @@ def main():
                 except Exception as e:
                     log_line(error=f"Failed creating reexec flag: {e}", context="main")
                 script_path = os.path.abspath(__file__)
-                print("🔁 Re-executing freshly cloned install_olipi.py to pick up updates...")
+                print(SETUP.get("reexecut_script", {}).get(lang, "\n🔁 Re-executing freshly cloned install_olipi.py to pick up updates..."))
                 new_args = []
                 if cmd == "install":
                     new_args.append("--install")

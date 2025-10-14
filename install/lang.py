@@ -3,7 +3,7 @@
 # lang.py
 
 SETUP = {
-    "choose_language": {"en": "Please choose your language:", "fr": "Veuillez choisir votre langue:"},
+    "choose_language": {"en": "\nPlease choose your language:", "fr": "\nVeuillez choisir votre langue:"},
     "language_options": {"en": "[1] English\n[2] Français", "fr": "[1] Anglais\n[2] Français"},
     "invalid_choice": {"en": "Invalid choice. Defaulting to English.", "fr": "Choix invalide. Anglais sélectionné par défaut."},
     "moode_detect_fail": {"en": "❌ Unable to detect Moode version. Make sure you're running Moode >= 9.3.7.",
@@ -55,6 +55,8 @@ SETUP = {
     "install_core": {"en": "Checking for olipi_core library...", "fr": "Vérification de la librairie olipi_core..."},
     "core_exists": {"en": "✅ olipi_core already present at {}", "fr": "✅ olipi_core déjà présent dans {}"},
     "core_cloned": {"en": "✅ olipi_core has been cloned to {}", "fr": "✅ olipi_core a été cloné dans {}"},
+    "reexecut_script": {"en": "\n🔁 Re-executing freshly cloned install_olipi.py...",
+                        "fr": "\n🔁 Ré-exécution de install_olipi.py fraîchement cloné..."},
     "i2c_check": {"en": "Checking I²C configuration...", "fr":"Vérification de la configuration I²C..."},
     "i2c_disabled": {"en": "⚠️  I²C is disabled. Would you like to enable it now? [Y/n]",
                      "fr": "⚠️  L'I²C est désactivé. Voulez-vous l'activer maintenant ? [O/n]"},
@@ -89,10 +91,10 @@ SETUP = {
     "screen_discovery_fail": {"en": "❌ Could not import olipi_core.core_config; screen setup will be skipped.",
                               "fr": "❌ Impossible d'importer olipi_core.core_config ; configuration d'écran ignorée."},
     "screen_none_found": {"en": "No screen modules found.", "fr": "Aucun module d'écran trouvé."},
-    "screen_choose_list": {"en": "Available screens:", "fr": "Écrans disponibles:"},
-    "screen_choose_prompt": {"en": "Enter your screen number >", "fr": "Entrer le numéro de votre écran >"},
-    "screen_skip_option": {"en": "[0] Skip screen configuration", "fr": "[0] Passer la configuration d'écran"},
-    "screen_cancel_option": {"en": "[x] Cancel installation", "fr": "[x] Annuler l'installation"},
+    "screen_choose_list": {"en": "\nAvailable screens:", "fr": "\nÉcrans disponibles:"},
+    "screen_skip_option": {"en": "\n  [0] Skip screen configuration", "fr": "\n  [0] Passer la configuration d'écran"},
+    "screen_cancel_option": {"en": "  [x] Cancel installation", "fr": "  [x] Annuler l'installation"},
+    "screen_choose_prompt": {"en": "\nEnter your screen number >", "fr": "\nEntrer le numéro de votre écran >"},
     "screen_skipped": {"en": "⏭ Screen configuration skipped.", "fr": "⏭ Configuration d'écran passée."},
     "screen_invalid_choice": {"en": "Invalid choice. Choose your screen by number.",
                               "fr": "Choix invalide. Choisissez votre écran par numéro."},
