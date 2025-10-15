@@ -30,20 +30,12 @@ MESSAGES = {
     "language_options": {"en": "[1] English\n[2] Français", "fr": "[1] Anglais\n[2] Français"},
     "invalid_choice": {"en": "Invalid choice. Defaulting to English.", "fr": "Choix invalide. Anglais sélectionné par défaut."},
     "lirc_missing": {
-        "en": "❌ LIRC is not installed.",
-        "fr": "❌ LIRC n'est pas installé."
-    },
-    "lirc_prompt": {
-        "en": "Would you like to reinstall LIRC? Choose 'n' to go remote configuration [Y/n] > ",
-        "fr": "Voulez-vous réinstaller LIRC? Choissisez 'n' pour configurer la télécommande [O/n] > "
+        "en": "❌ LIRC is not installed.\n",
+        "fr": "❌ LIRC n'est pas installé.\n"
     },
     "lirc_installed": {
-        "en": "✅ LIRC is installed.",
-        "fr": "✅ LIRC est installé."
-    },
-    "installing_lirc": {
-        "en": "📦 Installing LIRC...",
-        "fr": "📦 Installation de LIRC..."
+        "en": "✅ LIRC is installed.\n",
+        "fr": "✅ LIRC est installé.\n"
     },
     "start_config_lirc": {
         "en": "⇨ Install and Config LIRC for GPIO IR receiver...",
@@ -51,25 +43,31 @@ MESSAGES = {
     },
     "explain": {
         "en": (
-            "This will configure LIRC for IR remotes connected to a GPIO receiver.\n"
-            "(requires an IR receiver connected to the GPIO pin).\n"
+            "This will configure LIRC for IR receiver type TSOP* connected to a GPIO pin.\n"
             "Steps:\n"
             "  1. Install and configure LIRC if missing\n"
             "  2. Add or update dtoverlay=gpio-ir,gpio_pin=<pin> to /boot/firmware/config.txt\n"
             "  3. Update /etc/lirc/lirc_options.conf\n"
             "  4. Create backups of modified files\n"
-            "  5. Reboot required before remote setup\n"
+            "  At the end, reboot required before remote setup\n"
         ),
         "fr": (
-            "Cette opération configure LIRC pour les télécommandes IR connectées sur GPIO.\n"
-            "(nécessite un récepteur ir branché sur broche gpio).\n"
+            "Cette opération configure LIRC pour les récepteurs IR type TSOP* connecté sur broche GPIO.\n"
             "Étapes:\n"
             "  1. Installe et configure LIRC si nécessaire\n"
-            "  2. Ajoute ou mettre à jour dtoverlay=gpio-ir,gpio_pin=<pin> dans /boot/firmware/config.txt\n"
-            "  3. Met à jour /etc/lirc/lirc_options.conf\n"
+            "  2. Ajoute ou modifie dtoverlay=gpio-ir,gpio_pin=<pin> dans /boot/firmware/config.txt\n"
+            "  3. Configure /etc/lirc/lirc_options.conf\n"
             "  4. Fait des sauvegardes des fichiers modifiés\n"
-            "  5. Reboot requis avant la configuration de la télécommande\n"
+            "  A la fin, un redémarrage est nécessaire avant de configuré la télécommande\n"
         )
+    },
+    "lirc_prompt": {
+        "en": "Would you like to reinstall LIRC? Choose 'n' to go remote configuration [Y/n] > ",
+        "fr": "Voulez-vous réinstaller LIRC? Choissisez 'n' pour configurer la télécommande [O/n] > "
+    },
+    "installing_lirc": {
+        "en": "📦 Installing LIRC...",
+        "fr": "📦 Installation de LIRC..."
     },
     "accept_prompt": {
         "en": "⚠️ Do you want to continue? [Y/n] > ",
@@ -80,8 +78,8 @@ MESSAGES = {
         "fr": "⚠️ Configuration de LIRC ignorée. Vous pourrez la configurer plus tard manuellement ou via :\n' python3 {} '"
     },
     "enter_pin": {
-        "en": "Enter the GPIO pin number for IR receiver (BCM): ",
-        "fr": "Entrez le numéro de GPIO du récepteur IR (BCM) : "
+        "en": "Enter the GPIO pin number for IR receiver (BCM) > ",
+        "fr": "Entrez le numéro de GPIO du récepteur IR (BCM) > "
     },
     "keep_existing_pin": {
         "en": "⚙️ Found existing gpio-ir overlay with gpio_pin={}. Keep this value? [Y/n] > ",
@@ -116,12 +114,12 @@ MESSAGES = {
         "fr": "⚠️ Entrée 'use_lirc' introuvable dans config.ini. Veuillez la mettre à jour manuellement."
     },
     "remote_setup_info": {
-        "en": "ℹ️ After reboot, run again ' python3 {} ' to configure your remote.",
-        "fr": "ℹ️ Après redémarrage, exécutez à nouveau ' python3 {} ' pour configurer votre télécommande."
+        "en": "ℹ️  After reboot, run again ' python3 {} ' to configure your remote.",
+        "fr": "ℹ️  Après redémarrage, exécutez à nouveau ' python3 {} ' pour configurer votre télécommande."
     },
     "reboot_prompt": {
-        "en": "⚠️ Reboot required for IR changes. Reboot now? [Y/n] > ",
-        "fr": "⚠️ Redémarrage requis pour les changements IR. Redémarrer maintenant ? [O/n] > "
+        "en": "⚠️  Reboot required for IR changes. Reboot now? [Y/n] > ",
+        "fr": "⚠️  Redémarrage requis pour les changements IR. Redémarrer maintenant ? [O/n] > "
     },
     "rebooting": {
         "en": "⇨ Rebooting...",
@@ -132,11 +130,11 @@ MESSAGES = {
         "fr": "⚠️ Redémarrage annulé. Veuillez redémarrer manuellement plus tard."
     },
 
-    # Messages used by remote manager (subset)
+    # Messages used by remote manager
     "start_config_remote": {"en": "⇨ IR Remote configuration", "fr": "⇨ Configuration de la télécommande IR"},
     "help_unavailable": {
-        "en": "⚠️ Cannot open help window.\nEnable X forwarding or check the README:\nhttps://github.com/Trachou2Bois/olipi-moode",
-        "fr": "⚠️ Ouverture de l'aide à la configuration des touches impossible.\nActivez la redirection X11 si possible ou consultez le README:\nhttps://github.com/Trachou2Bois/olipi-moode"
+        "en": "⚠️ Cannot open help window.\nEnable X forwarding or check the README:\nhttps://github.com/OliPi-Project/olipi-moode",
+        "fr": "⚠️ Ouverture de l'aide à la configuration des touches impossible.\nActivez la redirection X11 si possible ou consultez le README:\nhttps://github.com/OliPi-Project/olipi-moode"
     },
     "menu": {
         "en": (
@@ -175,11 +173,17 @@ MESSAGES = {
     "downloading": {"en": "⬇️ Downloading {} ...", "fr": "⬇️ Téléchargement de {} ..."},
     "download_done": {"en": "✅ Remote configuration saved to {}", "fr": "✅ Configuration de la télécommande enregistrée dans {}"},
     "testing_info": {
-        "en": "▶️ mode2 will display raw IR pulses to check if your receiver is working.\nIf nothing appears, check your wiring or hardware (Ctrl+C to quit).",
-        "fr": "▶️ mode2 affichera les signaux IR bruts pour vérifier si votre récepteur fonctionne.\nSi rien n'apparaît, vérifiez votre câblage ou votre matériel (Ctrl+C pour quitter)."
+        "en": "▶️ mode2 will display raw IR pulses to check if your receiver is working.\nIf nothing appears, check your wiring or hardware (Ctrl+C to go back to menu).",
+        "fr": "▶️ mode2 affichera les signaux IR bruts pour vérifier si votre récepteur fonctionne.\nSi rien n'apparaît, vérifiez votre câblage ou votre matériel (Ctrl+C pour revenir au menu)."
     },
-    "learning_info": {"en": "▶️ Learning mode started (irrecord).", "fr": "▶️ Mode apprentissage démarré (irrecord)."},
-    "testing_irw": {"en": "▶️ Testing key decoding (irw).", "fr": "▶️ Test du décodage des touches (irw)."},
+    "learning_info": {
+        "en": "▶️ Learning mode started (irrecord).", 
+        "fr": "▶️ Mode apprentissage démarré (irrecord)."
+    },
+    "testing_irw": {
+        "en": "▶️ Testing key decoding (irw). (Ctrl+C to go back to menu)", 
+        "fr": "▶️ Test du décodage des touches (irw). (Ctrl+C pour revenir au menu)"
+    },
     "config_list": {
         "en": "\nIf your remote is not configured, use learning or search.\n⇨ Select the configuration to be modified (page {}/{}):",
         "fr": "\nSi votre télécommande n'est pas configurée utilisez l'apprentissage ou la recherche.\n⇨ Choisissez la configuration à modifier (page {}/{}):"
@@ -743,7 +747,7 @@ def test_irw(lang):
 
 def toggle_config_state(config_file, lang):
     if config_file.endswith(".back"):
-        new_file = config_file[:-3]
+        new_file = config_file.removesuffix(".back")
         run_command(f"mv '{config_file}' '{new_file}'", sudo=True, interactive=False, check=True)
         print(MESSAGES["enabled"][lang])
     else:
@@ -1012,8 +1016,10 @@ def main():
     if check_lirc_installed(lang):
         lirc_installed = True
         choice = input(MESSAGES["lirc_prompt"][lang]).strip().lower()
-        if choice in ["", "o", "y"]:
+        if choice in ["o", "y"]:
             reinstall_lirc = True
+        else:
+            reinstall_lirc = False
     
     if not lirc_installed or reinstall_lirc:
         print(MESSAGES["start_config_lirc"][lang])
