@@ -481,18 +481,21 @@ def player_status_thread():
                         menu_context_flag = "local_stream"
                         if stream_queue:
                             position = stream_queue_pos + 1 if 0 <= stream_queue_pos < len(stream_queue) else "?"
-                            artist_album = f"{album} | {core.t('show_stream_queue_number', count=len(stream_queue), position=position)}"
+                            artist_album = f"YT {core.t('show_stream_queue_number', count=len(stream_queue), position=position)}"
                             title = final_title_yt
                         else:
-                            artist_album = f"{album} | [Album: {album_yt}]" if album_yt else album
+                            artist_album = f"YT Stream | [Album: {album_yt}]" if album_yt else "YT Stream"
                             title = final_title_yt
+                        # global_state["duration"] defined in yt_search_track()
                     else:
                         menu_context_flag = "radio"
                         album = RADIO_MAP.get(path, "Unknown Radio")
                         artist_album = album
+                        global_state["duration"] = float(status_extra.get("duration", 0.0))
                 else:
                     menu_context_flag = "library"
                     artist_album = f"{artist} - {album}"
+                    global_state["duration"] = float(status_extra.get("duration", 0.0))
                 if title != last_title_seen:
                     core.reset_scroll("nowplaying_title")
                     last_title_seen = title
@@ -503,7 +506,6 @@ def player_status_thread():
                 global_state["album"] = album
                 global_state["artist"] = artist
                 global_state["artist_album"] = artist_album
-                global_state["duration"] = float(status_extra.get("duration", 0.0))
                 global_state["state"] = status_extra.get("state", "unknown")
                 audio_fmt = status_extra.get("audio", "")
                 if audio_fmt:
@@ -631,7 +633,17 @@ def non_idle_status_thread():
                 global_state["elapsed"] = float(status_extra.get("elapsed", 0.0))
                 global_state["bitrate"] = status_extra.get("bitrate", "")
             except Exception as e:
-                print("Elapsed update error:", e)
+                print("Non idle status error:", e)
+                try:
+                    client.disconnect()
+                except Exception:
+                    pass
+                time.sleep(1)
+                try:
+                    client.connect("localhost", 6600)
+                except Exception as e2:
+                    print("MPD reconnect failed:", e2)
+                    time.sleep(2)
         if now - last_renderer_check > 1.5:
             last_renderer_check = now
             load_renderer_states_from_db()
@@ -1242,7 +1254,7 @@ def ensure_local_stream():
             '',
             '',
             '',
-            '',
+            '192',
             'MP3',
             'No',
             '',
@@ -1284,7 +1296,7 @@ def preload_worker():
             core.show_message(core.t("preload_yt", error=e))
             if core.DEBUG:
                 print("error preload yt: ", e)
-        time.sleep(2)
+        time.sleep(2.0)
         preload_queue.task_done()
 
 def play_all_songlog_from_queue():
@@ -1412,6 +1424,7 @@ def yt_search_track(index, preload=False, _fallback_attempt=False, local_query=N
                 final_title_yt = cache_entry["title"]
                 artist_yt = cache_entry["artist"]
                 album_yt = cache_entry.get("album", "")
+                global_state["duration"] = float(cache_entry.get("duration") or 0.0)
                 load_renderer_states_from_db()
                 if is_renderer_active():
                     if core.DEBUG:
@@ -1427,7 +1440,6 @@ def yt_search_track(index, preload=False, _fallback_attempt=False, local_query=N
         if core.DEBUG:
             print("❓ No entry in cache")
 
-    # If not in cache or expired: yt-dlp
     if not preload:
         core.message_text = core.t("info_search_yt", query=local_query)
         core.message_permanent = True
@@ -1441,102 +1453,122 @@ def yt_search_track(index, preload=False, _fallback_attempt=False, local_query=N
             'quiet': True,
             'default_search': 'ytsearch',
             'noplaylist': True,
-            'format': "bestaudio[protocol!=m3u8]/bestaudio[protocol!=m3u8]",
+            'format': "bestaudio[protocol!=m3u8]",
             'no_warnings': True
         }
 
-        with YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(local_query, download=False)
-            video = info['entries'][0] if '_type' in info else info
+        # Retry logic: attempt the same extraction up to attempts_total times before giving up / fallback.
+        attempts_total = 2
+        info = None
+        last_exception = None
+        for attempt in range(attempts_total):
+            try:
+                with YoutubeDL(ydl_opts) as ydl:
+                    info = ydl.extract_info(local_query, download=False)
+                # success -> break out
+                last_exception = None
+                break
+            except Exception as e:
+                last_exception = e
+                if core.DEBUG:
+                    print(f"[yt-dlp] attempt {attempt+1}/{attempts_total} failed: {e}")
+                # if not last attempt, wait a bit and retry (for temporary CDN/format glitches)
+                if attempt < attempts_total - 1:
+                    time.sleep(1.0)
+                    continue
+        if info is None:
+            raise last_exception if last_exception is not None else Exception("yt-dlp failed without exception")
 
-            resolved_url = video['url']
-            title_raw = video.get("track") or video.get("title") or "Unknown"
-            album = video.get("album")
-            duration = video.get("duration")
-            webpage_url = video.get("webpage_url")
+        video = info['entries'][0] if '_type' in info else info
 
-            artist_candidates = {
-                "artist": video.get("artist"),
-                "album_artist": video.get("album_artist"),
-                "composer": video.get("composer"),
-                "creator": video.get("creator"),
-                "uploader": video.get("uploader"),
+        resolved_url = video['url']
+        title_raw = video.get("track") or video.get("title") or "Unknown"
+        album = video.get("album")
+        duration = video.get("duration")
+        webpage_url = video.get("webpage_url")
+
+        artist_candidates = {
+            "artist": video.get("artist"),
+            "album_artist": video.get("album_artist"),
+            "composer": video.get("composer"),
+            "creator": video.get("creator"),
+            "uploader": video.get("uploader"),
+        }
+
+        if " - " in local_query:
+            artist_query, title_query = map(str.strip, local_query.split(" - ", 1))
+        else:
+            artist_query = local_query.strip()
+            title_query = ""
+
+        artist_match = next((v for v in artist_candidates.values() if v and artist_query.lower() in v.lower()), None)
+
+        if artist_query.lower() in title_raw.lower():
+            title_final = title_raw
+            artist_final = artist_query
+        elif artist_match:
+            title_final = f"{artist_query} - {title_raw}"
+            artist_final = artist_query
+        else:
+            title_final = f"{title_raw} - ({artist_query} ?)"
+            artist_final = f"Unknown / maybe {artist_query}"
+
+        expire_ts = None
+        expire_str = None
+        match = re.search(r"[?&]expire=(\d+)", resolved_url)
+        if match:
+            expire_ts = int(match.group(1))
+            expire_str = datetime.datetime.fromtimestamp(expire_ts).strftime("%Y-%m-%d %H:%M:%S")
+
+        if core.DEBUG:
+            print(f"[yt-dlp] title: {title_raw}")
+            print(f"[yt-dlp] album: {album}")
+            print(f"[yt-dlp] final-title: {title_final}")
+            print(f"[yt-dlp] duration: {duration}")
+            print(f"[yt-dlp] expire at: {expire_str}")
+
+        with yt_cache_lock:
+            yt_cache[local_query] = {
+                "title": title_final,
+                "artist": artist_final,
+                "album": album,
+                "duration": duration,
+                "acodec": video.get('acodec'),
+                "abr": video.get('abr'),
+                "ext": video.get('ext'),
+                "format": video.get('format'),
+                "webpage_url": webpage_url,
+                "url": resolved_url,
+                "resolved": True,
+                "timestamp": datetime.datetime.now().isoformat(),
+                "expires": expire_str,
+                "expire_ts": expire_ts
             }
 
-            if " - " in local_query:
-                artist_query, title_query = map(str.strip, local_query.split(" - ", 1))
-            else:
-                artist_query = local_query.strip()
-                title_query = ""
+            with open(yt_cache_path, "w", encoding="utf-8") as f:
+                json.dump(yt_cache, f, indent=2)
 
-            artist_match = next((v for v in artist_candidates.values() if v and artist_query.lower() in v.lower()), None)
+        if not preload:
+            stream_url = resolved_url
+            final_title_yt = title_final
+            artist_yt = artist_final
+            album_yt = album
+            global_state["duration"] = float(cache_entry.get("duration") or 0.0)
+            load_renderer_states_from_db()
+            if is_renderer_active():
+                if core.DEBUG:
+                    print("Renderer active – aborting launch of stream_songlog_entry()")
+                core.message_permanent = False
+                core.message_text = None
+                blocking_render = False
+                return
+            try:
+                stream_songlog_entry()
+            finally:
+                stream_transition_in_progress = False
+                stream_manual_skip = False
 
-            if artist_query.lower() in title_raw.lower():
-                title_final = title_raw
-                artist_final = artist_query
-            elif artist_match:
-                title_final = f"{artist_query} - {title_raw}"
-                artist_final = artist_query
-            else:
-                title_final = f"{title_raw} - ({artist_query} ?)"
-                artist_final = f"Unknown / maybe {artist_query}"
-
-            expire_ts = None
-            expire_str = None
-            match = re.search(r"[?&]expire=(\d+)", resolved_url)
-            if match:
-                expire_ts = int(match.group(1))
-                expire_str = datetime.datetime.fromtimestamp(expire_ts).strftime("%Y-%m-%d %H:%M:%S")
-
-            if core.DEBUG:
-                print(f"[yt-dlp] title: {title_raw}")
-                print(f"[yt-dlp] album: {album}")
-                print(f"[yt-dlp] final-title: {title_final}")
-                print(f"[yt-dlp] duration: {duration}")
-                print(f"[yt-dlp] expire at: {expire_str}")
-
-            # Save in cache (under lock)
-            with yt_cache_lock:
-                yt_cache[local_query] = {
-                    "title": title_final,
-                    "artist": artist_final,
-                    "album": album,
-                    "duration": duration,
-                    "acodec": video.get('acodec'),
-                    "abr": video.get('abr'),
-                    "ext": video.get('ext'),
-                    "format": video.get('format'),
-                    "webpage_url": webpage_url,
-                    "url": resolved_url,
-                    "resolved": True,
-                    "timestamp": datetime.datetime.now().isoformat(),
-                    "expires": expire_str,
-                    "expire_ts": expire_ts
-                }
-
-                with open(yt_cache_path, "w", encoding="utf-8") as f:
-                    json.dump(yt_cache, f, indent=2)
-
-            if not preload:
-                stream_url = resolved_url
-                final_title_yt = title_final
-                artist_yt = artist_final
-                album_yt = album
-                load_renderer_states_from_db()
-                if is_renderer_active():
-                    if core.DEBUG:
-                        print("Renderer active – aborting launch of stream_songlog_entry()")
-                    core.message_permanent = False
-                    core.message_text = None
-                    blocking_render = False
-                    return
-                try:
-                    stream_songlog_entry()
-                finally:
-                    stream_transition_in_progress = False
-                    stream_manual_skip = False
-
-    except Exception as e:           
+    except Exception as e:
         if not preload:
             core.message_permanent = False
             core.message_text = None
@@ -1544,7 +1576,11 @@ def yt_search_track(index, preload=False, _fallback_attempt=False, local_query=N
             stream_transition_in_progress = False
             blocking_render = False
 
-        # Fallback management if not already attempted
+        if preload:
+            if core.DEBUG:
+                print(f"[yt-dlp] preload failed for '{local_query}': {e}")
+            return
+
         if not _fallback_attempt:
             parts = local_query.split(" - ")
             if len(parts) == 2:
@@ -1640,7 +1676,7 @@ def stream_songlog_entry():
     if core.DEBUG:
         print(f"⇨ Start Local Stream")
 
-    core.message_text = core.t("info_start_stream")
+    core.message_text = core.t("info_streaming", title=final_title_yt)
     core.message_permanent = True
     blocking_render = True
     time.sleep(0.05)
@@ -1669,7 +1705,7 @@ def stream_songlog_entry():
                 "-i", stream_url,
                 "-vn",
                 "-c:a", "libmp3lame",
-                "-q:a", "0",
+                "-b:a", "192k",
                 "-metadata", f"title={final_title_yt}",
                 "-f", "mp3", "-"
             ]
@@ -1816,26 +1852,40 @@ def stream_songlog_entry():
 
     try:
         client = MPDClient()
+        client.timeout = 10
         client.connect("localhost", 6600)
         client.clear()
         client.load("RADIO/Local Stream.pls")
 
-        for _ in range(5):
+        for _ in range(20):
             try:
-                with socket.create_connection(("localhost", 8080), timeout=1):
+                with socket.create_connection(("localhost", 8080), timeout=0.5):
                     break
-            except:
-                time.sleep(0.2)
+            except OSError:
+                time.sleep(0.25)
 
         client.play()
+
+        start_time = time.time()
+        while time.time() - start_time < 20:  # timeout max 20s
+            status = client.status()
+            if status.get("state") == "play":
+                song = client.currentsong()
+                title = song.get("title", "")
+                # on considère que la lecture est "vraie" si un titre est présent
+                if title != "Local Stream":
+                    break
+            # petit délai pour ne pas poller le CPU
+            time.sleep(0.3)
+
         client.close()
         client.disconnect()
-        time.sleep(1)
+
         core.message_permanent = False
         core.message_text = None
-        core.show_message(core.t("info_streaming", title=final_title_yt))
         if core.DEBUG:
             print(f"✅ Streaming ready: {final_title_yt}")
+
     except Exception as e:
         core.message_permanent = False
         core.message_text = None
@@ -1844,7 +1894,7 @@ def stream_songlog_entry():
         core.show_message(core.t("error_mpd", error=e))
         if core.DEBUG:
             print("error mpd: ", e)
-        if not core.DEBUG:
+        else:
             core.show_message(core.t("error_generic"))
 
     stream_transition_in_progress = False
