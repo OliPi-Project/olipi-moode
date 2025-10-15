@@ -27,8 +27,6 @@ from olipi_core import core_common as core
 from olipi_core.input_manager import start_inputs, debounce_data, process_key
 from media_key_actions import handle_audio_keys, handle_custom_key, USED_MEDIA_KEYS, set_hooks as set_custom_hooks
 
-SAVED_STREAM_PROFILE = core.get_config("settings", "stream_profile", fallback="standard", type=str)
-
 yt_cache_path = OLIPIMOODE_DIR / "yt_cache.json"
 
 PLS_PATH = "/var/lib/mpd/music/RADIO/Local Stream.pls"
@@ -56,11 +54,6 @@ blocking_render = False
 previous_blocking_render = False
 
 SCROLL_SPEED_NOWPLAYING = 0.05
-
-# For more information look at https://github.com/yt-dlp/yt-dlp?tab=readme-ov-file#filtering-formats
-yt_format_low = "bestaudio[abr<=96][protocol!=m3u8]"
-yt_format_standard = "bestaudio[ext=m4a][protocol!=m3u8]/bestaudio[protocol!=m3u8]"
-yt_format_hifi = "bestaudio[protocol!=m3u8]/bestaudio[protocol!=m3u8]"
 
 menu_active = False
 menu_options = [
@@ -151,7 +144,6 @@ config_menu_active = False
 config_menu_selection = 0
 config_menu_options = [
     {"id": "sleep", "label": None},
-    {"id": "stream_quality", "label": core.t("menu_stream_quality")},
     {"id": "language", "label": core.t("menu_language")},
     {"id": "debug", "label": core.t("menu_debug")}
 ]
@@ -161,13 +153,6 @@ if core.display_format != "MONO":
 sleep_timeout_options = [0, 15, 30, 60, 300, 600]
 sleep_timeout_labels = {0: "Off", 15: "15s", 30: "30s", 60: "1m", 300: "5m", 600: "10m"}
 
-stream_profile_menu_active = False
-stream_profile_menu_selection = 0
-stream_profile_menu_options = [
-    {"id": "low", "label": core.t("stream_low"), "yt_format": yt_format_low, "ffmpeg_bitrate": "96k"},
-    {"id": "standard", "label": core.t("stream_standard"), "yt_format": yt_format_standard, "ffmpeg_bitrate": "128k"},
-    {"id": "hifi", "label": core.t("stream_hifi"), "yt_format": yt_format_hifi, "ffmpeg_bitrate": "160k"}
-]
 language_menu_active = False
 language_menu_selection = 0
 language_menu_options = [
@@ -1287,18 +1272,6 @@ Version=2
         if core.DEBUG:
             print("Local Stream already exists in database.")
 
-def check_stream_format(profile_id, yt_format, preload=False):
-    suspicious = (
-        not yt_format
-        or yt_format.strip() in {"140", "251", "bestaudio"}
-        or ("[protocol" not in yt_format and "/" not in yt_format)
-    )
-    if suspicious:
-        if not preload:
-            core.show_message(core.t("warning_stream_format", profile=profile_id, fmt=yt_format))
-        if core.DEBUG:
-            print(f"⚠ [Warning] Suspicious yt_format for '{profile_id}': {yt_format}")
-
 def preload_worker():
     while True:
         index = preload_queue.get()
@@ -1311,7 +1284,7 @@ def preload_worker():
             core.show_message(core.t("preload_yt", error=e))
             if core.DEBUG:
                 print("error preload yt: ", e)
-        time.sleep(1)
+        time.sleep(2)
         preload_queue.task_done()
 
 def play_all_songlog_from_queue():
@@ -1391,13 +1364,6 @@ def yt_search_track(index, preload=False, _fallback_attempt=False, local_query=N
     if not preload:
         stop_current_stream()
 
-    # Profile reading
-    stream_profile_selected = next(
-        (item for item in stream_profile_menu_options if item["id"] == SAVED_STREAM_PROFILE),
-        stream_profile_menu_options[1]
-    )
-    check_stream_format(stream_profile_selected["id"], stream_profile_selected["yt_format"], preload)
-
     if local_query is None:
         if index >= len(songlog_lines):
             if not preload:
@@ -1475,7 +1441,7 @@ def yt_search_track(index, preload=False, _fallback_attempt=False, local_query=N
             'quiet': True,
             'default_search': 'ytsearch',
             'noplaylist': True,
-            'format': stream_profile_selected["yt_format"],
+            'format': "bestaudio[protocol!=m3u8]/bestaudio[protocol!=m3u8]",
             'no_warnings': True
         }
 
@@ -1570,7 +1536,7 @@ def yt_search_track(index, preload=False, _fallback_attempt=False, local_query=N
                     stream_transition_in_progress = False
                     stream_manual_skip = False
 
-    except Exception as e:
+    except Exception as e:           
         if not preload:
             core.message_permanent = False
             core.message_text = None
@@ -1671,11 +1637,6 @@ def stream_songlog_entry():
             print("Renderer active – aborting stream_songlog_entry()")
         return
 
-    stream_profile_selected = next(
-        (item for item in stream_profile_menu_options if item["id"] == SAVED_STREAM_PROFILE),
-        stream_profile_menu_options[1]
-    )
-
     if core.DEBUG:
         print(f"⇨ Start Local Stream")
 
@@ -1712,10 +1673,6 @@ def stream_songlog_entry():
                 "-metadata", f"title={final_title_yt}",
                 "-f", "mp3", "-"
             ]
-            if core.DEBUG:
-                print("[ffmpeg] Launching with parameters:")
-                print(f"    Codec:     libmp3lame")
-                print(f"    Bitrate:   {stream_profile_selected['ffmpeg_bitrate']}")
 
             try:
                 # Launch ffmpeg with stderr piped so we can read errors without blocking ffmpeg.
@@ -1879,7 +1836,6 @@ def stream_songlog_entry():
         core.show_message(core.t("info_streaming", title=final_title_yt))
         if core.DEBUG:
             print(f"✅ Streaming ready: {final_title_yt}")
-            print(f"  Using profile: {SAVED_STREAM_PROFILE}")
     except Exception as e:
         core.message_permanent = False
         core.message_text = None
@@ -2096,8 +2052,6 @@ def render_screen():
         draw_theme_menu()
     elif language_menu_active:
         draw_language_menu()
-    elif stream_profile_menu_active:
-        draw_stream_profile_menu()
     elif config_menu_active:
         draw_config_menu()
     elif renderers_menu_active:
@@ -2207,10 +2161,6 @@ def draw_theme_menu():
 def draw_language_menu():
     selected = {item["label"] for item in language_menu_options if item["id"] == core.LANGUAGE}
     core.draw_custom_menu([item["label"] for item in language_menu_options], language_menu_selection, title=core.t("title_language"), multi=selected)
-
-def draw_stream_profile_menu():
-    selected = {item["label"] for item in stream_profile_menu_options if item["id"] == SAVED_STREAM_PROFILE}
-    core.draw_custom_menu([item["label"] for item in stream_profile_menu_options], stream_profile_menu_selection, title=core.t("title_stream_profile"), multi=selected)
 
 def draw_config_menu():
     for item in config_menu_options:
@@ -2685,8 +2635,7 @@ def nav_left_long():
             "tool_menu_active", "language_menu_active", "hardware_info_active", "config_menu_active",
             "power_menu_active", "renderers_menu_active", "bluetooth_menu_active",
             "bluetooth_scan_menu_active", "bluetooth_paired_menu_active",
-            "bluetooth_audioout_menu_active", "bluetooth_device_actions_menu_active",
-            "stream_profile_menu_active", "playback_modes_menu_active"
+            "bluetooth_audioout_menu_active", "bluetooth_device_actions_menu_active", "playback_modes_menu_active"
         ]:
             globals()[var] = False
 
@@ -2786,7 +2735,6 @@ def finish_press(key):
     global stream_queue_active, stream_queue_selection, stream_queue_action_active, stream_queue_action_selection
     global stream_queue_pos, stream_manual_skip, stream_transition_in_progress
     global tool_menu_selection, tool_menu_active, config_menu_active, config_menu_selection, sleep_timeout_options, theme_menu_active, theme_menu_selection
-    global stream_profile_menu_active, stream_profile_menu_selection, SAVED_STREAM_PROFILE
     global help_active, help_selection, hardware_info_active, hardware_info_selection, language_menu_active, language_menu_selection
     global confirm_box_active, confirm_box_selection, confirm_box_callback, renderers_menu_active, renderers_menu_selection
     global bluetooth_menu_active, bluetooth_menu_selection, bluetooth_scan_menu_active, bluetooth_scan_menu_selection
@@ -3351,10 +3299,6 @@ def finish_press(key):
                 idx = (idx + 1) % len(sleep_timeout_options)
                 core.SCREEN_TIMEOUT = sleep_timeout_options[idx]
                 core.save_config("screen_timeout", core.SCREEN_TIMEOUT, section="settings")
-            elif option_id == "stream_quality":
-                config_menu_active = False
-                stream_profile_menu_active = True
-                stream_profile_menu_selection = 0
             elif option_id == "language":
                 config_menu_active = False
                 language_menu_active = True
@@ -3371,23 +3315,6 @@ def finish_press(key):
                 time.sleep(1)
                 os.execv(sys.executable, ['python3'] + sys.argv)
 
-            core.reset_scroll("menu_item", "menu_title")
-        return
-
-    if stream_profile_menu_active:
-        if key == "KEY_UP" and stream_profile_menu_selection > 0:
-            stream_profile_menu_selection -= 1
-            core.reset_scroll("menu_item")
-        elif key == "KEY_DOWN" and stream_profile_menu_selection < len(stream_profile_menu_options) - 1:
-            stream_profile_menu_selection += 1
-            core.reset_scroll("menu_item")
-        elif key == "KEY_LEFT":
-            stream_profile_menu_active = False
-            tool_menu_active = True
-            core.reset_scroll("menu_item")
-        elif key == "KEY_OK":
-            SAVED_STREAM_PROFILE = stream_profile_menu_options[stream_profile_menu_selection]["id"]
-            core.save_config("stream_profile", SAVED_STREAM_PROFILE, section="settings")
             core.reset_scroll("menu_item", "menu_title")
         return
 
