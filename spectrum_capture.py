@@ -58,10 +58,17 @@ class SpectrumCapture(threading.Thread):
         self.fmax = fmax
         self.manual_bands = manual_bands
         self.running = True
+        self.available = False
 
-        # ALSA capture
-        self.recorder = alsaaudio.PCM(type=alsaaudio.PCM_CAPTURE, device=self.device)
-        info = self.recorder.info()
+        try:
+            self.recorder = alsaaudio.PCM(type=alsaaudio.PCM_CAPTURE, device=self.device)
+            info = self.recorder.info()
+            self.available = True
+        except alsaaudio.ALSAAudioError as e:
+            print(f"[Spectro] ALSA device {self.device} unavailable: {e}")
+            self.recorder = None
+            self.available = False
+            return
         self.samplerate = info.get("rate", 44100)
         self.channels = info.get("channels", 2)
         self.format_name = info.get("format_name", "S16_LE")
@@ -78,7 +85,12 @@ class SpectrumCapture(threading.Thread):
         self.agc_alpha = self.profile["agc_alpha"]
         self.noise_gate_db = self.profile["noise_gate_db"]
 
-        self.recorder.setperiodsize(self.hop_s)
+        try:
+            self.recorder.setperiodsize(self.hop_s)
+        except Exception as e:
+            print(f"[Spectro] Failed to set period size: {e}")
+            self.available = False
+            return
 
         # Pre-compute window and FFT
         self.window = hann(self.win_s).astype(np.float32)
@@ -113,6 +125,8 @@ class SpectrumCapture(threading.Thread):
         return 20.0 * np.log10(rms / 32768.0 + EPS)
 
     def get_levels(self):
+        if not self.available:
+            return np.zeros(self.num_bars, dtype=np.float32)
         return self.levels.copy()
 
     def stop(self):
@@ -123,6 +137,8 @@ class SpectrumCapture(threading.Thread):
             pass
 
     def run(self):
+        if not self.available or not self.recorder:
+            return 
         buf = np.zeros(self.win_s, dtype=np.float32)
         while self.running:
             try:
@@ -135,7 +151,7 @@ class SpectrumCapture(threading.Thread):
                 msg = str(e).lower()
                 if "bad file descriptor" in msg or "file descriptor in bad state" in msg:
                     break
-                time.sleep(0.01)
+                time.sleep(0.05)
                 continue
 
             # PCM conversion according to actual format
