@@ -313,9 +313,14 @@ def load_spectrum_palette(theme_name="default"):
         PALETTE_SPECTRUM = [(float(val), core.get_color(tuple(col))) for val, col in theme["spectrum"]]
 
 if core.height >= 128:
-    if show_spectrum:
-        from spectrum_capture import SpectrumCapture
-        load_spectrum_palette(core.THEME_NAME)
+    try:
+        if show_spectrum:
+            from spectrum_capture import SpectrumCapture
+            load_spectrum_palette(core.THEME_NAME)
+    except Exception as e:
+        if core.DEBUG:
+            print(f"[UI] Spectrum disabled during import: {e}")
+        show_spectrum = False
 
 
 last_title_seen = ""
@@ -2343,6 +2348,22 @@ def monitor_spectrum():
                 time.sleep(2)
                 break  # leave inner loop, go back to reconnect
 
+def is_spectrum_available():
+    global spectrum
+    if "spectrum" in globals() and spectrum and getattr(spectrum, "running", False):
+        return True
+
+    try:
+        from spectrum_capture import SpectrumCapture
+        test = SpectrumCapture()
+        ok = getattr(test, "available", True)
+        test.stop()
+        return ok
+    except Exception as e:
+        if core.DEBUG:
+            print(f"[Spectrum] Availability check failed: {e}")
+        return False
+
 if core.height > 64:
     try:
         show_extra_infos = core.get_config("nowplaying", "show_extra_infos", fallback=False, type=bool)
@@ -2353,8 +2374,13 @@ if core.height > 64:
 
 if core.height >= 128:
     if show_spectrum:
-        start_spectrum()
-        threading.Thread(target=monitor_spectrum, daemon=True).start()
+        if not is_spectrum_available():
+            if core.DEBUG:
+                print("[UI] Spectrum disabled: no loopback device")
+            core.show_message(core.t("error_spectrum"))
+        else:
+            start_spectrum()
+            threading.Thread(target=monitor_spectrum, daemon=True).start()
 
 def interpolate_palette(value, palette):
     """Interpolate between colors in a palette (value ∈ [0,1])."""
@@ -3366,16 +3392,19 @@ def finish_press(key):
                 new_debug = not core.DEBUG
                 core.save_config("debug", new_debug, section="settings")
                 core.show_message(core.t("info_debug_on") if new_debug else core.t("info_debug_off"))
-                time.sleep(0.5)
+                time.sleep(1)
                 os.execv(sys.executable, ['python3'] + sys.argv)
             elif option_id == "spectrum":
+                if not is_spectrum_available():
+                    core.show_message(core.t("error_spectrum"))
+                    time.sleep(1)
+                    return
                 config_menu_active = False
                 new_spectrum = not show_spectrum
                 core.save_config("show_spectrum", new_spectrum, section="nowplaying")
                 core.show_message(core.t("info_spectrum_on") if new_spectrum else core.t("info_spectrum_off"))
-                time.sleep(0.5)
+                time.sleep(1)
                 os.execv(sys.executable, ['python3'] + sys.argv)
-
             core.reset_scroll("menu_item", "menu_title")
         return
 

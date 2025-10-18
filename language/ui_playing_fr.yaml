@@ -33,6 +33,7 @@ error_audioout_bt_missing: "Aucun périphérique Bluetooth connecté"
 error_audioout_invalid: "Sortie audio invalide (Local ou Bluetooth)"
 error_audioout_usage: "Usage: audioout-toggle.php [Local|Bluetooth]"
 error_audioout: "Erreur audioout"
+error_spectrum: "Error Spectro: Vous devez activer Alsa Loopback."
 
 # === Informational messages ===
 info_working: "Veuillez Patienter..."
@@ -69,7 +70,7 @@ info_language_set: "Langue : {selected}"
 info_theme_set: " Thème changé en {selected}"
 info_debug_on: "Debug : Activé"
 info_debug_off: "Debug : Désactivé"
-info_spectrum_on: "Spectro: Activé (Le Loopback doit être activé)"
+info_spectrum_on: "Spectro: Activé"
 info_spectrum_off: "Spectrum: Désactivé"
 
 info_read_favs: "Chargement Favoris"
