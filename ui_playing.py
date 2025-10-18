@@ -145,7 +145,8 @@ config_menu_selection = 0
 config_menu_options = [
     {"id": "sleep", "label": None},
     {"id": "language", "label": core.t("menu_language")},
-    {"id": "debug", "label": core.t("menu_debug")}
+    {"id": "debug", "label": core.t("menu_debug")},
+    {"id": "spectrum", "label": core.t("menu_spectrum")}
 ]
 
 if core.display_format != "MONO":
@@ -2217,7 +2218,11 @@ def draw_config_menu():
         if item["id"] == "sleep":
             item["label"] = core.t("menu_sleep") + f": {sleep_timeout_labels.get(core.SCREEN_TIMEOUT, 'Off')}"
             break
-    config_flags = {"Debug"} if core.DEBUG else set()
+    config_flags = set()
+    if core.DEBUG:
+        config_flags.add(core.t("menu_debug"))
+    if show_spectrum:
+        config_flags.add(core.t("menu_spectrum"))
     core.draw_custom_menu([item["label"] for item in config_menu_options], config_menu_selection, title=core.t("title_config"), multi=config_flags)
 
 def draw_help_screen():
@@ -2259,7 +2264,6 @@ def draw_hardware_info():
 
 def draw_confirm_box():
     core.draw_custom_menu([item["label"] for item in confirm_box_options], confirm_box_selection, title=confirm_box_title)
-
 
 def start_spectrum():
     global spectrum
@@ -3362,7 +3366,14 @@ def finish_press(key):
                 new_debug = not core.DEBUG
                 core.save_config("debug", new_debug, section="settings")
                 core.show_message(core.t("info_debug_on") if new_debug else core.t("info_debug_off"))
-                time.sleep(1)
+                time.sleep(0.5)
+                os.execv(sys.executable, ['python3'] + sys.argv)
+            elif option_id == "spectrum":
+                config_menu_active = False
+                new_spectrum = not show_spectrum
+                core.save_config("show_spectrum", new_spectrum, section="nowplaying")
+                core.show_message(core.t("info_spectrum_on") if new_spectrum else core.t("info_spectrum_off"))
+                time.sleep(0.5)
                 os.execv(sys.executable, ['python3'] + sys.argv)
 
             core.reset_scroll("menu_item", "menu_title")
