@@ -1326,7 +1326,7 @@ def check_virtualenv():
             elif choice == "3":
                 print(SETUP["venv_skipped"][lang])
                 log_line(msg="venv configuration skipped by user", context="check_virtualenv")
-                return None
+                return DEFAULT_VENV_PATH
             else:
                 print(SETUP["prompt_invalid"][lang])
     return DEFAULT_VENV_PATH
