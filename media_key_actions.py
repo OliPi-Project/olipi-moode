@@ -27,7 +27,7 @@ def set_hooks(show_fn, next_fn=None, prev_fn=None, stop_flag_fn=None):
 def handle_audio_keys(key, final_code, menu_context_flag=""):
     if key in ("KEY_PLAY", "KEY_PAUSE"):
         if final_code >= 8:
-            show_message("info_poweroff")
+            show_message("Shutting down...")
             if menu_context_flag == "local_stream" and set_stream_manual_stop:
                 set_stream_manual_stop(manual_stop=True)
             subprocess.run("mpc stop && sudo systemctl stop nginx && sudo poweroff", shell=True, check=True)
