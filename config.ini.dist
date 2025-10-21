@@ -12,6 +12,9 @@ color_theme = autumn
 current_screen =
 #refresh_interval = 0.05
 #rotation = 90
+#display_format = BGR
+#diag = 2.0
+#invert = True
 
 [nowplaying]
 show_extra_infos = True
