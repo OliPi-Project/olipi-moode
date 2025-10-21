@@ -301,7 +301,8 @@ def play_recent_random_albums_by_artist_mpd(since_days=7):
         client.connect("localhost", 6600)
         core.show_message(core.t("info_loading_generic"), permanent=True)
         since_date = (datetime.now(timezone.utc) - timedelta(days=since_days)).replace(microsecond=0).isoformat()
-        results = client.search(f"(modified-since '{since_date}')")
+        #results = client.search(f"(modified-since '{since_date}')")
+        results = client.search(f"(added-since '{since_date}')")
         artist_album_map = {}
         for entry in results:
             artist = entry.get("albumartist") or entry.get("artist")
