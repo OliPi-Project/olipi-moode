@@ -1012,13 +1012,10 @@ def configure_screen(olipi_moode_dir, olipi_core_dir):
             continue
 
         if choice in ("0", "s", "skip"):
-            # save NONE and return True to continue install
-            try:
-                core_config.save_config("current_screen", "NONE", section="screen", preserve_case=True)
-                log_line(msg="User skipped screen configuration (saved NONE)", context="configure_screen")
-                print(SETUP.get("screen_skipped", {}).get(lang, "⏭ Screen configuration skipped."))
-            except Exception as e:
-                log_line(error=f"Failed saving NONE for current_screen: {e}", context="configure_screen")
+            # return True to continue install
+            #core_config.save_config("current_screen", "NONE", section="screen", preserve_case=True)
+            log_line(msg="User skipped screen configuration", context="configure_screen")
+            print(SETUP.get("screen_skipped", {}).get(lang, "⏭ Screen configuration skipped."))
             return True
 
         if choice in ("x", "q", "cancel"):
