@@ -36,7 +36,7 @@ previous_blocking_render = False
 
 launch_from_artist_override = False
 
-SCROLL_SPEED_LIBRARY = 0.05
+SCROLL_SPEED_LIBRARY = 0.03
 SCROLL_SPEED_TITLE_LIBRARY = 0.05
 SCROLL_TITLE_LIB_PADDING_END = 20
 
@@ -1145,7 +1145,7 @@ def draw_library():
             if text_w > avail:
                 # adaptive timing (longer text -> faster stepping)
                 BASE_INTERVAL = SCROLL_SPEED_LIBRARY
-                MIN_INTERVAL = 0.03
+                MIN_INTERVAL = 0.02
                 MAX_INTERVAL = 0.14
                 PAUSE_DURATION = 0.6
                 BLANK_DURATION = 0.12
