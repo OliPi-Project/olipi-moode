@@ -1313,7 +1313,7 @@ def check_virtualenv():
             if choice == "1":
                 print(SETUP["venv_reuse_update"][lang].format(DEFAULT_VENV_PATH))
                 log_line(msg="Reuse and update Virtual environment", context="setup_virtualenv")
-                return DEFAULT_VENV_PATH
+                return True
             elif choice == "2":
                 print(SETUP["venv_delete"][lang])
                 log_line(msg="Virtual environment deleted", context="check_virtualenv")
@@ -1322,18 +1322,16 @@ def check_virtualenv():
                 except Exception as e:
                     print(f"❌ Failed to delete {DEFAULT_VENV_PATH}: {e}")
                     safe_exit(1, e)
-                return DEFAULT_VENV_PATH
+                return True
             elif choice == "3":
                 print(SETUP["venv_skipped"][lang])
                 log_line(msg="venv configuration skipped by user", context="check_virtualenv")
-                return DEFAULT_VENV_PATH
+                return False
             else:
                 print(SETUP["prompt_invalid"][lang])
     return DEFAULT_VENV_PATH
 
 def setup_virtualenv(venv_path):
-    if venv_path is None:
-        return
     requirements_path = os.path.join(OLIPI_MOODE_DIR, "requirements.txt")
     if not os.path.exists(venv_path):
         print(SETUP["venv_install"][lang].format(venv_path))
@@ -1679,14 +1677,14 @@ def main():
                 os.execv(sys.executable, [sys.executable, script_path] + new_args)
             configure_screen(OLIPI_MOODE_DIR, OLIPI_CORE_DIR)
             check_ram()
-            venv_path = check_virtualenv()
-            setup_virtualenv(venv_path)
+            install_venv = check_virtualenv()
+            if install_venv:
+                setup_virtualenv(DEFAULT_VENV_PATH)
             user = detect_user()
-            run_install_services(venv_path, user)
+            run_install_services(DEFAULT_VENV_PATH, user)
             append_to_profile()
             settings = load_settings()
             settings.update({
-                "venv_path": str(venv_path),
                 "project_dir": str(OLIPI_MOODE_DIR),
                 "core_dir": str(OLIPI_CORE_DIR),
                 "install_date": time.strftime("%Y-%m-%d %H:%M:%S"),
@@ -1717,14 +1715,14 @@ def main():
                 os.execv(sys.executable, [sys.executable, script_path] + new_args)
             configure_screen(OLIPI_MOODE_DIR, OLIPI_CORE_DIR)
             check_ram()
-            venv_path = check_virtualenv()
-            setup_virtualenv(venv_path)
+            install_venv = check_virtualenv()
+            if install_venv:
+                setup_virtualenv(DEFAULT_VENV_PATH)
             user = detect_user()
-            run_install_services(venv_path, user)
+            run_install_services(DEFAULT_VENV_PATH, user)
             append_to_profile()
             settings = load_settings()
             settings.update({
-                "venv_path": str(venv_path),
                 "project_dir": str(OLIPI_MOODE_DIR),
                 "core_dir": str(OLIPI_CORE_DIR),
                 "install_date": time.strftime("%Y-%m-%d %H:%M:%S"),
