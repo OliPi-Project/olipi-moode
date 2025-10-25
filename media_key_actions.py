@@ -32,46 +32,46 @@ def handle_audio_keys(key, final_code, menu_context_flag=""):
                 set_stream_manual_stop(manual_stop=True)
             subprocess.run("mpc stop && sudo systemctl stop nginx && sudo poweroff", shell=True, check=True)
         else:
-            subprocess.run(["mpc", "toggle"], check=True)
+            subprocess.run(["mpc", "toggle"], check=False)
         return True
     elif key == "KEY_STOP":
         if menu_context_flag == "local_stream" and set_stream_manual_stop:
             set_stream_manual_stop(manual_stop=True)
-        subprocess.run(["mpc", "stop"], check=True)
+        subprocess.run(["mpc", "stop"], check=False)
         return True
     elif key == "KEY_NEXT":
         if menu_context_flag == "local_stream" and next_stream:
             next_stream(manual_skip=True)
             return True
         if final_code >= 4:
-            subprocess.run(["mpc", "seek", "+00:00:10"], check=True)
+            subprocess.run(["mpc", "seek", "+00:00:10"], check=False)
         else:
-            subprocess.run(["mpc", "next"], check=True)
+            subprocess.run(["mpc", "next"], check=False)
         return True
     elif key == "KEY_PREVIOUS":
         if menu_context_flag == "local_stream" and previous_stream:
             previous_stream(manual_skip=True)
             return True
         if final_code >= 4:
-            subprocess.run(["mpc", "seek", "-00:00:10"], check=True)
+            subprocess.run(["mpc", "seek", "-00:00:10"], check=False)
         else:
-            subprocess.run(["mpc", "prev"], check=True)
+            subprocess.run(["mpc", "prev"], check=False)
         return True
     elif key == "KEY_FORWARD":
         if menu_context_flag == "local_stream":
             return True
-        subprocess.run(["mpc", "seek", "+00:00:10"], check=True)
+        subprocess.run(["mpc", "seek", "+00:00:10"], check=False)
         return True
     elif key == "KEY_REWIND":
         if menu_context_flag == "local_stream":
             return True
-        subprocess.run(["mpc", "seek", "-00:00:10"], check=True)
+        subprocess.run(["mpc", "seek", "-00:00:10"], check=False)
         return True
     elif key == "KEY_VOLUMEUP":
-        subprocess.run(["mpc", "volume", "+1"], check=True)
+        subprocess.run(["mpc", "volume", "+1"], check=False)
         return True
     elif key == "KEY_VOLUMEDOWN":
-        subprocess.run(["mpc", "volume", "-1"], check=True)
+        subprocess.run(["mpc", "volume", "-1"], check=False)
         return True
     elif key == "KEY_MUTE":
         global _last_volume
@@ -81,12 +81,12 @@ def handle_audio_keys(key, final_code, menu_context_flag=""):
             current_vol = int(m.group(1))
             if current_vol > 0:
                 _last_volume = current_vol
-                subprocess.run(["mpc", "volume", "0"], check=True)
+                subprocess.run(["mpc", "volume", "0"], check=False)
             else:
                 restore_vol = _last_volume if _last_volume is not None else 3
-                subprocess.run(["mpc", "volume", str(restore_vol)], check=True)
+                subprocess.run(["mpc", "volume", str(restore_vol)], check=False)
         else:
-            subprocess.run(["mpc", "volume", "3"], check=True)
+            subprocess.run(["mpc", "volume", "3"], check=False)
         return True
     return False
 
@@ -127,17 +127,17 @@ def handle_custom_key(key, final_code, menu_context_flag=""):
     elif key == "KEY_RED":
         if menu_context_flag == "local_stream" and set_stream_manual_stop:
             set_stream_manual_stop(manual_stop=True)
-        subprocess.run("mpc stop; mpc clear", shell=True, check=True)
+        subprocess.run("mpc stop; mpc clear", shell=True, check=False)
         time.sleep(1)
-        subprocess.run("mpc load Favorites; mpc play", shell=True, check=True)
+        subprocess.run("mpc load Favorites; mpc play", shell=True, check=False)
         show_message("Reading Favorites")
         return True
     elif key == "KEY_BLUE":
         if menu_context_flag == "local_stream" and set_stream_manual_stop:
             set_stream_manual_stop(manual_stop=True)
-        subprocess.run("mpc stop; mpc clear", shell=True, check=True)
+        subprocess.run("mpc stop; mpc clear", shell=True, check=False)
         time.sleep(1)
-        subprocess.run("mpc load 'Default Playlist'; mpc play", shell=True, check=True)
+        subprocess.run("mpc load 'Default Playlist'; mpc play", shell=True, check=False)
         show_message("Reading Default Playlist")
         return True
     return False
