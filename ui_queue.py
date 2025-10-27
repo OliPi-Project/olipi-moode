@@ -25,8 +25,8 @@ font_title = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf
 font_item = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 11)
 font_rename_input = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 12)
 font_rename_info = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 10)
-font_date = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 24)
-font_count = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 28)
+font_date = core.screen.ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 20)
+font_count = core.screen.ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 22)
 
 core.load_translations(Path(__file__).stem)
 
@@ -787,7 +787,14 @@ def add_default_cover(playlist_name):
         x_date = (img.width - (bbox_date[2] - bbox_date[0])) // 2
         draw.text((x_date, 10), date_str, fill=core.COLOR_TEXT, font=font_date)
 
-        track_count = len(queue_items)
+        client = MPDClient()
+        client.timeout = 10
+        client.connect("localhost", 6600)
+        playlist = client.listplaylist(playlist_name)
+        client.close()
+        client.disconnect()
+
+        track_count = len(playlist)
         if track_count == 1:
             count_str = "1 piste"
         else:
@@ -801,6 +808,7 @@ def add_default_cover(playlist_name):
         subprocess.call(["sudo", "cp", src_tmp, dest])
         if core.DEBUG:
             print(f"Custom cover image saved to: {dest}")
+        subprocess.call(["rm", src_tmp])
 
     except Exception as e:
         if core.DEBUG:
@@ -862,10 +870,37 @@ def confirm_playlist_choice(menu_option_id):
         client.connect("localhost", 6600)
 
         if menu_option_id == "add_track_playlist":
-            song = client.playlistinfo()[queue_selection]
-            uri = song.get("file")
-            if uri:
-                client.playlistadd(name, uri)
+            if playlist_selection == 0:  # "<create new playlist>"
+                timestamp = time.strftime("%Y-%m-%d_%Hh%M")
+                new_name = f"{timestamp}"
+                song = client.playlistinfo()[queue_selection]
+                uri = song.get("file")
+                if uri:
+                    client.playlistadd(new_name, uri)
+                    m3u_path = f"/var/lib/mpd/playlists/{new_name}.m3u"
+                    try:
+                        subprocess.call(["sudo", "chown", "root:root", m3u_path])
+                        subprocess.call(["sudo", "chmod", "777", m3u_path])
+                        if core.DEBUG:
+                            print(f"Corrected permissions for {m3u_path}")
+                    except Exception as e:
+                        if core.DEBUG:
+                            print(f"Error permission playlist: {e}")
+                    genre_selected.clear()
+                    genre_menu_selection = 0
+                    genre_menu_active = True
+                    draw_queue()
+                    add_default_cover(new_name)
+                    core.show_message(core.t("info_playlist_track_added", name=new_name))
+            else:
+                song = client.playlistinfo()[queue_selection]
+                uri = song.get("file")
+                if uri:
+                    client.playlistadd(name, uri)
+                if re.match(r'^[a-z].*$', name) or re.match(r'^\d{4}-\d{2}-\d{2}_\d{1,2}h\d{2}$', name):  # Format YYYY-MM-DD_HHhMM
+                    add_default_cover(name)
+                else:
+                    print(f"Cover not replaced for default playlists: {name}")
                 core.show_message(core.t("info_playlist_track_added", name=name))
 
         elif menu_option_id == "save_queue_playlist":
@@ -882,23 +917,19 @@ def confirm_playlist_choice(menu_option_id):
                 except Exception as e:
                     if core.DEBUG:
                         print(f"Error permission playlist: {e}")
-
                 genre_selected.clear()
                 genre_menu_selection = 0
                 genre_menu_active = True
                 draw_queue()
-
                 add_default_cover(new_name)
                 core.show_message(core.t("info_queue_saved_as", name=new_name))
 
             else:
                 client.save(name, "replace")
-
                 if re.match(r'^[a-z].*$', name) or re.match(r'^\d{4}-\d{2}-\d{2}_\d{1,2}h\d{2}$', name):  # Format YYYY-MM-DD_HHhMM
                     add_default_cover(name)
                 else:
                     print(f"Cover not replaced for default playlists: {name}")
-
                 m3u_path = f"/var/lib/mpd/playlists/{name}.m3u"
                 try:
                     subprocess.call(["sudo", "chown", "root:root", m3u_path])
@@ -908,11 +939,9 @@ def confirm_playlist_choice(menu_option_id):
                 except Exception as e:
                     if core.DEBUG:
                         print(f"Error permission playlist: {e}")
-
                 genre_selected.clear()
                 genre_menu_selection = 0
                 genre_menu_active = True
-
                 core.show_message(core.t("info_playlist_replaced", name=name))
 
         client.close()
