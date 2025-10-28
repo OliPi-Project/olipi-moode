@@ -55,6 +55,7 @@ show_label_genres: "Genres:"
 show_refreshing_queue: "Refreshing queue..."
 show_queue_empty_notice_1: "Ready for Adventure?"
 show_queue_empty_notice_2: "Press Key OK"
+show_track_cover: "Track"
 
 # Titles
 title_empty_queue: "♪ Empty Queue ♪"

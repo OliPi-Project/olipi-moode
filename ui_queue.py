@@ -785,7 +785,7 @@ def add_default_cover(playlist_name):
         date_str = format_localized_date(datetime.now())
         bbox_date = draw.textbbox((0, 0), date_str, font=font_date)
         x_date = (img.width - (bbox_date[2] - bbox_date[0])) // 2
-        draw.text((x_date, 10), date_str, fill=core.COLOR_TEXT, font=font_date)
+        draw.text((x_date, 8), date_str, fill=core.COLOR_TEXT, font=font_date)
 
         client = MPDClient()
         client.timeout = 10
@@ -795,14 +795,15 @@ def add_default_cover(playlist_name):
         client.disconnect()
 
         track_count = len(playlist)
+        track_label = core.t("show_track_cover")
         if track_count == 1:
-            count_str = "1 piste"
+            count_str = f"1 {track_label}"
         else:
-            count_str = f"{track_count} pistes"
+            count_str = f"{track_count} {track_label}s"
 
         bbox_count = draw.textbbox((0, 0), count_str, font=font_count)
         x_count = (img.width - (bbox_count[2] - bbox_count[0])) // 2
-        draw.text((x_count, img.height - bbox_count[3] - 10), count_str, fill=core.COLOR_TEXT, font=font_count)
+        draw.text((x_count, img.height - bbox_count[3] - 8), count_str, fill=core.COLOR_TEXT, font=font_count)
 
         img.save(src_tmp, "JPEG")
         subprocess.call(["sudo", "cp", src_tmp, dest])

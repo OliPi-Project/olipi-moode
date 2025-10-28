@@ -55,6 +55,7 @@ show_label_genres: "Genres:"
 show_refreshing_queue: "Chargement de la file..."
 show_queue_empty_notice_1: "Prêt pour l'aventure?"
 show_queue_empty_notice_2: "Appuyez sur OK"
+show_track_cover: "Piste"
 
 # Titles
 title_empty_queue: "♪ File d'attente vide ♪"
