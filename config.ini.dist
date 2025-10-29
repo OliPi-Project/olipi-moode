@@ -37,22 +37,29 @@ genres = Varied, Relax, Rhythmic, Nocturne, Instru
 [input]
 ### use_lirc is configured during install_lirc_remote.py. You'll can activate it manually if you've installed LIRC yourself.
 use_lirc = false
+use_mpr121 = false
 use_buttons = false
 use_rotary = false
+
+[mpr121]
+i2c_address = 0x5A
+int_pin = 4
+touch_threshold = 20
+release_threshold = 15
 
 [buttons]
 ### If you use buttons, uncomment and Modify the gpio pins to suit your configuration.
 ### Required keys (essential for OliPi MoOde navigation):
-#key_UP = 4
-#key_DOWN = 5
-#key_LEFT = 6
-#key_RIGHT = 12
-#key_OK = 13
-#key_BACK = 16
-#key_INFO = 17
-#key_CHANNELUP = 26
-#key_CHANNELDOWN = 27
-#KEY_PLAY = 25
+#KEY_UP = 17
+#KEY_DOWN = 16
+#KEY_LEFT = 13
+#KEY_RIGHT = 12
+#KEY_OK = 6
+#KEY_BACK = 5
+#KEY_PLAY = 4
+#KEY_CHANNELUP = 26
+#KEY_CHANNELDOWN = 27
+#KEY_INFO = 25
 
 [rotary]
 ### if you use rotary encoder, uncomment and modify to suit your configuration.
@@ -60,8 +67,8 @@ use_rotary = false
 #rotary_invert = False
 #rotary_min_poll_ms = 1
 ### KEY_UP/DOWN (volume in now-playing screen) need to be commented in [buttons] section if you use:
-#pin_a = 4
-#pin_b = 5
+#pin_a = 17
+#pin_b = 16
 
 [remote_mapping]
 ### Use install_lirc_remote.py for remap your remote key or modify manualy here.
@@ -74,10 +81,10 @@ KEY_LEFT = —
 KEY_RIGHT = —
 KEY_OK = —
 KEY_BACK = —
-KEY_INFO = —
 KEY_CHANNELUP = —
 KEY_CHANNELDOWN = —
 KEY_PLAY = —
+KEY_INFO = —
 ### Optional keys (additional multimedia controls)
 KEY_STOP = —
 KEY_NEXT = —
