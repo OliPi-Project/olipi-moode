@@ -44,8 +44,27 @@ use_rotary = false
 [mpr121]
 i2c_address = 0x5A
 int_pin = 4
-touch_threshold = 20
-release_threshold = 15
+### Default values for all pads:
+touch_threshold = 30
+release_threshold = 20
+
+[mpr121_pads]
+### Set KEY and thresholds for each pad if needed:
+### Can just type "pad3 = KEY_YOURKEY" without threshold if you want to use default thresold.
+pad0 = KEY_UP, 30, 20
+pad1 = KEY_DOWN, 30, 20
+pad2 = KEY_LEFT, 30, 20
+pad3 = KEY_RIGHT, 30, 20
+pad4 = KEY_OK, 30, 20
+pad5 = KEY_BACK, 30, 20
+pad6 = KEY_CHANNELUP, 30, 20
+pad7 = KEY_CHANNELDOWN, 30, 20
+pad8 = KEY_PLAY, 30, 20
+pad9 = KEY_INFO, 30, 20
+pad10 = KEY_STOP, 30, 20
+pad11 = KEY_POWER, 30, 20
+### The 13th virtual proximity pad is not currently used:
+pad12 = KEY_PROX, 80, 75
 
 [buttons]
 ### If you use buttons, uncomment and Modify the gpio pins to suit your configuration.
@@ -65,7 +84,7 @@ release_threshold = 15
 ### if you use rotary encoder, uncomment and modify to suit your configuration.
 #rotary_divider = 2
 #rotary_invert = False
-#rotary_min_poll_ms = 1
+#rotary_min_poll_ms = 1.0
 ### KEY_UP/DOWN (volume in now-playing screen) need to be commented in [buttons] section if you use:
 #pin_a = 17
 #pin_b = 16
