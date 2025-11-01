@@ -2682,30 +2682,30 @@ def nav_left_short():
         previous_stream(manual_skip=True)
         return
     if now_playing_mode:
-        subprocess.run(["mpc", "prev"])
+        subprocess.run(["mpc", "prev"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
 
 def nav_right_short():
     if menu_context_flag == "local_stream":
         next_stream(manual_skip=True)
         return
     if now_playing_mode:
-        subprocess.run(["mpc", "next"])
+        subprocess.run(["mpc", "next"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
 
 def nav_up():
     if now_playing_mode:
-        subprocess.run(["mpc", "volume", "+1"])
+        subprocess.run(["mpc", "volume", "+1"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
 
 def nav_down():
     if now_playing_mode:
-        subprocess.run(["mpc", "volume", "-1"])
+        subprocess.run(["mpc", "volume", "-1"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
 
 def nav_right_long():
     if now_playing_mode:
-        subprocess.run(["mpc", "seek", "+00:00:10"])
+        subprocess.run(["mpc", "seek", "+00:00:10"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
 
 def nav_left_long():
     if now_playing_mode:
-        subprocess.run(["mpc", "seek", "-00:00:10"])
+        subprocess.run(["mpc", "seek", "-00:00:10"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
     else:
         core.show_message(core.t("info_back_home"))
 
