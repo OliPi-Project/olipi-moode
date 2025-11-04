@@ -31,6 +31,7 @@ This guide covers common problems and their solutions when using OliPi MoOde.
       `dmesg | grep fb`
 
     - Also you can try launch script manualy with python3:
+        - Turn On Debug via menu or in config.ini
         - `sudo systemctl stop olipi-ui-playing` (stop service)
         - `source ~/.olipi-moode-venv/bin/activate` (activates the virtual environment)
         - `python3 ~/olipi-moode/ui_playing.py` (start now playing script)

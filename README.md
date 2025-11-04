@@ -82,7 +82,7 @@ sudo bash uninstall-olipi-moode.sh
 - [ZRAM](#-zram-on-low-memory-devices)
 - [Moode configuration reminder](#-moode-configuration-reminder)
 - [Uninstall](#-uninstall)
-- [Troubleshooting](#-troubleshooting)
+- [Troubleshooting](#-troubleshooting-and-faq)
 - [Contributing](#-contributing)
 - [License](#-license)
 - [Disclaimer](#-disclaimer)
