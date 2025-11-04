@@ -974,6 +974,7 @@ def toggle_favorite():
             client.save(fav_name)
             subprocess.run(["sudo", "chmod", "777", fav_path])
             subprocess.run(["sudo", "chown", "root:root", fav_path])
+            subprocess.call(["python3",  OLIPIMOODE_DIR / "playlist_tags.py", "--file", fav_path, "--add-img"])
         playlist = client.listplaylist(fav_name)
         if file_path in playlist:
             client.command_list_ok_begin()
@@ -981,6 +982,7 @@ def toggle_favorite():
             client.command_list_end()
             subprocess.run(["sudo", "chmod", "777", fav_path])
             subprocess.run(["sudo", "chown", "root:root", fav_path])
+            subprocess.call(["python3",  OLIPIMOODE_DIR / "playlist_tags.py", "--file", fav_path, "--add-img"])
             if core.DEBUG: print("✓ Removed from Favorites")
         else:
             client.playlistadd(fav_name, file_path)
