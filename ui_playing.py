@@ -374,6 +374,7 @@ global_state = {
     "album": "",
     "artist": "",
     "artist_album": "",
+    "path": "",
     "btsvc": "0",
     "btactive": "0",
     "airplaysvc": "0",
@@ -512,6 +513,7 @@ def player_status_thread():
                 global_state["album"] = album
                 global_state["artist"] = artist
                 global_state["artist_album"] = artist_album
+                global_state["path"] = path
                 global_state["state"] = status_extra.get("state", "unknown")
                 audio_fmt = status_extra.get("audio", "")
                 if audio_fmt:
@@ -655,7 +657,7 @@ def non_idle_status_thread():
             load_renderer_states_from_db()
         if now - last_fav_time > 1.5:
             last_fav_time = now
-            global_state["favorite"] = is_current_song_favorite(global_state.get("title", ""))
+            global_state["favorite"] = is_current_song_favorite(global_state.get("path", ""))
         if now - last_clock_time > 10:
             last_clock_time = now
             global_state["clock"] = time.strftime("%Hh%M")
@@ -918,6 +920,7 @@ def get_favorites_playlist_name():
         cursor.execute("SELECT value FROM cfg_system WHERE param = 'favorites_name'")
         row = cursor.fetchone()
         conn.close()
+        if core.DEBUG: print(f"Favorites playlist found: {row[0]}")
         return row[0] if row else "Favorites"
     except Exception as e:
         core.show_message(core.t("error_db", error=e))
@@ -951,6 +954,7 @@ def is_current_song_favorite(path):
 def toggle_favorite():
     global favorites_last_check
     fav_name = global_state.get("favorites_playlist", "Favorites")
+    fav_path = f"/var/lib/mpd/playlists/{fav_name}.m3u"
     try:
         client = MPDClient()
         client.timeout = 2
@@ -966,12 +970,17 @@ def toggle_favorite():
         try:
             client.listplaylist(fav_name)
         except:
+            if core.DEBUG: print("Favorite playlist not found, create new Favorites playlist.")
             client.save(fav_name)
+            subprocess.run(["sudo", "chmod", "777", fav_path])
+            subprocess.run(["sudo", "chown", "root:root", fav_path])
         playlist = client.listplaylist(fav_name)
         if file_path in playlist:
             client.command_list_ok_begin()
             client.playlistdelete(fav_name, playlist.index(file_path))
             client.command_list_end()
+            subprocess.run(["sudo", "chmod", "777", fav_path])
+            subprocess.run(["sudo", "chown", "root:root", fav_path])
             if core.DEBUG: print("✓ Removed from Favorites")
         else:
             client.playlistadd(fav_name, file_path)
