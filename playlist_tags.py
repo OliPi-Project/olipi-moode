@@ -55,16 +55,16 @@ def ensure_tags(lines, genre=None, add_img=False, preserve_only=False):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Ajoute ou conserve les balises EXTGENRE et EXTIMG dans une playlist .m3u")
-    parser.add_argument("--file", required=True, help="Chemin de la playlist .m3u")
-    parser.add_argument("--set-genre", help="Chaîne de genres (ex: Relax,Instru ou Relax;Instru)")
-    parser.add_argument("--add-img", action="store_true", help="Ajoute EXTIMG:local")
-    parser.add_argument("--preserve-tags", action="store_true", help="Conserve les balises existantes si elles sont présentes")
+    parser = argparse.ArgumentParser(description="Add or retain EXTGENRE and EXTIMG tags in a .m3u playlist")
+    parser.add_argument("--file", required=True, help="Playlist path .m3u")
+    parser.add_argument("--set-genre", help="Genre chain (e.g. Relax,Instru or Relax;Instru)")
+    parser.add_argument("--add-img", action="store_true", help="Adds EXTIMG:local")
+    parser.add_argument("--preserve-tags", action="store_true", help="Retains existing tags if present")
 
     args = parser.parse_args()
 
     if not os.path.isfile(args.file):
-        print(f"Erreur : fichier introuvable {args.file}")
+        print(f"Error: file not found {args.file}")
         sys.exit(1)
 
     try:
@@ -76,9 +76,9 @@ def main():
             preserve_only=args.preserve_tags
         )
         write_playlist_lines(args.file, new_lines)
-        print("Balises mises à jour avec succès.")
+        print("Tags successfully updated.")
     except Exception as e:
-        print(f"Erreur lors de la mise à jour : {e}")
+        print(f"Update error: {e}")
         sys.exit(1)
 
 
