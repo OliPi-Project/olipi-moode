@@ -145,12 +145,12 @@ config_menu_selection = 0
 config_menu_options = [
     {"id": "sleep", "label": None},
     {"id": "language", "label": core.t("menu_language")},
-    {"id": "debug", "label": core.t("menu_debug")},
-    {"id": "spectrum", "label": core.t("menu_spectrum")}
+    {"id": "debug", "label": core.t("menu_debug")}
 ]
-
 if core.display_format != "MONO":
-    config_menu_options.insert(3, {"id": "theme", "label": core.t("menu_theme")})
+    config_menu_options.insert(2, {"id": "theme", "label": core.t("menu_theme")})
+if core.height >= 128:
+    config_menu_options.insert(3, {"id": "spectrum", "label": core.t("menu_spectrum")})
 sleep_timeout_options = [0, 15, 30, 60, 300, 600]
 sleep_timeout_labels = {0: "Off", 15: "15s", 30: "30s", 60: "1m", 300: "5m", 600: "10m"}
 
@@ -920,7 +920,6 @@ def get_favorites_playlist_name():
         cursor.execute("SELECT value FROM cfg_system WHERE param = 'favorites_name'")
         row = cursor.fetchone()
         conn.close()
-        if core.DEBUG: print(f"Favorites playlist found: {row[0]}")
         return row[0] if row else "Favorites"
     except Exception as e:
         core.show_message(core.t("error_db", error=e))
