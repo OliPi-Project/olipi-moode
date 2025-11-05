@@ -301,6 +301,13 @@ def load_icons_from_theme():
 
 load_icons_from_theme()
 
+show_clock = core.get_config("nowplaying", "show_clock", fallback=True, type=bool)
+
+if core.height > 64:
+    show_extra_infos = core.get_config("nowplaying", "show_extra_infos", fallback=False, type=bool)
+    show_progress_barre = core.get_config("nowplaying", "show_progress_barre", fallback=False, type=bool)
+
+
 spectrum = None
 PALETTE_SPECTRUM = []
 show_spectrum = core.get_config("nowplaying", "show_spectrum", fallback=False, type=bool)
@@ -451,6 +458,13 @@ def build_radio_map(pls_directory="/var/lib/mpd/music/RADIO"):
                     print(f"Error reading {filename}: {e}")
     RADIO_MAP = radio_map
 build_radio_map()
+
+def format_time(seconds: float) -> str:
+    if seconds is None or seconds <= 0:
+        return "0:00"
+    h, m = divmod(int(seconds), 3600)
+    m, s = divmod(m, 60)
+    return f"{h:d}:{m:02d}:{s:02d}" if h else f"{m:d}:{s:02d}"
 
 def player_status_thread():
     global last_title_seen, last_artist_seen, menu_context_flag
@@ -1467,7 +1481,7 @@ def yt_search_track(index, preload=False, _fallback_attempt=False, local_query=N
     try:
         ydl_opts = {
             'quiet': True,
-            'default_search': 'ytsearch',
+            'default_search': 'ytsearch3',
             'noplaylist': True,
             'format': "bestaudio[protocol!=m3u8]",
             'no_warnings': True
@@ -1495,7 +1509,13 @@ def yt_search_track(index, preload=False, _fallback_attempt=False, local_query=N
         if info is None:
             raise last_exception if last_exception is not None else Exception("yt-dlp failed without exception")
 
-        video = info['entries'][0] if '_type' in info else info
+        if "_type" in info and "entries" in info:
+            entries = [v for v in info["entries"] if v.get("duration", 0) and v["duration"] > 60]
+            if not entries:
+                entries = info["entries"]  # fallback si rien trouvé
+            video = entries[0]
+        else:
+            video = info
 
         resolved_url = video['url']
         title_raw = video.get("track") or video.get("title") or "Unknown"
@@ -1569,7 +1589,7 @@ def yt_search_track(index, preload=False, _fallback_attempt=False, local_query=N
             final_title_yt = title_final
             artist_yt = artist_final
             album_yt = album
-            global_state["duration"] = float(cache_entry.get("duration") or 0.0)
+            global_state["duration"] = float((cache_entry.get("duration") if cache_entry else duration) or 0.0)
             load_renderer_states_from_db()
             if is_renderer_active():
                 if core.DEBUG:
@@ -2374,14 +2394,6 @@ def is_spectrum_available():
             print(f"[Spectrum] Availability check failed: {e}")
         return False
 
-if core.height > 64:
-    try:
-        show_extra_infos = core.get_config("nowplaying", "show_extra_infos", fallback=False, type=bool)
-        show_progress_barre = core.get_config("nowplaying", "show_progress_barre", fallback=False, type=bool)
-    except:
-        show_extra_infos = False
-        show_progress_barre = False
-
 if core.height >= 128:
     if show_spectrum:
         if not is_spectrum_available():
@@ -2649,13 +2661,13 @@ def draw_nowplaying():
         else:
             y_progress = y_extra_info
 
+        elapsed = float(global_state.get("elapsed", 0.0))
+        duration = float(global_state.get("duration", 0.0))
         # --- Progress Bar ---
         if core.height > 64 and show_progress_barre:
             progress_h = 2
             progress_w = int(core.width - (padding_x * 2))
             progress_x = (core.width - progress_w) // 2
-            elapsed = float(global_state.get("elapsed", 0.0))
-            duration = float(global_state.get("duration", 0.0))
             ratio = elapsed / duration if duration > 0 else 0
             fill_w = int(progress_w * ratio)
             # Background barre
@@ -2683,7 +2695,15 @@ def draw_nowplaying():
 
         # --- Volume / Clock ---
         core.draw.text((padding_x, y_bottom), f"Vol: {volume}", font=font_vol_clock, fill=core.COLOR_VOL_CLOCK)
-        clock_text = global_state["clock"]
+        if show_clock:
+            clock_text = global_state["clock"]
+        else:
+            elapsed_str = format_time(elapsed)
+            duration_str = format_time(duration)
+            if menu_context_flag == "radio":
+                clock_text = f"{elapsed_str}"
+            else:
+                clock_text = f"{elapsed_str}/{duration_str}"
         clock_w = core.draw.textlength(clock_text, font=font_vol_clock)
         core.draw.text((core.width - clock_w - padding_x, y_bottom), clock_text, font=font_vol_clock, fill=core.COLOR_VOL_CLOCK)
 
@@ -2804,6 +2824,13 @@ def nav_info():
         if not core.DEBUG:
             core.show_message(core.t("error_generic"))
 
+def nav_info_long():
+    new_clock = not show_clock
+    core.save_config("show_clock", new_clock, section="nowplaying")
+    core.show_message(core.t("info_clock_on") if new_clock else core.t("info_clock_off"))
+    time.sleep(1)
+    os.execv(sys.executable, ['python3'] + sys.argv)
+
 def nav_back():
     core.show_message(core.t("info_go_library_screen"))
     time.sleep(1)
@@ -2917,6 +2944,8 @@ def finish_press(key):
             nav_back_long()
         elif key == "KEY_RIGHT":
             nav_right_long()
+        elif key == "KEY_INFO":
+            nav_info_long()
         elif key == "KEY_POWER":
             core.show_message(core.t("info_poweroff"))
             subprocess.run(["mpc", "stop"])
