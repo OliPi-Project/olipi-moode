@@ -44,6 +44,7 @@ font_extra_info = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bol
 
 core.load_translations(Path(__file__).stem)
 
+render_lock = threading.Lock()
 now_playing_mode = False
 
 idle_timer = time.time()
@@ -2120,63 +2121,64 @@ def toggle_audio_output(mode):
     bluetooth_menu_active = True
 
 def render_screen():
-    #t0 = time.perf_counter()
-    global now_playing_mode
-    now_playing_mode = False
+    with render_lock:
+        #t0 = time.perf_counter()
+        global now_playing_mode
+        now_playing_mode = False
 
-    #t_s = time.perf_counter()
-    if core.message_text:
-        core.draw_message()
-        idle_timer = time.time()
-    elif help_active:
-        draw_help_screen()
-    elif confirm_box_active:
-        draw_confirm_box()
-    elif hardware_info_active:
-        draw_hardware_info()
-    elif theme_menu_active:
-        draw_theme_menu()
-    elif language_menu_active:
-        draw_language_menu()
-    elif config_menu_active:
-        draw_config_menu()
-    elif renderers_menu_active:
-        draw_renderers_menu()
-    elif bluetooth_device_actions_menu_active:
-        draw_bluetooth_device_actions_menu()
-    elif bluetooth_audioout_menu_active:
-        draw_bluetooth_audioout_menu()
-    elif bluetooth_scan_menu_active:
-        draw_bluetooth_scan_menu()
-    elif bluetooth_paired_menu_active:
-        draw_bluetooth_paired_menu()
-    elif bluetooth_menu_active:
-        draw_bluetooth_menu()
-    elif tool_menu_active:
-        draw_tool_menu()
-    elif songlog_action_active:
-        draw_songlog_action_menu()
-    elif songlog_active:
-        draw_songlog_menu()
-    elif power_menu_active:
-        draw_power_menu()
-    elif playback_modes_menu_active:
-        draw_playback_modes_menu()
-    elif stream_queue_action_active:
-        draw_stream_queue_action_menu()
-    elif stream_queue_active:
-        draw_stream_queue_menu()
-    elif menu_active:
-        draw_menu()
-    else:
-        now_playing_mode = True
-        draw_nowplaying()
+        #t_s = time.perf_counter()
+        if core.message_text:
+            core.draw_message()
+            idle_timer = time.time()
+        elif help_active:
+            draw_help_screen()
+        elif confirm_box_active:
+            draw_confirm_box()
+        elif hardware_info_active:
+            draw_hardware_info()
+        elif theme_menu_active:
+            draw_theme_menu()
+        elif language_menu_active:
+            draw_language_menu()
+        elif config_menu_active:
+            draw_config_menu()
+        elif renderers_menu_active:
+            draw_renderers_menu()
+        elif bluetooth_device_actions_menu_active:
+            draw_bluetooth_device_actions_menu()
+        elif bluetooth_audioout_menu_active:
+            draw_bluetooth_audioout_menu()
+        elif bluetooth_scan_menu_active:
+            draw_bluetooth_scan_menu()
+        elif bluetooth_paired_menu_active:
+            draw_bluetooth_paired_menu()
+        elif bluetooth_menu_active:
+            draw_bluetooth_menu()
+        elif tool_menu_active:
+            draw_tool_menu()
+        elif songlog_action_active:
+            draw_songlog_action_menu()
+        elif songlog_active:
+            draw_songlog_menu()
+        elif power_menu_active:
+            draw_power_menu()
+        elif playback_modes_menu_active:
+            draw_playback_modes_menu()
+        elif stream_queue_action_active:
+            draw_stream_queue_action_menu()
+        elif stream_queue_active:
+            draw_stream_queue_menu()
+        elif menu_active:
+            draw_menu()
+        else:
+            now_playing_mode = True
+            draw_nowplaying()
 
-    #t_draw = time.perf_counter() - t_s
-    #t_b = time.perf_counter()
-    core.refresh()
-    #t_blit = time.perf_counter() - t_b
-    #print(f"TIMING nowplaying draw {t_draw*1000:.1f} ms | blit {t_blit*1000:.1f} ms | total {(time.perf_counter()-t0)*1000:.1f} ms")
+        #t_draw = time.perf_counter() - t_s
+        #t_b = time.perf_counter()
+        core.refresh()
+        #t_blit = time.perf_counter() - t_b
+        #print(f"TIMING nowplaying draw {t_draw*1000:.1f} ms | blit {t_blit*1000:.1f} ms | total {(time.perf_counter()-t0)*1000:.1f} ms")
 
 def draw_menu():
     global menu_options_contextuel
