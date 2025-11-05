@@ -50,7 +50,8 @@ release_threshold = 20
 
 [mpr121_pads]
 ### Set KEY and thresholds for each pad if needed:
-### Can just type "pad3 = KEY_YOURKEY" without threshold if you want to use default thresold.
+### Can be just "pad3 = KEY_YOURKEY" without threshold if you want to use default thresold.
+### For gesture, keep pad 0,1,2,3,4 as KEY UP,RIGHT,DOWN,LEFT,OK respectively.
 pad0 = KEY_UP, 30, 20
 pad1 = KEY_DOWN, 30, 20
 pad2 = KEY_LEFT, 30, 20
