@@ -45,26 +45,26 @@ use_rotary = false
 [mpr121]
 i2c_address = 0x5A
 int_pin = 4
+use_gesture = false
 ### Default values for all pads:
 touch_threshold = 30
 release_threshold = 20
 
 [mpr121_pads]
 ### Set KEY and thresholds for each pad if needed:
-### Can be just "pad3 = KEY_YOURKEY" without threshold if you want to use default thresold.
-### For gesture, keep pad 0,1,2,3,4 as KEY UP,RIGHT,DOWN,LEFT,OK respectively.
-pad0 = KEY_UP, 30, 20
-pad1 = KEY_DOWN, 30, 20
-pad2 = KEY_LEFT, 30, 20
-pad3 = KEY_RIGHT, 30, 20
-pad4 = KEY_OK, 30, 20
-pad5 = KEY_BACK, 30, 20
-pad6 = KEY_CHANNELUP, 30, 20
-pad7 = KEY_CHANNELDOWN, 30, 20
-pad8 = KEY_PLAY, 30, 20
-pad9 = KEY_INFO, 30, 20
-pad10 = KEY_STOP, 30, 20
-pad11 = KEY_POWER, 30, 20
+### "pad3 = KEY_YOURKEY" without threshold if you want to use default thresold or "pad3 = KEY_YOURKEY, 80, 75" if individual configuration is required.
+pad0 = KEY_UP
+pad1 = KEY_DOWN
+pad2 = KEY_LEFT
+pad3 = KEY_RIGHT
+pad4 = KEY_OK
+pad5 = KEY_BACK
+pad6 = KEY_CHANNELUP
+pad7 = KEY_CHANNELDOWN
+pad8 = KEY_PLAY
+pad9 = KEY_INFO
+pad10 = KEY_STOP
+pad11 = KEY_POWER
 ### The 13th virtual proximity pad is not currently used:
 pad12 = KEY_PROX, 80, 75
 
