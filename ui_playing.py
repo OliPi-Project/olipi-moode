@@ -299,15 +299,9 @@ def load_icons_from_theme():
         icon_width = icons["play"].width
     else:
         icon_width = 16
-
 load_icons_from_theme()
 
 show_clock = core.get_config("nowplaying", "show_clock", fallback=True, type=bool)
-
-if core.height > 64:
-    show_extra_infos = core.get_config("nowplaying", "show_extra_infos", fallback=False, type=bool)
-    show_progress_barre = core.get_config("nowplaying", "show_progress_barre", fallback=False, type=bool)
-
 
 spectrum = None
 PALETTE_SPECTRUM = []
@@ -320,16 +314,12 @@ def load_spectrum_palette(theme_name="default"):
         global PALETTE_SPECTRUM
         PALETTE_SPECTRUM = [(float(val), core.get_color(tuple(col))) for val, col in theme["spectrum"]]
 
-if core.height >= 128:
-    try:
-        if show_spectrum:
-            from spectrum_capture import SpectrumCapture
-            load_spectrum_palette(core.THEME_NAME)
-    except Exception as e:
-        if core.DEBUG:
-            print(f"[UI] Spectrum disabled during import: {e}")
-        show_spectrum = False
+if core.height > 64:
+    show_extra_infos = core.get_config("nowplaying", "show_extra_infos", fallback=False, type=bool)
+    show_progress_barre = core.get_config("nowplaying", "show_progress_barre", fallback=False, type=bool)
 
+if core.height >= 128 and show_spectrum:
+    load_spectrum_palette(core.THEME_NAME)
 
 last_title_seen = ""
 last_artist_seen = ""
@@ -2302,9 +2292,28 @@ def draw_hardware_info():
 def draw_confirm_box():
     core.draw_custom_menu([item["label"] for item in confirm_box_options], confirm_box_selection, title=confirm_box_title)
 
-def start_spectrum():
+def is_spectrum_available():
     global spectrum
-    #stop_spectrum()
+    if "spectrum" in globals() and spectrum and getattr(spectrum, "running", False):
+        return True
+    try:
+        from spectrum_capture import SpectrumCapture
+        test = SpectrumCapture()
+        ok = getattr(test, "available", True)
+        test.stop()
+        return ok
+    except Exception as e:
+        if core.DEBUG:
+            print(f"[Spectrum] Availability check failed: {e}")
+        return False
+
+def start_spectrum():
+    global spectrum, show_spectrum
+    try:
+        from spectrum_capture import SpectrumCapture
+    except Exception as e:
+        print(f"[Spectrum] Import failed: {e}")
+        show_spectrum = False
 
     num_bars = core.get_config("spectrum", "num_bars", fallback=36, type=int)
     fmin = core.get_config("spectrum", "fmin", fallback=0, type=int)
@@ -2380,31 +2389,14 @@ def monitor_spectrum():
                 time.sleep(2)
                 break  # leave inner loop, go back to reconnect
 
-def is_spectrum_available():
-    global spectrum
-    if "spectrum" in globals() and spectrum and getattr(spectrum, "running", False):
-        return True
-
-    try:
-        from spectrum_capture import SpectrumCapture
-        test = SpectrumCapture()
-        ok = getattr(test, "available", True)
-        test.stop()
-        return ok
-    except Exception as e:
+def delayed_spectrum_start():
+    if not is_spectrum_available():
         if core.DEBUG:
-            print(f"[Spectrum] Availability check failed: {e}")
-        return False
-
-if core.height >= 128:
-    if show_spectrum:
-        if not is_spectrum_available():
-            if core.DEBUG:
-                print("[UI] Spectrum disabled: no loopback device")
-            core.show_message(core.t("error_spectrum"))
-        else:
-            start_spectrum()
-            threading.Thread(target=monitor_spectrum, daemon=True).start()
+            print("[UI] Spectrum disabled: no loopback device")
+        core.show_message(core.t("error_spectrum"))
+    else:
+        start_spectrum()
+        threading.Thread(target=monitor_spectrum, daemon=True).start()
 
 def interpolate_palette(value, palette):
     """Interpolate between colors in a palette (value ∈ [0,1])."""
@@ -3549,6 +3541,8 @@ def main():
     threading.Thread(target=mixer_status_thread, daemon=True).start()
     threading.Thread(target=options_status_thread, daemon=True).start()
     threading.Thread(target=non_idle_status_thread, daemon=True).start()
+    if core.height >= 128 and show_spectrum:
+        threading.Thread(target=lambda: (time.sleep(0.5), delayed_spectrum_start()), daemon=True).start()
     try:
         while True:
             if previous_blocking_render != blocking_render:
