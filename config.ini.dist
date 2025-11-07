@@ -70,6 +70,7 @@ pad12 = KEY_PROX, 80, 75
 
 [buttons]
 ### If you use buttons, uncomment and Modify the gpio pins to suit your configuration.
+buttons_bouncetime_ms = 5
 ### Required keys (essential for OliPi MoOde navigation):
 #KEY_UP = 17
 #KEY_DOWN = 16
@@ -84,9 +85,14 @@ pad12 = KEY_PROX, 80, 75
 
 [rotary]
 ### if you use rotary encoder, uncomment and modify to suit your configuration.
-#rotary_divider = 2
-#rotary_invert = False
-#rotary_min_poll_ms = 1.0
+### rotary_divider: number of transitions per detent (use 1 or 2 for standard encoders, 4 for high-resolution types)
+rotary_divider = 2
+### rotary_bouncetime_ms: hardware debounce time for GPIO interrupts (1–5 ms typical)
+rotary_bouncetime_ms = 2
+### rotary_min_tick_ms: minimum time between valid ticks (helps reject jitter or contact bounce)
+rotary_min_tick_ms = 2
+### rotary_invert: If your pin are reverted change to true
+rotary_invert = false
 ### KEY_UP/DOWN (volume in now-playing screen) need to be commented in [buttons] section if you use:
 #pin_a = 17
 #pin_b = 16
