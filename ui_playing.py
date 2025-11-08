@@ -2308,50 +2308,52 @@ def is_spectrum_available():
         return False
 
 def start_spectrum():
-    global spectrum, show_spectrum
-    try:
-        from spectrum_capture import SpectrumCapture
-    except Exception as e:
-        print(f"[Spectrum] Import failed: {e}")
-        show_spectrum = False
+    with render_lock:
+        global spectrum, show_spectrum
+        try:
+            from spectrum_capture import SpectrumCapture
+        except Exception as e:
+            print(f"[Spectrum] Import failed: {e}")
+            show_spectrum = False
 
-    num_bars = core.get_config("spectrum", "num_bars", fallback=36, type=int)
-    fmin = core.get_config("spectrum", "fmin", fallback=0, type=int)
-    fmax = core.get_config("spectrum", "fmax", fallback=None, type=int)
-    profile_str = core.get_config("spectrum", "spectrum_profile", fallback="", type=str)
-    try:
-        profile_dict = json.loads(profile_str) if profile_str else None
-    except json.JSONDecodeError as e:
-        print(f"Invalid JSON for spectrum_profile in ini: {e}")
-        profile_dict = None
-    spectrum = SpectrumCapture(
-        num_bars=num_bars,
-        fmin=fmin,
-        fmax=fmax,
-        profile=profile_dict
-    )
-    spectrum.start()
-    if core.DEBUG:
-        print(f"Samplerate: {spectrum.samplerate} Hz, Channels: {spectrum.channels}, Format: {spectrum.format_name}")
+        num_bars = core.get_config("spectrum", "num_bars", fallback=36, type=int)
+        fmin = core.get_config("spectrum", "fmin", fallback=0, type=int)
+        fmax = core.get_config("spectrum", "fmax", fallback=None, type=int)
+        profile_str = core.get_config("spectrum", "spectrum_profile", fallback="", type=str)
+        try:
+            profile_dict = json.loads(profile_str) if profile_str else None
+        except json.JSONDecodeError as e:
+            print(f"Invalid JSON for spectrum_profile in ini: {e}")
+            profile_dict = None
+        spectrum = SpectrumCapture(
+            num_bars=num_bars,
+            fmin=fmin,
+            fmax=fmax,
+            profile=profile_dict
+        )
+        spectrum.start()
+        if core.DEBUG:
+            print(f"Samplerate: {spectrum.samplerate} Hz, Channels: {spectrum.channels}, Format: {spectrum.format_name}")
 
 def stop_spectrum(timeout=2.0):
-    global spectrum
-    if spectrum:
-        try:
-            spectrum.stop()
-        except Exception:
-            pass
-        try:
-            spectrum.join(timeout)
-        except Exception:
-            pass
-        try:
-            if hasattr(spectrum, "is_alive") and spectrum.is_alive():
-                if core.DEBUG:
-                    print("Warning: spectrum thread still alive after join()")
-        except Exception:
-            pass
-        spectrum = None
+    with render_lock:
+        global spectrum
+        if spectrum:
+            try:
+                spectrum.stop()
+            except Exception:
+                pass
+            try:
+                spectrum.join(timeout)
+            except Exception:
+                pass
+            try:
+                if hasattr(spectrum, "is_alive") and spectrum.is_alive():
+                    if core.DEBUG:
+                        print("Warning: spectrum thread still alive after join()")
+            except Exception:
+                pass
+            spectrum = None
 
 def monitor_spectrum():
     client = MPDClient()
