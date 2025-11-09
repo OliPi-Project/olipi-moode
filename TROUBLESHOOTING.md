@@ -14,7 +14,7 @@ This guide covers common problems and their solutions when using OliPi MoOde.
     - SDA => MOSI (GPIO 10)
     - CS  => CE0  (GPIO 8)
     - RST and DC can use any free GPIO (take care if your dac use pin for mute or if it has a built-in ir receiver)
-    - BLK (backlight) must be connected to **3.3V** (not yet supported in software).
+    - BLK (backlight) can use any free GPIO (Screen saver turns off LED) or can be connected to **3.3V** (Screen saver don't turns off LED). 
           
   - For I2C screens:
     - GND => GND
@@ -57,6 +57,32 @@ If you are in "Kernel Mode" and your Raspberry is not connected to an hdmi scree
   
   Check if you have entered the correct GPIO And try (mode2) or (irw) in the prompt menu
 
+## 🎮 Wiring Push Buttons / Rotary Encoder
+
+Buttons and rotary encoders are configured as GPIO inputs with internal pull-ups.
+
+- Buttons: connect one side to the GPIO of your choice and the other to GND, then declare them in the [buttons] section of config.ini.
+
+- Rotary encoders: connect A and B to any GPIOs, and C (common) to GND, then declare them in the [rotary] section.
+If your rotary encoder has a push button, wire it as a standard button and declare it in [buttons].
+Don’t forget to enable use_button and/or use_rotary in the [input] section.  
+⚠️ Caution: Bare mechanical encoders (without module) work fine, but some rotary modules include extra components and may require 3.3 V or 5 V.
+Always check with a multimeter before wiring — never connect them to 3V3 or 5V in this configuration.
+
+## 🎹 Wiring MPR121 / Setting pad sensitivity
+
+  - GND => GND
+  - VDD => 3.3V
+  - SCL => SCL (GPIO 3)
+  - SDA => SDA (GPIO 2)
+  - INT (IRQ) => Any free GPIO (you must declare it in config.ini)
+  - ADD => Leave unconnected for default address or look in your module's documentation to select the desired address. (you must declare it in config.ini)
+
+To adjust pads sensitivity (thresholds), you can use the test script:
+`python3 ~/olipi-moode/olipi_core/olipicap/test_prox.py`
+
+You can modify Pads/KEY_*/thresholds in config.ini
+
 ## ➰ I don't have enough gpio ports to connect everything!
 
 If you use SPI screen and no other SPI device, you can disable and use CE1 (GPIO 7) as normal GPIOs (CE0 must remain activated for the screen) with add `dtoverlay=spi0-1cs` in `/boot/firmware/config.txt`.  
@@ -68,12 +94,9 @@ If you don't use SPI you can disable CE0 and CE1 with `dtoverlay=spi0-0cs`
 - The installer will propose installing **ZRAM** automatically.
 - Swap is disabled to improve performance and avoid SD card wear.
 
-
 ## 💡 Can OliPi MoOde be used without Moode?
 
 Not directly. I've started replacing Moode API requests and a few other odds and ends with MPC and Python-mpd2 commands but OliPi-Moode still requires access to Moode Audio's sql database and a few php scripts. (e.g. for renderers, radios etc)
-
-
 
 
 ## 🆘 Still having issues?
