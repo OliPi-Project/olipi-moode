@@ -1,7 +1,7 @@
 <?php
 /*
  * SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright 2025 OliPi Project / Benoit Toufflet
+ * Copyright 2025 OliPi Project
  * Copyright 2014 The moOde audio player project / Tim Curtis
  */
 require_once "/var/www/inc/common.php";

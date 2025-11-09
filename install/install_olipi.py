@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Copyright 2025 OliPi Project (Benoit Toufflet)
+# Copyright 2025 OliPi Project
 
 import os
 import sys
