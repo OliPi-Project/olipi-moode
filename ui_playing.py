@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright 2025 OliPi Project (Benoit Toufflet)
-
+import faulthandler
+faulthandler.enable()
 import os
 import sys
 import subprocess
@@ -2377,7 +2378,7 @@ def monitor_spectrum():
                     stop_spectrum()
                     time.sleep(0.1)
                     client.pause()
-                    time.sleep(0.03)
+                    time.sleep(0.05)
                     client.pause()
                     last_toggle = time.time()
                     time.sleep(0.1)
