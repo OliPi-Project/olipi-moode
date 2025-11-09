@@ -279,7 +279,7 @@ These keys are **required** to navigate and control all interfaces:
 
 **For more info, press `KEY_INFO` in each context.**
 
-These keys must be configured either via LIRC (`python3 ~/olipi-moode/install/install_lirc_remote.py`) or via GPIO (`[buttons]` section in `config.ini`).
+These keys must be configured either via LIRC (`python3 ~/olipi-moode/install/install_lirc_remote.py`) either via GPIO in `[buttons] & [rotary]` section in `config.ini` or for MPR121 in `[mpr121_pads]` section.
 
 
 ### 🎵 Optional media keys
@@ -298,7 +298,7 @@ Recommended if available on your remote, but **not mandatory**:
 | **KEY_MUTE**       | Mute                              |
 | **KEY_POWER**      | Restart / Shutdown (long press)   |
 
-> **Note:** In `ui_playing`, navigation keys (`UP`, `DOWN`, `LEFT`, `RIGHT`) can replace optional media keys if they are not present.
+> **Note:** In `ui_playing`, navigation keys (`UP`, `DOWN`, `LEFT`, `RIGHT`) can be used for volume +/- and previous/next (rewind/forward on long press).
 
 
 ## 🔧 Configuration via menu in Now Playing Screen
