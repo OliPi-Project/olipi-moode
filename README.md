@@ -238,7 +238,7 @@ KEY_NEXT = KEY_NEXTSONG
 
 ## 🎛 GPIO and rotary encoder support
 
-OliPi MoOde uses `rpi-lgpio` which is a compatibility package intended to provide compatibility with the rpi.gpio, you can configure GPIO buttons or rotary encoders in `config.ini`. Be careful not to use pins that are used for other things. Check your hardware and wiring before enabling "use_buttons" and/or "use_rotary"". [See wiring guide](TROUBLESHOOTING.md#wiring-push-buttons--rotary-encoder).
+OliPi MoOde uses `rpi-lgpio` which is a compatibility package intended to provide compatibility with the rpi.gpio, you can configure GPIO buttons or rotary encoders in `config.ini`. Be careful not to use pins that are used for other things. Check your hardware and wiring before enabling "use_buttons" and/or "use_rotary"". [See wiring guide](TROUBLESHOOTING.md#-wiring-push-buttons--rotary-encoder).
 
 
 Example:
