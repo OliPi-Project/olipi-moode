@@ -145,7 +145,7 @@ Release Note:
 
 First of all:
 - if you have already installed Olipi Moode check [here](#-whats-new) if new version require uninstalling.
-- Make sure you've wired your screen correctly. [See wiring guide](TROUBLESHOOTING.md#wiring--screen-does-not-turn-on-after-installation).
+- Make sure you've wired your screen correctly. [See wiring guide](TROUBLESHOOTING.md#-wiring--screen-does-not-turn-on-after-installation).
 
 After that you can:
 
