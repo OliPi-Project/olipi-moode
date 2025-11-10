@@ -375,59 +375,64 @@ def move_contents(src: Path, dst: Path, preserve_files=None, base: Path = None):
                 continue
             shutil.move(str(item), str(target))
 
-def merge_ini_with_dist(user_file: Path, dist_file: Path):
+def merge_ini_keep_structure(user_file: Path, dist_file: Path):
+    """
+    Replace config.ini with .dist structure while preserving user values.
+    Commented keys (#key=val) are preserved as in the original.
+    """
     if not dist_file.exists():
         return
-
-    # Si le fichier utilisateur n'existe pas, on copie le dist directement
     if not user_file.exists():
         user_file.write_text(dist_file.read_text(encoding="utf-8"), encoding="utf-8")
         return
 
+    # --- Parse existing user config ---
     user_lines = user_file.read_text(encoding="utf-8").splitlines()
-    dist_lines = dist_file.read_text(encoding="utf-8").splitlines()
+    user_values = {}  # (section, key) -> (value, commented)
+    section = None
+    key_re = re.compile(r'^(\s*)(#?)([^#=\s]+)\s*=\s*(.*)$')
 
-    # --- Créer un dict clé -> valeur et ligne complète pour l'utilisateur ---
-    # On inclut les clés commentées avec # mais on garde la valeur telle quelle
-    user_keys = {}
-    current_section = None
     for line in user_lines:
-        stripped = line.strip()
-        if stripped.startswith("[") and stripped.endswith("]"):
-            current_section = stripped
-        elif "=" in stripped:
-            key = stripped.lstrip("#;").split("=", 1)[0].strip()
-            user_keys[(current_section, key)] = line
+        line_strip = line.strip()
+        if line_strip.startswith("[") and line_strip.endswith("]"):
+            section = line_strip
+        else:
+            m = key_re.match(line)
+            if m:
+                pre_ws, comment, key, value = m.groups()
+                user_values[(section, key.strip())] = (value.strip(), comment == "#")
 
-    merged_lines = []
-    current_section = None
+    # --- Read .dist file ---
+    dist_lines = dist_file.read_text(encoding="utf-8").splitlines()
+    new_lines = []
+    section = None
 
     for line in dist_lines:
-        stripped = line.strip()
-        if stripped.startswith("[") and stripped.endswith("]"):
-            current_section = stripped
-            merged_lines.append(line)
+        line_strip = line.strip()
+        if line_strip.startswith("[") and line_strip.endswith("]"):
+            section = line_strip
+            new_lines.append(line)
             continue
 
-        if stripped.startswith("###") or stripped == "":
-            # commentaire ou ligne vide → on ajoute toujours
-            merged_lines.append(line)
-            continue
-
-        if "=" in stripped:
-            key = stripped.lstrip("#;").split("=", 1)[0].strip()
-            # Si l'utilisateur a cette clé (commentée ou active), on prend sa ligne
-            user_line = user_keys.get((current_section, key))
-            if user_line:
-                merged_lines.append(user_line)
+        m = key_re.match(line)
+        if m:
+            pre_ws, comment, key, value = m.groups()
+            key = key.strip()
+            if (section, key) in user_values:
+                user_value, was_commented = user_values[(section, key)]
+                # Keep original comment state
+                new_comment = "#" if was_commented else ""
+                new_line = f"{pre_ws}{new_comment}{key} = {user_value}"
+                new_lines.append(new_line)
             else:
-                merged_lines.append(line)
+                # Keep the .dist line as is
+                new_lines.append(line)
         else:
-            # ligne “non clé” quelconque → ajouter telle quelle
-            merged_lines.append(line)
+            # Preserve comments, blank lines, etc.
+            new_lines.append(line)
 
-    # Écriture finale
-    user_file.write_text("\n".join(merged_lines) + "\n", encoding="utf-8")
+    # Write back to user config
+    user_file.write_text("\n".join(new_lines) + "\n", encoding="utf-8")
 
 def save_settings(settings: dict):
     try:
