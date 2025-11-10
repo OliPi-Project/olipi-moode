@@ -16,7 +16,6 @@ import urllib.request
 import urllib.error
 import re
 from pathlib import Path
-from typing import List, Tuple
 from lang import SETUP
 
 APT_DEPENDENCIES = [
@@ -376,191 +375,81 @@ def move_contents(src: Path, dst: Path, preserve_files=None, base: Path = None):
                 continue
             shutil.move(str(item), str(target))
 
-_SECTION_RE = re.compile(r'^\s*\[.*\]\s*$')
-
-def _is_section(line: str) -> bool:
-    return bool(_SECTION_RE.match(line))
-
-def _extract_key(line: str) -> str:
-    """
-    Retourne la clé d'une ligne de type "key = value".
-    Si la ligne est commentée ("# key = v" ou "; key = v") on enlève le préfixe de commentaire.
-    Renvoie la clé en minuscules (pour comparaison insensible à la casse).
-    """
-    s = line.strip()
-    # skip pure comments / blank
-    if '=' not in s:
-        return ""
-    # remove common comment chars in front
-    s2 = re.sub(r'^[#;]\s*', '', s)
-    key = s2.split('=', 1)[0].strip()
-    return key.lower()
-
 def merge_ini_with_dist(user_file: Path, dist_file: Path):
-    """
-    Merge user_file with dist_file (config.ini.dist) proprement :
-    - conserve l'ordre et les commentaires du fichier utilisateur,
-    - évite les doublons (garde la première occurrence utilisateur),
-    - ajoute les sections/clefs manquantes depuis dist (avec leurs commentaires précédents),
-    - considère une clé 'présente' si elle existe commentée ou non dans user_file.
-    """
     if not dist_file.exists():
         return
-
-    # Si l'utilisateur n'existe pas, on copie simplement le dist
     if not user_file.exists():
         user_file.write_text(dist_file.read_text(encoding="utf-8"), encoding="utf-8")
         return
 
-    user_lines: List[str] = user_file.read_text(encoding="utf-8").splitlines()
-    dist_lines: List[str] = dist_file.read_text(encoding="utf-8").splitlines()
+    user_lines = user_file.read_text(encoding="utf-8").splitlines()
+    dist_lines = dist_file.read_text(encoding="utf-8").splitlines()
 
-    # 1) Collecter les clés/sections présentes dans user (même si commentées)
-    existing_keys = set()           # set of (section, key)
-    existing_sections = []         # ordered list of sections seen in user
-    cur_section = None
-    for ln in user_lines:
-        stripped = ln.strip()
-        if _is_section(stripped):
-            cur_section = stripped
-            if cur_section not in existing_sections:
-                existing_sections.append(cur_section)
-        else:
-            if '=' in stripped:
-                key = _extract_key(stripped)
-                if key and cur_section is not None:
-                    existing_keys.add((cur_section, key))
+    # --- collect existing keys in user_file ---
+    existing_keys = {}
+    current_section = None
+    for line in user_lines:
+        striped = line.strip()
+        if striped.startswith("[") and striped.endswith("]"):
+            current_section = striped
+            if current_section not in existing_keys:
+                existing_keys[current_section] = set()
+        elif "=" in striped:
+            key = striped.lstrip("#;").split("=", 1)[0].strip()
+            existing_keys[current_section].add(key)
 
-    # 2) Construire un user_content "nettoyé" en gardant la 1ère occurrence d'une clé
-    cleaned: List[str] = []
-    cur_section = None
-    seen_in_section = {}  # section -> set(keys) to track duplicates while writing
+    merged_lines = []
+    current_section = None
 
-    for ln in user_lines:
-        stripped = ln.strip()
-        if _is_section(stripped):
-            cur_section = stripped
-            seen_in_section.setdefault(cur_section, set())
-            cleaned.append(ln)
-            continue
+    for line in user_lines:
+        striped = line.strip()
+        if striped.startswith("[") and striped.endswith("]"):
+            current_section = striped
+        merged_lines.append(line)
 
-        # si c'est une ligne clé = valeur (même commentée)
-        if '=' in stripped and cur_section is not None:
-            key = _extract_key(stripped)
-            if key:
-                if key in seen_in_section.get(cur_section, set()):
-                    # duplicate: on saute la ligne ET on tente d'enlever
-                    # les commentaires immédiatement « au-dessus » qui lui appartiendraient
-                    # (pour éviter de laisser des commentaires orphelins).
-                    while cleaned and cleaned[-1].strip().startswith(('#', ';', '###')) and cleaned[-1].strip() != "":
-                        # stop if the last line is a section header or blank
-                        # but previously we already check startswith
-                        cleaned.pop()
-                    # skip current duplicate line
-                    continue
-                else:
-                    # première occurrence -> garder
-                    seen_in_section.setdefault(cur_section, set()).add(key)
-                    cleaned.append(ln)
-                    continue
-        # toute autre ligne (comment, vide, etc.) on la garde
-        cleaned.append(ln)
+    # --- insert missing keys and sections from dist ---
+    current_section = None
+    section_buffer = []
+    for line in dist_lines:
+        striped = line.strip()
+        if striped.startswith("[") and striped.endswith("]"):
+            # flush previous section buffer if section existed
+            if section_buffer:
+                merged_lines.extend(section_buffer)
+                section_buffer = []
 
-    # 3) Préparer les ajouts à partir du dist (sections entières manquantes ou clés isolées)
-    # Parser dist en blocs par section pour itérer proprement
-    dist_sections = {}  # section -> list of (index_in_dist_lines)
-    cur_section = None
-    for idx, ln in enumerate(dist_lines):
-        s = ln.strip()
-        if _is_section(s):
-            cur_section = s
-            dist_sections.setdefault(cur_section, []).append(idx)
-        else:
-            if cur_section is None:
-                # top-of-file comments before first section: store under None key
-                dist_sections.setdefault(None, []).append(idx)
+            current_section = striped
+            if current_section not in existing_keys:
+                # section missing, add it entirely
+                merged_lines.append("")
+                merged_lines.append(current_section)
+                section_buffer = []
+                continue
+
+        elif current_section:
+            if "=" in striped:
+                key = striped.lstrip("#;").split("=", 1)[0].strip()
+                if key not in existing_keys.get(current_section, set()):
+                    # collect preceding ### comments
+                    comments_before = []
+                    idx = dist_lines.index(line) - 1
+                    while idx >= 0 and dist_lines[idx].strip().startswith("###"):
+                        comments_before.insert(0, dist_lines[idx])
+                        idx -= 1
+                    section_buffer.append("")
+                    section_buffer.extend(comments_before)
+                    section_buffer.append(line)
             else:
-                dist_sections.setdefault(cur_section, []).append(idx)
+                # non-key lines (comments, empty) are ignored here
+                pass
 
-    additions: List[str] = []
+    # flush remaining buffer
+    if section_buffer:
+        merged_lines.extend(section_buffer)
 
-    # Top-of-file comments from dist: if user_file doesn't have them (rough heuristic),
-    # we append them at top of additions (but don't try to preserve location).
-    if None in dist_sections:
-        # if user file doesn't start with a comment block equal to dist's top comments,
-        # we'll append dist top comments once at start of additions.
-        top_comments = [dist_lines[i] for i in dist_sections[None]]
-        # check if user file already contains those lines exactly at start
-        if not user_lines[:len(top_comments)] == top_comments:
-            additions.extend(top_comments)
-            if additions and additions[-1].strip() != "":
-                additions.append("")  # separation
-
-    # Pour chaque section du dist, vérifier si elle manque ou s'il manque des clés
-    for dsec, idx_list in dist_sections.items():
-        if dsec is None:
-            continue
-        # Reconstruire le bloc de lignes de la section depuis dist
-        # (depuis le premier idx de cette section jusqu'au dernier contiguous before next section)
-        start_idx = idx_list[0]
-        # compute end_idx: find next section header index or end of file
-        end_idx = start_idx + 1
-        while end_idx < len(dist_lines) and not _is_section(dist_lines[end_idx].strip()):
-            end_idx += 1
-        section_block = dist_lines[start_idx:end_idx]
-
-        if dsec not in existing_sections:
-            # section absente -> on ajoute ENTIER bloc (avec une ligne vide avant pour la lisibilité)
-            if additions and additions[-1].strip() != "":
-                additions.append("")
-            additions.extend(section_block)
-            continue
-
-        # section existe -> ajouter seulement les clés manquantes avec leurs commentaires précédents
-        # parcourir les section_block et relever les clés et leurs commentaires immédiats
-        # we scan with index
-        for i, ln in enumerate(section_block):
-            s = ln.strip()
-            if '=' in s:
-                key = _extract_key(s)
-                if not key:
-                    continue
-                if (dsec, key) not in existing_keys:
-                    # collect comment block immediately above this line (in the section_block)
-                    comments_before: List[str] = []
-                    j = i - 1
-                    while j >= 0:
-                        prev = section_block[j].strip()
-                        if prev == "":
-                            # blank line separates comment block
-                            break
-                        if prev.startswith('#') or prev.startswith(';'):
-                            comments_before.insert(0, section_block[j])
-                            j -= 1
-                            continue
-                        # other content (likely another key or section title) -> stop
-                        break
-                    # append a blank line for separation if last addition not blank
-                    if additions and additions[-1].strip() != "":
-                        additions.append("")
-                    # add the comment block then the key line
-                    additions.extend(comments_before)
-                    additions.append(ln)
-
-    # 4) Écrire le fichier final : cleaned + additions (si il y a)
-    final_lines = cleaned.copy()
-    if additions:
-        # ensure separation between user content and additions
-        if final_lines and final_lines[-1].strip() != "":
-            final_lines.append("")
-        # strip leading blank lines in additions to avoid double blanks
-        while additions and additions[0].strip() == "":
-            additions.pop(0)
-        final_lines.extend(additions)
-
-    # guarantee trailing newline
-    user_file.write_text("\n".join(final_lines) + "\n", encoding="utf-8")
-
+    # write back
+    user_file.write_text("\n".join(merged_lines) + "\n", encoding="utf-8")
+    
 def save_settings(settings: dict):
     try:
         with SETTINGS_FILE.open("w", encoding="utf-8") as fh:
