@@ -1,5 +1,5 @@
 [settings]
-### Configuration via menu interface, do not modify directly
+### Configuration via menu interface
 language = en
 debug = false
 screen_timeout = 0
@@ -10,6 +10,7 @@ color_theme = autumn
 
 [screen]
 current_screen =
+i2c_address = 0x3c
 #refresh_interval = 0.05
 #rotation = 90
 #display_format = BGR
@@ -66,7 +67,7 @@ pad9 = KEY_INFO
 pad10 = KEY_STOP
 pad11 = KEY_POWER
 ### The 13th virtual proximity pad is not currently used:
-pad12 = KEY_PROX, 80, 75
+#pad12 = KEY_PROX, 80, 75
 
 [buttons]
 ### buttons_bouncetime_ms: hardware debounce time for GPIO interrupts
