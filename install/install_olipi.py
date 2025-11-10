@@ -377,88 +377,102 @@ def move_contents(src: Path, dst: Path, preserve_files=None, base: Path = None):
 
 def merge_ini_with_dist(user_file: Path, dist_file: Path):
     """
-    Merge user INI file with default .dist file.
-    - Keeps all user values and comments.
-    - Adds missing sections/keys from .dist.
-    - Never duplicates keys.
-    - Creates a backup of the user file before writing.
+    Merge user and dist .ini files while preserving:
+      - Order and comments from dist_file
+      - Existing user values
+      - Section and key association
+    New keys and comments from dist_file are inserted in correct order.
     """
 
-    if not dist_file.exists():
-        print(f"[WARN] Missing dist file: {dist_file}")
-        return
+    def parse_ini_with_comments(lines):
+        """Parse ini preserving comments and blank lines per section."""
+        sections = {}
+        current_section = None
+        buffer = []
 
-    if not user_file.exists():
-        # No user file, just copy dist
-        shutil.copy(dist_file, user_file)
-        print(f"[INFO] Created new config from {dist_file.name}")
-        return
+        for line in lines:
+            # Detect section
+            m = re.match(r'^\s*\[([^\]]+)\]\s*$', line)
+            if m:
+                if current_section:
+                    sections[current_section] = buffer
+                current_section = m.group(1)
+                buffer = [line]
+            else:
+                buffer.append(line)
 
-    # --- Load both INIs with raw mode (preserves case) ---
-    parser_user = configparser.ConfigParser(interpolation=None, strict=False)
-    parser_user.optionxform = str
-    parser_user.read(user_file, encoding="utf-8")
+        if current_section:
+            sections[current_section] = buffer
+        return sections
 
-    parser_dist = configparser.ConfigParser(interpolation=None, strict=False)
-    parser_dist.optionxform = str
-    parser_dist.read(dist_file, encoding="utf-8")
+    def extract_values(lines):
+        """Extract key=value pairs (ignoring comments)."""
+        values = {}
+        for line in lines:
+            if line.strip().startswith("#") or line.strip().startswith("###"):
+                continue
+            m = re.match(r'^\s*([^#;=\s]+)\s*=\s*(.*)$', line)
+            if m:
+                key, val = m.groups()
+                values[key.strip()] = val.strip()
+        return values
 
-    # --- Keep original lines for comment preservation ---
-    with open(user_file, "r", encoding="utf-8") as f:
-        user_lines = f.readlines()
+    # --- Load both files
+    dist_lines = dist_file.read_text().splitlines()
+    user_lines = user_file.read_text().splitlines()
 
+    dist_sections = parse_ini_with_comments(dist_lines)
+    user_sections = parse_ini_with_comments(user_lines)
+
+    user_values = {s: extract_values(lines) for s, lines in user_sections.items()}
+
+    merged_lines = []
+
+    # --- Iterate through dist sections in order
+    for section, dist_lines in dist_sections.items():
+        merged_lines.append(f"[{section}]")
+
+        dist_values = extract_values(dist_lines)
+        user_vals = user_values.get(section, {})
+
+        # We'll rebuild section content line by line
+        for line in dist_lines[1:]:
+            stripped = line.strip()
+
+            # Comments or blank lines stay untouched
+            if stripped.startswith("#") or stripped == "":
+                merged_lines.append(line)
+                continue
+
+            m = re.match(r'^\s*([^#;=\s]+)\s*=\s*(.*)$', line)
+            if not m:
+                merged_lines.append(line)
+                continue
+
+            key = m.group(1).strip()
+            if key in user_vals:
+                # Preserve user value
+                merged_lines.append(f"{key} = {user_vals[key]}")
+            else:
+                # Keep default from dist
+                merged_lines.append(line)
+
+        # Add a blank line after section
+        merged_lines.append("")
+
+    # --- Append user-only sections that don't exist in dist
+    for section in user_sections.keys():
+        if section not in dist_sections:
+            merged_lines.append(f"[{section}]")
+            merged_lines.extend(user_sections[section][1:])
+            merged_lines.append("")
+
+    # --- Write merged file
     backup_path = user_file.with_suffix(".bak")
-    shutil.copy(user_file, backup_path)
+    user_file.rename(backup_path)
+    user_file.write_text("\n".join(merged_lines) + "\n")
 
-    # --- Merge logic ---
-    updated_lines = []
-    section = None
-    existing_keys = set()
-
-    def write_missing_keys(sec_name):
-        """Append missing keys for the current section."""
-        if sec_name in parser_dist:
-            for k, v in parser_dist.items(sec_name):
-                if k not in existing_keys:
-                    updated_lines.append(f"{k} = {v}\n")
-
-    for line in user_lines:
-        stripped = line.strip()
-
-        # Detect new section
-        if stripped.startswith("[") and stripped.endswith("]"):
-            # Finish previous section
-            if section:
-                write_missing_keys(section)
-
-            section = stripped.strip("[]")
-            existing_keys = set(parser_user[section].keys()) if section in parser_user else set()
-            updated_lines.append(line)
-            continue
-
-        # Record key for duplicate tracking
-        if section and "=" in stripped and not stripped.startswith("#") and not stripped.startswith(";"):
-            key = stripped.split("=", 1)[0].strip()
-            existing_keys.add(key)
-
-        updated_lines.append(line)
-
-    # Finish last section
-    if section:
-        write_missing_keys(section)
-
-    # Add missing sections entirely
-    for sec in parser_dist.sections():
-        if sec not in parser_user.sections():
-            updated_lines.append(f"\n[{sec}]\n")
-            for k, v in parser_dist.items(sec):
-                updated_lines.append(f"{k} = {v}\n")
-
-    # --- Write the merged result ---
-    with open(user_file, "w", encoding="utf-8") as f:
-        f.writelines(updated_lines)
-
-    print(f"[OK] Merged {user_file.name} with {dist_file.name} (backup saved: {backup_path.name})")
+    print(f"✅ Merged config saved to {user_file} (backup: {backup_path})")
 
 def save_settings(settings: dict):
     try:
