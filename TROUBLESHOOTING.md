@@ -57,6 +57,8 @@ If you are in "Kernel Mode" and your Raspberry is not connected to an hdmi scree
   
   Check if you have entered the correct GPIO And try (mode2) or (irw) in the prompt menu
 
+- If you have more than one remote control configuration activated, they may conflict with each other. You can disable them with the install_lirc_remote.py script. Or set priorities (see LIRC doc)
+
 ## 🎮 Wiring Push Buttons / Rotary Encoder
 
 Buttons and rotary encoders are configured as GPIO inputs with internal pull-ups.
@@ -87,6 +89,12 @@ You can modify Pads/KEY_*/thresholds in config.ini
 
 If you use SPI screen and no other SPI device, you can disable and use CE1 (GPIO 7) as normal GPIOs (CE0 must remain activated for the screen) with add `dtoverlay=spi0-1cs` in `/boot/firmware/config.txt`.  
 If you don't use SPI you can disable CE0 and CE1 with `dtoverlay=spi0-0cs`
+
+## 🔎 YT search finds nothing / format not found error etc
+
+YT-DLP needs to be updated regularly, you can either restart the installation script and update all the virtual environment or update YT-dlp manually via Pip:
+- Activate the virtual environment:  `source ~/.olipi-moode-venv/bin/activate`
+- And launch the update: `pip3 install --upgrade yt-dlp`
 
 ## 🧠 Low memory devices (512 MB RAM)
 
