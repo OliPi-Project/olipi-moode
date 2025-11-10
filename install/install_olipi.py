@@ -379,9 +379,9 @@ def merge_ini_with_dist(user_file: Path, dist_file: Path):
     """
     Merge user and dist .ini files while preserving:
       - Order and comments from dist_file
-      - Existing user values
+      - Existing user values and comment state
       - Section and key association
-    New keys and comments from dist_file are inserted in correct order.
+      - Distinction between '###' (explanatory comments) and '#key = value' (commented keys)
     """
 
     def parse_ini_with_comments(lines):
@@ -391,7 +391,6 @@ def merge_ini_with_dist(user_file: Path, dist_file: Path):
         buffer = []
 
         for line in lines:
-            # Detect section
             m = re.match(r'^\s*\[([^\]]+)\]\s*$', line)
             if m:
                 if current_section:
@@ -405,17 +404,21 @@ def merge_ini_with_dist(user_file: Path, dist_file: Path):
             sections[current_section] = buffer
         return sections
 
-    def extract_values(lines):
-        """Extract key=value pairs (ignoring comments)."""
-        values = {}
+    def extract_key_info(lines):
+        """Extract info on each key: value and whether it was commented."""
+        info = {}
         for line in lines:
-            if line.strip().startswith("#") or line.strip().startswith("###"):
+            stripped = line.strip()
+            if not stripped or stripped.startswith("###"):
                 continue
-            m = re.match(r'^\s*([^#;=\s]+)\s*=\s*(.*)$', line)
+            m = re.match(r'^([#\s]*)([^#;=\s]+)\s*=\s*(.*)$', line)
             if m:
-                key, val = m.groups()
-                values[key.strip()] = val.strip()
-        return values
+                prefix, key, val = m.groups()
+                info[key.strip()] = {
+                    "value": val.strip(),
+                    "commented": prefix.strip().startswith("#"),
+                }
+        return info
 
     # --- Load both files
     dist_lines = dist_file.read_text().splitlines()
@@ -423,44 +426,67 @@ def merge_ini_with_dist(user_file: Path, dist_file: Path):
 
     dist_sections = parse_ini_with_comments(dist_lines)
     user_sections = parse_ini_with_comments(user_lines)
-
-    user_values = {s: extract_values(lines) for s, lines in user_sections.items()}
+    user_info = {s: extract_key_info(lines) for s, lines in user_sections.items()}
 
     merged_lines = []
 
     # --- Iterate through dist sections in order
     for section, dist_lines in dist_sections.items():
         merged_lines.append(f"[{section}]")
+        dist_info = extract_key_info(dist_lines)
+        user_vals = user_info.get(section, {})
 
-        dist_values = extract_values(dist_lines)
-        user_vals = user_values.get(section, {})
+        pending_comments = []
 
-        # We'll rebuild section content line by line
         for line in dist_lines[1:]:
             stripped = line.strip()
 
-            # Comments or blank lines stay untouched
-            if stripped.startswith("#") or stripped == "":
+            # Blank line
+            if not stripped:
+                if pending_comments:
+                    merged_lines.extend(pending_comments)
+                    pending_comments = []
+                merged_lines.append("")
+                continue
+
+            # Explanatory comment
+            if stripped.startswith("###"):
+                pending_comments.append(line)
+                continue
+
+            # Key (active or commented)
+            m = re.match(r'^([#\s]*)([^#;=\s]+)\s*=\s*(.*)$', line)
+            if m:
+                prefix, key, val = m.groups()
+                key = key.strip()
+                val = val.strip()
+
+                if pending_comments:
+                    merged_lines.extend(pending_comments)
+                    pending_comments = []
+
+                if key in user_vals:
+                    user_entry = user_vals[key]
+                    # preserve comment state
+                    prefix = "#" if user_entry["commented"] else ""
+                    merged_lines.append(f"{prefix}{key} = {user_entry['value']}")
+                else:
+                    # keep dist line as is
+                    merged_lines.append(line)
+                continue
+
+            # Other comment lines
+            if stripped.startswith("#"):
                 merged_lines.append(line)
                 continue
 
-            m = re.match(r'^\s*([^#;=\s]+)\s*=\s*(.*)$', line)
-            if not m:
-                merged_lines.append(line)
-                continue
+            merged_lines.append(line)
 
-            key = m.group(1).strip()
-            if key in user_vals:
-                # Preserve user value
-                merged_lines.append(f"{key} = {user_vals[key]}")
-            else:
-                # Keep default from dist
-                merged_lines.append(line)
-
-        # Add a blank line after section
+        if pending_comments:
+            merged_lines.extend(pending_comments)
         merged_lines.append("")
 
-    # --- Append user-only sections that don't exist in dist
+    # --- Append user-only sections
     for section in user_sections.keys():
         if section not in dist_sections:
             merged_lines.append(f"[{section}]")
@@ -469,10 +495,11 @@ def merge_ini_with_dist(user_file: Path, dist_file: Path):
 
     # --- Write merged file
     backup_path = user_file.with_suffix(".bak")
-    user_file.rename(backup_path)
+    if user_file.exists():
+        user_file.rename(backup_path)
     user_file.write_text("\n".join(merged_lines) + "\n")
 
-    print(f"✅ Merged config saved to {user_file} (backup: {backup_path})")
+    print(f"✅ backup file {backup_path}")
 
 def save_settings(settings: dict):
     try:
