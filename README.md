@@ -20,11 +20,10 @@ Video presentation:
 ---
 
 ## ❔ What's new?
-**<u>V0.2.10-pre</u>**
 
-If you're upgrading from version prior to v0.2.10, you'll need to stop install script (CTRL-C) after cloning and re run the script a second time to execute the new, freshly cloned script (from v0.2.10, this will be done automatically). 
+**<u>V0.3.0-pre</u>** 
 
-Alternatively, you can uninstall all: `sudo bash ~/olipi-moode/install/uninstall-olipi-moode.sh` And perform a fresh [installation](#-installation) (remember to make a backup of your config.ini if necessary)
+This update require a fresh install. You can uninstall all with: `sudo bash ~/olipi-moode/install/uninstall-olipi-moode.sh` And perform a fresh [installation](#-installation) (remember to make a backup of your config.ini if necessary)
 
 Release Note:
 
@@ -41,12 +40,14 @@ Release Note:
     - Fix for add/remove to Favorites playlist
     - Fix for save to new playlist & cover creation
     - Modification of the installation script:
-      - Script restart after cloning to pick up & re-run with install script updated 
+      - Script restart after cloning to pick up & re-run with install script updated
+      - File merge for .ini (if necessary) should now work correctly
       - Now can skip/install/update venv
       - Now can back, skip, cancel screen config
       - Stop olipi-ui-playing service & free memory before runing pip
     - Some improvements to the YT stream
-    - Remove stream quality menu/choice now use bestaudio and ABR 160k
+    - Remove stream quality menu/choice, now use bestaudio and ABR 160k
+    - README and TROUBLESHOOTING update
     - And other odds and ends...
     
     Still lots of things to perform/correct before going to V1...
