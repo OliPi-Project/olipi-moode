@@ -379,6 +379,7 @@ def merge_ini_with_dist(user_file: Path, dist_file: Path):
     if not dist_file.exists():
         return
 
+    # Si le fichier utilisateur n'existe pas, on copie le dist directement
     if not user_file.exists():
         user_file.write_text(dist_file.read_text(encoding="utf-8"), encoding="utf-8")
         return
@@ -386,59 +387,48 @@ def merge_ini_with_dist(user_file: Path, dist_file: Path):
     user_lines = user_file.read_text(encoding="utf-8").splitlines()
     dist_lines = dist_file.read_text(encoding="utf-8").splitlines()
 
-    # --- collect existing keys (active or commented) ---
-    existing_keys = set()
+    # --- Créer un dict clé -> valeur et ligne complète pour l'utilisateur ---
+    # On inclut les clés commentées avec # mais on garde la valeur telle quelle
+    user_keys = {}
     current_section = None
     for line in user_lines:
-        striped = line.strip()
-        if striped.startswith("[") and striped.endswith("]"):
-            current_section = striped
-        elif "=" in striped:
-            key = striped.lstrip("#;").split("=", 1)[0].strip()
-            existing_keys.add((current_section, key))
+        stripped = line.strip()
+        if stripped.startswith("[") and stripped.endswith("]"):
+            current_section = stripped
+        elif "=" in stripped:
+            key = stripped.lstrip("#;").split("=", 1)[0].strip()
+            user_keys[(current_section, key)] = line
 
     merged_lines = []
     current_section = None
 
-    for line in user_lines:
-        striped = line.strip()
-        if striped.startswith("[") and striped.endswith("]"):
-            current_section = striped
-        elif "=" in striped:
-            key = striped.lstrip("#;").split("=", 1)[0].strip()
+    for line in dist_lines:
+        stripped = line.strip()
+        if stripped.startswith("[") and stripped.endswith("]"):
+            current_section = stripped
+            merged_lines.append(line)
+            continue
 
-            # --- find dist comments for this key ---
-            dist_idx = None
-            for i, dline in enumerate(dist_lines):
-                if dline.strip() == current_section:
-                    # search within this section
-                    for j in range(i + 1, len(dist_lines)):
-                        dstrip = dist_lines[j].strip()
-                        if dstrip.startswith("[") and dstrip.endswith("]"):
-                            break
-                        if "=" in dstrip:
-                            dkey = dstrip.lstrip("#;").split("=", 1)[0].strip()
-                            if dkey == key:
-                                dist_idx = j
-                                break
-                    break
+        if stripped.startswith("###") or stripped == "":
+            # commentaire ou ligne vide → on ajoute toujours
+            merged_lines.append(line)
+            continue
 
-            if dist_idx is not None:
-                # collect ### comments above this key in dist
-                new_comments = []
-                j = dist_idx - 1
-                while j >= 0 and dist_lines[j].strip().startswith("###"):
-                    new_comments.insert(0, dist_lines[j])
-                    j -= 1
+        if "=" in stripped:
+            key = stripped.lstrip("#;").split("=", 1)[0].strip()
+            # Si l'utilisateur a cette clé (commentée ou active), on prend sa ligne
+            user_line = user_keys.get((current_section, key))
+            if user_line:
+                merged_lines.append(user_line)
+            else:
+                merged_lines.append(line)
+        else:
+            # ligne “non clé” quelconque → ajouter telle quelle
+            merged_lines.append(line)
 
-                # replace existing ### comments if they differ
-                k = len(merged_lines) - 1
-                while k >= 0 and merged_lines[k].strip().startswith("###"):
-                    merged_lines.pop()
-                    k -= 1
-                merged_lines.extend(new_comments)
+    # Écriture finale
+    user_file.write_text("\n".join(merged_lines) + "\n", encoding="utf-8")
 
-        merged_lines.append(line)
 
     # --- add missing keys/sections from dist ---
     existing_sections = {l.strip() for l in user_lines if l.strip().startswith("[") and l.strip().endswith("]")}
