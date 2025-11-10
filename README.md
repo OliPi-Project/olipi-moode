@@ -92,9 +92,15 @@ Release Note:
 
 - **Operating system**: Moode Audio Player ≥ 9.3.7 required.
 
-- **Hardware**: Raspberry Pi (Zero 2W, 3, 4, 5) + I2C or SPI screen. An IR receiver type TSOP38 and/or push buttons and/or rotary encoder with or without push
+- **Hardware**: 
   
-  Screens supported:
+      - Raspberry Pi (Zero 2W, 3, 4, 5) 
+      - I2C/SPI Screen. 
+      - IR receiver type TSOP38 or similar (if used)
+      - Push Button and/or Rotary Encoder (if used)
+      - MPR121 capacitive touch module (if used)
+  
+  **Screens supported**:
   
   | Screen      | Resolution | Diag (") | PPI | Color      | Script                       |
   | ----------- | ---------- | -------- | --- | ---------- | ---------------------------- |
@@ -117,7 +123,7 @@ Release Note:
 - **APT dependencies** (installed automatically if needed):
   
   ```
-    git python3-pil python3-venv python3-pip python3-tk libasound2-dev libatlas-base-dev libopenblas0-pthread libgfortran5 i2c-tools libgpiod-dev python3-libgpiod python3-lgpio python3-setuptools
+  git python3-pil python3-venv python3-pip python3-tk libasound2-dev libatlas-base-dev libopenblas0-pthread libgfortran5 i2c-tools libgpiod-dev python3-libgpiod python3-lgpio python3-setuptools
   ```
 
 - **Python dependencies** (installed automatically with the virtual environment):
@@ -134,10 +140,12 @@ Release Note:
   Requests>=2.32.5
   rpi_lgpio>=0.6
   smbus2>=0.5.0
-  yt_dlp[default]>=2025.10.22
+  yt_dlp>=2025.10.22
   ```
 
+
 ---
+
 
 ## 🚀 Installation
 
@@ -151,14 +159,14 @@ After that you can:
 
 1. Clone this repository:
    
-   ```bash
+   ```
    sudo apt update && sudo apt install git
    git clone https://github.com/OliPi-Project/olipi-moode
    ```
 
 2. Run the setup script:
    
-   ```bash
+   ```
    python3 ~/olipi-moode/install/install_olipi.py
    ```
 
@@ -256,7 +264,6 @@ KEY_RIGHT = 27
 pin_a = 22
 pin_b = 23
 ```
-
 
 ## ⌨ Key configuration
 
