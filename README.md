@@ -249,21 +249,10 @@ KEY_NEXT = KEY_NEXTSONG
 OliPi MoOde uses `rpi-lgpio` which is a compatibility package intended to provide compatibility with the rpi.gpio, you can configure GPIO buttons or rotary encoders in `config.ini`. Be careful not to use pins that are used for other things. Check your hardware and wiring before enabling "use_buttons" and/or "use_rotary"". [See wiring guide](TROUBLESHOOTING.md#-wiring-push-buttons--rotary-encoder).
 
 
-Example:
+## 🎹 MPR121 capacitive touch support
 
-```ini
-[input]
-use_buttons = true
-use_rotary = true
+[Wiring your MPR121](TROUBLESHOOTING.md#-wiring-mpr121--setting pad sensitivity), configure the address, INT(IRQ) pin and pads in config.ini and then activate it in the [input] section.
 
-[buttons]
-KEY_LEFT = 17
-KEY_RIGHT = 27
-
-[rotary]
-pin_a = 22
-pin_b = 23
-```
 
 ## ⌨ Key configuration
 

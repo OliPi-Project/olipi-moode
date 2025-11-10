@@ -46,7 +46,7 @@ If you are in "Kernel Mode" and your Raspberry is not connected to an hdmi scree
 
 ## 📡 Wiring IR Receiver / Remote control is not detected
 
-- Check the wiring of your IR receiver:
+- Check the wiring of your IR receiver (check with your model the pins may be different):
     - Pin 1 (OUT) → Any free GPIO
     - Pin 2 (GND) → GND 
     - Pin 3 (VCC) → 3V3
@@ -71,6 +71,22 @@ Don’t forget to enable use_button and/or use_rotary in the [input] section.
 ⚠️ Caution: Bare mechanical encoders (without module) work fine, but some rotary modules include extra components and may require 3.3 V or 5 V.
 Always check with a multimeter before wiring — never connect them to 3V3 or 5V in this configuration.
 
+Example:
+
+```ini
+[input]
+use_buttons = true
+use_rotary = true
+
+[buttons]
+KEY_LEFT = 17
+KEY_RIGHT = 27
+
+[rotary]
+pin_a = 22
+pin_b = 23
+```
+
 ## 🎹 Wiring MPR121 / Setting pad sensitivity
 
   - GND => GND
@@ -84,6 +100,22 @@ To adjust pads sensitivity (thresholds), you can use the test script:
 `python3 ~/olipi-moode/olipi_core/olipicap/test_prox.py`
 
 You can modify Pads/KEY_*/thresholds in config.ini
+
+Example:
+
+```ini
+[mpr121]
+i2c_address = 0x5A
+int_pin = 4
+use_gesture = false
+touch_threshold = 30
+release_threshold = 20
+
+[mpr121_pads]
+pad0 = KEY_UP
+pad1 = KEY_DOWN
+pad2 = KEY_YOURKEY, 80, 75
+```
 
 ## ➰ I don't have enough gpio ports to connect everything!
 
