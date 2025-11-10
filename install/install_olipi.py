@@ -429,40 +429,6 @@ def merge_ini_with_dist(user_file: Path, dist_file: Path):
     # Écriture finale
     user_file.write_text("\n".join(merged_lines) + "\n", encoding="utf-8")
 
-
-    # --- add missing keys/sections from dist ---
-    existing_sections = {l.strip() for l in user_lines if l.strip().startswith("[") and l.strip().endswith("]")}
-    current_section = None
-    additions = []
-
-    for idx, dline in enumerate(dist_lines):
-        dstrip = dline.strip()
-        if dstrip.startswith("[") and dstrip.endswith("]"):
-            current_section = dstrip
-            if current_section not in existing_sections:
-                additions.append("")
-                additions.append(dline)
-        elif current_section and current_section not in existing_sections:
-            additions.append(dline)
-        elif current_section and "=" in dstrip:
-            key = dstrip.lstrip("#;").split("=", 1)[0].strip()
-            if (current_section, key) not in existing_keys:
-                # collect preceding ### comments
-                comments_before = []
-                j = idx - 1
-                while j >= 0 and dist_lines[j].strip().startswith("###"):
-                    comments_before.insert(0, dist_lines[j])
-                    j -= 1
-                additions.append("")
-                additions.extend(comments_before)
-                additions.append(dline)
-
-    if additions:
-        merged_lines.append("")
-        merged_lines.extend(additions)
-
-    user_file.write_text("\n".join(merged_lines) + "\n", encoding="utf-8")
-
 def save_settings(settings: dict):
     try:
         with SETTINGS_FILE.open("w", encoding="utf-8") as fh:
