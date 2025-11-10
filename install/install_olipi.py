@@ -375,65 +375,98 @@ def move_contents(src: Path, dst: Path, preserve_files=None, base: Path = None):
                 continue
             shutil.move(str(item), str(target))
 
-def merge_ini_keep_structure(user_file: Path, dist_file: Path):
-    """
-    Replace config.ini with .dist structure while preserving user values.
-    Commented keys (#key=val) are preserved as in the original.
-    """
+def merge_ini_with_dist(user_file: Path, dist_file: Path):
+    """Merge a user's INI with the .dist file, keeping existing keys, updating comments, 
+       and adding missing keys/sections without duplicating."""
     if not dist_file.exists():
         return
     if not user_file.exists():
         user_file.write_text(dist_file.read_text(encoding="utf-8"), encoding="utf-8")
         return
 
-    # --- Parse existing user config ---
+    # Read files
     user_lines = user_file.read_text(encoding="utf-8").splitlines()
-    user_values = {}  # (section, key) -> (value, commented)
-    section = None
-    key_re = re.compile(r'^(\s*)(#?)([^#=\s]+)\s*=\s*(.*)$')
-
-    for line in user_lines:
-        line_strip = line.strip()
-        if line_strip.startswith("[") and line_strip.endswith("]"):
-            section = line_strip
-        else:
-            m = key_re.match(line)
-            if m:
-                pre_ws, comment, key, value = m.groups()
-                user_values[(section, key.strip())] = (value.strip(), comment == "#")
-
-    # --- Read .dist file ---
     dist_lines = dist_file.read_text(encoding="utf-8").splitlines()
-    new_lines = []
-    section = None
 
-    for line in dist_lines:
-        line_strip = line.strip()
-        if line_strip.startswith("[") and line_strip.endswith("]"):
-            section = line_strip
-            new_lines.append(line)
-            continue
+    merged_lines = []
+    current_section = None
+    existing_keys = {}  # {section: set(keys)}
 
-        m = key_re.match(line)
-        if m:
-            pre_ws, comment, key, value = m.groups()
-            key = key.strip()
-            if (section, key) in user_values:
-                user_value, was_commented = user_values[(section, key)]
-                # Keep original comment state
-                new_comment = "#" if was_commented else ""
-                new_line = f"{pre_ws}{new_comment}{key} = {user_value}"
-                new_lines.append(new_line)
-            else:
-                # Keep the .dist line as is
-                new_lines.append(line)
-        else:
-            # Preserve comments, blank lines, etc.
-            new_lines.append(line)
+    # First pass: record existing keys per section
+    for line in user_lines:
+        stripped = line.strip()
+        if stripped.startswith("[") and stripped.endswith("]"):
+            current_section = stripped
+            if current_section not in existing_keys:
+                existing_keys[current_section] = set()
+        elif "=" in stripped and current_section:
+            key = stripped.lstrip("#;").split("=", 1)[0].strip()
+            existing_keys[current_section].add(key)
 
-    # Write back to user config
-    user_file.write_text("\n".join(new_lines) + "\n", encoding="utf-8")
+    # Second pass: copy user lines, updating comments if needed
+    current_section = None
+    for i, line in enumerate(user_lines):
+        stripped = line.strip()
+        if stripped.startswith("[") and stripped.endswith("]"):
+            current_section = stripped
+        elif "=" in stripped and current_section:
+            key = stripped.lstrip("#;").split("=", 1)[0].strip()
+            # search for dist comments
+            dist_comments = []
+            for j, dline in enumerate(dist_lines):
+                if dline.strip() == current_section:
+                    # find key in dist
+                    k = j + 1
+                    while k < len(dist_lines) and not dist_lines[k].strip().startswith("["):
+                        dstrip = dist_lines[k].strip()
+                        if "=" in dstrip:
+                            dkey = dstrip.lstrip("#;").split("=", 1)[0].strip()
+                            if dkey == key:
+                                # collect ### comments above
+                                m = k - 1
+                                while m > j and dist_lines[m].strip().startswith("###"):
+                                    dist_comments.insert(0, dist_lines[m])
+                                    m -= 1
+                                break
+                        k += 1
+                    break
+            # remove previous ### immediately before this key in merged_lines
+            while merged_lines and merged_lines[-1].strip().startswith("###"):
+                merged_lines.pop()
+            merged_lines.extend(dist_comments)
 
+        merged_lines.append(line)
+
+    # Third pass: add missing keys/sections from dist
+    current_section = None
+    for i, dline in enumerate(dist_lines):
+        stripped = dline.strip()
+        if stripped.startswith("[") and stripped.endswith("]"):
+            current_section = stripped
+            if current_section not in existing_keys:
+                merged_lines.append("")
+                merged_lines.append(dline)
+                existing_keys[current_section] = set()
+        elif "=" in stripped and current_section:
+            key = stripped.lstrip("#;").split("=", 1)[0].strip()
+            if key not in existing_keys[current_section]:
+                # collect preceding comments
+                comments = []
+                j = i - 1
+                while j >= 0 and dist_lines[j].strip().startswith("###"):
+                    comments.insert(0, dist_lines[j])
+                    j -= 1
+                merged_lines.append("")
+                merged_lines.extend(comments)
+                merged_lines.append(dline)
+                existing_keys[current_section].add(key)
+        elif current_section and stripped and not stripped.startswith("#"):
+            # lines like blank lines or non-key content: copy if section is new
+            if current_section not in existing_keys:
+                merged_lines.append(dline)
+
+    user_file.write_text("\n".join(merged_lines) + "\n", encoding="utf-8")
+    
 def save_settings(settings: dict):
     try:
         with SETTINGS_FILE.open("w", encoding="utf-8") as fh:
