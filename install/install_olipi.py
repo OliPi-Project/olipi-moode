@@ -332,16 +332,32 @@ def safe_cleanup(path: Path, preserve_files=None, base: Path = None):
 
     for item in path.iterdir():
         rel_path = str(item.relative_to(base))
-        if item.is_dir():
-            safe_cleanup(item, preserve_files=preserve_files, base=base)
-            try:
+
+        # Skip preserved files
+        if rel_path in preserve_files:
+            continue
+
+        try:
+            if item.is_dir():
+                safe_cleanup(item, preserve_files=preserve_files, base=base)
                 item.rmdir()
-            except OSError as e:
-                log_line(error=f"Failed to remove {item}: {e}", context="install_repo_cleanup (safe_cleanup)")
-        else:
-            if rel_path in preserve_files:
-                continue
-            item.unlink()
+            else:
+                item.unlink()
+        except PermissionError:
+            # Try to fix permissions and remove as root if possible
+            try:
+                # Reset permissions so current user can delete
+                item.chmod(0o777)
+                if item.is_dir():
+                    shutil.rmtree(item, ignore_errors=True)
+                else:
+                    item.unlink(missing_ok=True)
+            except Exception as e:
+                # Last resort: try sudo rm -rf for root-owned files
+                os.system(f"sudo rm -rf '{item}'")
+                log_line(error=f"Forced cleanup with sudo for {item}: {e}", context="install_repo_cleanup (safe_cleanup)")
+        except OSError as e:
+            log_line(error=f"Failed to remove {item}: {e}", context="install_repo_cleanup (safe_cleanup)")
 
 
 def move_contents(src: Path, dst: Path, preserve_files=None, base: Path = None):
