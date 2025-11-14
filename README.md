@@ -23,7 +23,7 @@ Video presentation:
 
 **<u>V0.3.0-pre</u>** 
 
-This update require a fresh install. You can uninstall all with: `sudo bash ~/olipi-moode/install/uninstall-olipi-moode.sh` And perform a fresh [installation](#-installation) (remember to make a backup of your config.ini if necessary)
+If you're upgrading from a version prior to v0.3.0, a fresh install is required. You can uninstall all with: `sudo bash ~/olipi-moode/install/uninstall-olipi-moode.sh` And perform a fresh [installation](#-installation). Remember to make a backup of your config.ini if necessary. (Remote control settings are not deleted)
 
 Release Note:
 
@@ -252,7 +252,7 @@ OliPi MoOde uses `rpi-lgpio` which is a compatibility package intended to provid
 
 ## 🎹 MPR121 capacitive touch support
 
-[Wiring your MPR121](TROUBLESHOOTING.md#-wiring-mpr121--setting pad sensitivity), configure the address, INT(IRQ) pin and pads in config.ini and then activate it in the [input] section.
+[Wiring your MPR121](TROUBLESHOOTING.md#-wiring-mpr121--setting-pad-sensitivity), configure the address, INT(IRQ) pin and pads in config.ini and then activate it in the [input] section.
 
 
 ## ⌨ Key configuration
