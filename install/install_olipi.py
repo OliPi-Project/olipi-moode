@@ -1666,7 +1666,7 @@ def main():
                     safe_exit(0)
 
             else:
-                ans = input(SETUP.get("interactive_update_prompt", {}).get(lang, "⚙️ An update is available.\n  Would you like to perform an update (just clone) [U], a complete installation (Clone + Configuration)[I], or cancel [A]? [U/I/A] ")).strip().lower()
+                ans = input(SETUP.get("interactive_update_prompt", {}).get(lang, "⚙️ An update is available.\n  Would you like to perform an update [U], a complete install (Update + Configuration)[I], or cancel [A]? [U/I/A] ")).strip().lower()
                 if ans in ("u", ""):
                     cmd = "update"
                 elif ans == "i":
