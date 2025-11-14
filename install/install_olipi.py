@@ -683,30 +683,6 @@ def install_repo(repo_name: str, repo_url: str, local_dir: Path, branch: str,
     if repo_exists:
         local_tag = get_latest_release_tag(str(local_dir), branch=branch) or ""
 
-    # Decide whether to update/clone
-    update_needed = False
-    if mode == "install":
-        update_needed = True
-    elif mode == "dev_mode":
-        update_needed = True
-    elif mode == "update":
-        if not repo_exists:
-            print(SETUP.get("repo_not_git", {}).get(lang, "⚠️ Folder {} exists but is not a Git repository. Update needed").format(local_dir))
-            update_needed = True
-        else:
-            # interactive prompt (keeps previous behaviour)
-            if version_is_newer(local_tag, remote_tag):
-                upd_msg = SETUP.get("update_prompt", {}).get(lang, "✅  A newer release (local {}, remote {}) is available. Update now? [Y/n] ").format(local_tag, remote_tag)
-            else:
-                upd_msg = SETUP.get("already_uptodate", {}).get(lang, "✅ Already up-to-date (local {}, remote {}). Force Update? [Y/n]").format(local_tag, remote_tag)
-            ans = input(upd_msg).strip().lower()
-            if ans in ("", "y", "o"):
-                update_needed = True
-
-    if not update_needed:
-        log_line(msg=f"{repo_name} is already up-to-date (local {local_tag}, remote {remote_tag})", context="install_repo")
-        return local_dir
-
     # clone into a temp dir
     temp_dir = local_dir.parent / (local_dir.name + "_tmp_clone")
     if temp_dir.exists():
@@ -1625,13 +1601,12 @@ def main():
 
     choose_language()
 
-    reexecuted = False
-    if REEXEC_FLAG.exists():
+    reexecuted = REEXEC_FLAG.exists()
+    if reexecuted:
         try:
             REEXEC_FLAG.unlink()
         except Exception:
             pass
-        reexecuted = True
 
     if not reexecuted:
         check_moode_version()
@@ -1652,50 +1627,63 @@ def main():
     elif args.update:
         cmd = "update"
     else:
-        force_install = False
-        moode_major_change = ""
-        core_major_change = ""
+        moode_change = ""
+        core_change = ""
         if moode_present:
             local_tag_moode = get_latest_release_tag(OLIPI_MOODE_DIR, branch="main") or ""
             remote_tag_moode = get_latest_release_tag(OLIPI_MOODE_REPO, branch="main") or ""
-            moode_major_change = compare_version(local_tag_moode, remote_tag_moode)
-            print(f"OliPi-Moode: local version: {local_tag_moode} remote version: {remote_tag_moode}")
+            moode_change = compare_version(local_tag_moode, remote_tag_moode)
+            print(f"OliPi-Moode: local version: {local_tag_moode} Latest version: {remote_tag_moode}")
         else:
-            print("OliPi-Moode absent")
+            print(SETUP.get("repo_not_git", {}).get(lang, "⚠️ Folder {} does not exist or is not a Git repository. First install?").format(OLIPI_MOODE_DIR))
+            
         if core_present:
             local_tag_core = get_latest_release_tag(OLIPI_CORE_DIR, branch="main") or ""
             remote_tag_core = get_latest_release_tag(OLIPI_CORE_REPO, branch="main") or ""
-            core_major_change = compare_version(local_tag_core, remote_tag_core) 
-            print(f"OliPi-Core: local version: {local_tag_core} remote version: {remote_tag_core}")
+            core_change = compare_version(local_tag_core, remote_tag_core) 
+            print(f"OliPi-Core: local version: {local_tag_core} Latest version: {remote_tag_core}")
         else:
-            print("OliPi-Core absent")
-   
-        if moode_major_change == "major" or core_major_change == "major" or not core_present or not moode_present:
-            force_install = True
+            print(SETUP.get("repo_not_git", {}).get(lang, "⚠️ Folder {} does not exist or is not a Git repository. First install?").format(OLIPI_CORE_DIR))
+            
 
-        if force_install:
-            ans = input(SETUP.get("interactive_install_prompt", {}).get(lang,
-                        "⚙️ First install or Major update, Do you want to re/install (I) or abort (A)? [I/A] ")).strip().lower()
+        if moode_present and core_present:
+            if moode_change == "same" and core_change == "same":
+                ans = input(SETUP.get("already_uptodate", {}).get(lang, "✅ Already up-to-date. Do you want to force update (U), perform complete reinstall (I) or abort (A)? [U/I/A] ")).strip().lower()
+                if ans in ("u", ""):
+                    cmd = "update"
+                elif ans == "i":
+                    cmd = "install"
+                else:
+                    print(SETUP.get("interactive_abort", {}).get(lang))
+                    safe_exit(0)
+
+            elif moode_change == "major" or core_change == "major":
+                ans = input(SETUP.get("interactive_major_prompt", {}).get(lang, "⚙️ Major update, A complete reinstallation is required (config.ini will be reset, make a copy).\n  Proceed to installation (I) or abort (A)? [I/A] ")).strip().lower()
+                if ans in ("i", ""):
+                    cmd = "install"
+                else:
+                    print(SETUP.get("interactive_abort", {}).get(lang))
+                    safe_exit(0)
+
+            else:
+                ans = input(SETUP.get("interactive_update_prompt", {}).get(lang, "⚙️ An update is available.\n  Would you like to perform an update (just clone) [U], a complete installation (Clone + Configuration)[I], or cancel [A]? [U/I/A] ")).strip().lower()
+                if ans in ("u", ""):
+                    cmd = "update"
+                elif ans == "i":
+                    cmd = "install"
+                else:
+                    print(SETUP.get("interactive_abort", {}).get(lang))
+                    safe_exit(0)
+        else:
+            ans = input(SETUP.get("first_install_prompt", {}).get(lang, "⚙️ It seems that is a first installation, do you want to install (I) or abort (A)? [I/A] ")).strip().lower()
             if ans in ("i", ""):
                 cmd = "install"
             else:
                 print(SETUP.get("interactive_abort", {}).get(lang))
                 safe_exit(0)
-        elif moode_present and core_present:
-            ans = input(SETUP.get("interactive_update_prompt", {}).get(lang, "⚙️ Do you want to update (U), force fresh reinstall (F), or skip (S)? [U/F/S] ")).strip().lower()
-            if ans in ("u", ""):
-                cmd = "update"
-            elif ans == "f":
-                cmd = "install"
-            else:
-                print(SETUP.get("interactive_abort", {}).get(lang))
-                safe_exit(0)
-        else:
-            cmd = "install"
 
     try:
         if cmd == "dev_mode":
-            # full dev rolling install
             print("install_olipi.py launched on dev mode...")
             if not reexecuted:
                 install_olipi_moode(mode="dev_mode")
@@ -1707,15 +1695,8 @@ def main():
                     log_line(error=f"Failed creating reexec flag: {e}", context="main")
                 script_path = os.path.abspath(__file__)
                 print(SETUP.get("reexecut_script", {}).get(lang, "\n🔁 Re-executing freshly cloned install_olipi.py to pick up updates..."))
-                new_args = []
-                if cmd == "install":
-                    new_args.append("--install")
-                elif cmd == "update":
-                    new_args.append("--update")
-                elif cmd == "dev_mode":
-                    new_args.append("--dev")
-                print(f"[debug] → relaunching with args: {' '.join(new_args)}")
-                os.execv(sys.executable, [sys.executable, script_path] + new_args)
+                print(f"[debug] → relaunching with args: --dev")
+                os.execv(sys.executable, [sys.executable, script_path, "--dev"])
             configure_screen(OLIPI_MOODE_DIR, OLIPI_CORE_DIR)
             check_ram()
             install_venv = check_virtualenv()
@@ -1735,7 +1716,6 @@ def main():
             print(SETUP.get("develop_done", {}).get(lang, "✅ Development mode setup complete."))
 
         elif cmd == "install":
-            # full release install
             if not reexecuted:
                 install_olipi_moode(mode="install")
                 install_olipi_core(mode="install")
@@ -1746,14 +1726,7 @@ def main():
                     log_line(error=f"Failed creating reexec flag: {e}", context="main")
                 script_path = os.path.abspath(__file__)
                 print(SETUP.get("reexecut_script", {}).get(lang, "\n🔁 Re-executing freshly cloned install_olipi.py to pick up updates..."))
-                new_args = []
-                if cmd == "install":
-                    new_args.append("--install")
-                elif cmd == "update":
-                    new_args.append("--update")
-                elif cmd == "dev_mode":
-                    new_args.append("--dev")
-                os.execv(sys.executable, [sys.executable, script_path] + new_args)
+                os.execv(sys.executable, [sys.executable, script_path, "--install"])
             configure_screen(OLIPI_MOODE_DIR, OLIPI_CORE_DIR)
             check_ram()
             install_venv = check_virtualenv()
@@ -1782,15 +1755,10 @@ def main():
                     log_line(error=f"Failed creating reexec flag: {e}", context="main")
                 script_path = os.path.abspath(__file__)
                 print(SETUP.get("reexecut_script", {}).get(lang, "\n🔁 Re-executing freshly cloned install_olipi.py to pick up updates..."))
-                new_args = []
-                if cmd == "install":
-                    new_args.append("--install")
-                elif cmd == "update":
-                    new_args.append("--update")
-                elif cmd == "dev_mode":
-                    new_args.append("--dev")
-                os.execv(sys.executable, [sys.executable, script_path] + new_args)
-            user = detect_user()
+                os.execv(sys.executable, [sys.executable, script_path, "--update"])
+            install_venv = check_virtualenv()
+            if install_venv:
+                setup_virtualenv(DEFAULT_VENV_PATH)
             append_to_profile()
             settings = load_settings()
             settings.update({
@@ -1817,11 +1785,21 @@ def main():
         with TMP_LOG_FILE.open("a", encoding="utf-8") as fh:
             fh.write(f"+++++++++\n[ABORTED] ❌ Installation interrupted by user (Ctrl+C).\n")
         print(SETUP["install_abort"][lang])
+        if REEXEC_FLAG.exists():
+            try:
+                REEXEC_FLAG.unlink()
+            except:
+                pass
         safe_exit(130)
 
     except Exception as e:
         print(f"❌ Unexpected error: {e}")
         log_line(error=str(e), context="main")
+        if REEXEC_FLAG.exists():
+            try:
+                REEXEC_FLAG.unlink()
+            except:
+                pass
         safe_exit(1, error=e)
 
 if __name__ == "__main__":
