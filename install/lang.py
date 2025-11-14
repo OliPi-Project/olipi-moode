@@ -21,7 +21,7 @@ SETUP = {
     "install_abort": {"en": "❌ Installation aborted (Ctrl+C).",
                       "fr": "❌ Installation interrompue (Ctrl+C)."},
     "already_uptodate": {"en": "✅ Already up-to-date. Do you want to force update (U), perform complete reinstall (I), or abort (A)? [U/I/A] ",
-                         "fr": "✅ Déjà à jour. Voulez-vous forcer la mise à jour (U), effectuer une réinstallation complète (I), ou annuler (A) ? [U/I/A]"},
+                         "fr": "✅ Déjà à jour. Voulez-vous forcer la mise à jour (U), effectuer une réinstallation complète (I), ou annuler (A) ? [U/I/A] "},
     "interactive_major_prompt": {"en": "⚙️ Major update, A complete reinstallation is required (config.ini will be reset, make a copy).\n  Proceed to installation (I), or abort (A)? [I/A] ",
                                    "fr": "⚙️ Mise à jour majeure, une réinstallation complète est nécessaire (config.ini sera réinitialisé, faites une copie).\n  Procéder à l'installation (I), ou annuler (A) ? [I/A] "},
     "interactive_update_prompt": {"en": "⚙️ An update is available.\n  Would you like to perform an update [U], a complete install (Update + Configuration)[I], or cancel [A]? [U/I/A] ",
