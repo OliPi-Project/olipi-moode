@@ -493,13 +493,16 @@ def merge_ini_with_dist(user_file: Path, dist_file: Path):
             merged_lines.extend(user_sections[section][1:])
             merged_lines.append("")
 
-    # --- Write merged file
-    backup_path = user_file.with_suffix(".bak")
+    # Make a backup
+    user = os.getenv("SUDO_USER") or os.getenv("USER") or "pi"
+    home = Path("/home") / user
+    timestamp = time.strftime("%Y%m%d_%H%M%S")
+    backup_path = home / f"{user_file.name}.{timestamp}.bak"
     if user_file.exists():
-        user_file.rename(backup_path)
+        user_file.replace(backup_path)
+    print(f"✅ backup file saved to {backup_path}")
+    # Write new merged file
     user_file.write_text("\n".join(merged_lines) + "\n")
-
-    print(f"✅ backup file {backup_path}")
 
 def save_settings(settings: dict):
     try:
@@ -1380,7 +1383,7 @@ def setup_virtualenv(venv_path):
     log_line(msg="Virtual environment setup/update complete", context="setup_virtualenv")
 
 def detect_user():
-    user = os.getenv("SUDO_USER") or os.getenv("USER") or "unknown"
+    user = os.getenv("SUDO_USER") or os.getenv("USER") or "pi"
     print(SETUP["user_detected"][lang].format(user))
     return user
 
