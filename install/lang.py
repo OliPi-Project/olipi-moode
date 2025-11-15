@@ -155,13 +155,15 @@ SETUP = {
     "profile_update_error": {"en": "❌ Failed to update ~/.profile: {}", "fr": "❌ Échec de la mise à jour de ~/.profile: {}"},
     "install_done": {"en": "\n✅ Installation complete.", "fr": "\n✅ Installation terminée."},
     "controle_explanation": {"en": "\n⚙️ Controle configuration:"
-                                   "\n- GPIO buttons or rotary: configure pins in config.ini"
+                                   "\n- GPIO buttons or rotary: Configure pins in config.ini"
+                                   "\n- MPR121: Configure interupt pin, address & pads in config.ini"
                                    "\n- IR Remote: Run ' python3 {} ' to install and configure LIRC.",
                              "fr": "\n⚙️ Configuration des Controle:"
-                                   "\n- Boutons GPIO ou encodeur rotatif: configurez les broches dans config.ini."
+                                   "\n- Boutons GPIO ou encodeur rotatif: Configurez les broches dans config.ini."
+                                   "\n- MPR121 : Configurer interupt pin, adresse & pads dans config.ini"
                                    "\n- Télécommande IR: Executez ' python3 {} ' pour installer et configurer LIRC."},
-    "moode_reminder": {"en": "\n⚠️  Reminder: To display the Spectro, activate Loopback in Moode (configure > audio > ALSA Options)\nand change show_spectrum = false to true in ~/olipi-moode/config.ini\n\n",
-                       "fr": "\n⚠️  Rappel: Pour afficher le Spectro, activer Loopback dans Moode (configure > audio > ALSA Options)\net changer show_spectrum = false à true dans ~/olipi-moode/config.ini\n"},
+    "moode_reminder": {"en": "\n⚠️  Reminder: To display the Spectro, activate Loopback in Moode (configure > audio > ALSA Options)\nand activate it via menu or in ~/olipi-moode/config.ini\n\n",
+                       "fr": "\n⚠️  Rappel: Pour afficher le Spectro, activer Loopback dans Moode (configure > audio > ALSA Options)\net activer le via le menu ou dans ~/olipi-moode/config.ini\n\n"},
     "develop_done": {"en": "✅ Development mode setup complete.",
                      "fr": "✅ La branche de développement a été installée avec succès."},
     "reboot_prompt": {"en": "\n⇨ Do you want to reboot now? [Y/n] > ", "fr": "\n⇨ Voulez-vous redémarrer maintenant ? [O/n] > "},
