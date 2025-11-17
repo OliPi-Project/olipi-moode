@@ -1,7 +1,7 @@
 # CONTEXT:queue
-OK: Open menu
+OK: play track
+OK long: Open menu
 ↑ ↓: Navigate the list
-→ long: Play the selected track
 ←: Return to the currently playing track
 ← long: Refresh the playlist
 Info: Display help
@@ -43,5 +43,7 @@ OK: Validate
 OK: Validate
 ← →: Move the cursor
 ↑ ↓: Select characters
-#CH -: Delete a character
-← long: Cancel renaming (use the old name)
+→ long: Accentuate character
+← long: Cancel renaming (use old name)
+CH + : Inserts a space between the cursor and next character
+CH - : Deletes the character after the cursor

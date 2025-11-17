@@ -104,7 +104,15 @@ rename_mode = False
 rename_input = ""
 rename_cursor = 0
 rename_original_name = ""
-valid_chars = string.ascii_lowercase + string.digits + '-'
+valid_chars = string.ascii_lowercase + '-' + string.digits + " '"
+accent_variants = {
+    "a": ["a", "à", "â", "ä"],
+    "e": ["e", "é", "è", "ê", "ë"],
+    "i": ["i", "î", "ï"],
+    "o": ["o", "ô", "ö"],
+    "u": ["u", "ù", "û", "ü"],
+    "c": ["c", "ç"],
+}
 
 help_active = False
 help_lines = []
@@ -555,20 +563,20 @@ def draw_rename_screen():
 
     # ─── Scroll horizontal ───
     text_before_cursor = rename_input[:rename_cursor]
-    text_width_before_cursor = core.draw.textlength(text_before_cursor.replace(" ", "_"), font=font_rename_input)
-    full_text_width = core.draw.textlength(rename_input.replace(" ", "_"), font=font_rename_input)
+    text_width_before_cursor = core.draw.textlength(text_before_cursor, font=font_rename_input)
+    full_text_width = core.draw.textlength(rename_input, font=font_rename_input)
 
     # Automatic scroll if cursor exceeds the visible display
     visible_width = core.width - 2 * input_padding_x
     scroll_offset = 0
     if text_width_before_cursor > visible_width:
-        scroll_offset = text_width_before_cursor - visible_width + 10  # petit padding
+        scroll_offset = text_width_before_cursor - visible_width + 10
 
-    display_text = rename_input.replace(" ", "_")
+    display_text = rename_input
     core.draw.text((input_padding_x - scroll_offset, input_y + input_padding_y), display_text, font=font_rename_input, fill=core.COLOR_INPUT_TEXT)
 
     # Visual cursor: actual position
-    cursor_x = core.draw.textlength(rename_input[:rename_cursor].replace(" ", "_"), font=font_rename_input) - scroll_offset + input_padding_x
+    cursor_x = core.draw.textlength(rename_input[:rename_cursor], font=font_rename_input) - scroll_offset + input_padding_x
     cursor_y = input_y + input_padding_y
     core.draw.line((cursor_x, cursor_y, cursor_x, cursor_y + font_rename_input.getbbox("A")[3]), fill=core.COLOR_INPUT_CURSOR)
 
@@ -595,9 +603,6 @@ def draw_rename_screen():
 def draw_queue():
     now = time.time()
 
-    # -------------------------------
-    # 0) Background
-    # -------------------------------
     core.draw.rectangle((0, 0, core.width, core.height), fill=core.COLOR_BG)
 
     # -------------------------------
@@ -1058,6 +1063,21 @@ def nav_down():
             queue_selection += 1
 
 def nav_ok():
+    global current_playing, queue_selection
+    try:
+        client = MPDClient()
+        client.timeout = 10
+        client.connect("localhost", 6600)
+        client.play(queue_selection)
+        client.close()
+        client.disconnect()
+        current_playing = queue_selection
+    except Exception as e:
+        core.show_message(core.t("error_play_song"))
+        if core.DEBUG:
+            print(f"Reading error: {e}")
+
+def nav_ok_long():
     global menu_active, menu_selection
     global empty_queue_menu_active, empty_queue_menu_selection
     if len(queue_items) == 0:
@@ -1095,19 +1115,21 @@ def nav_right_short():
     print("Not implemented")
 
 def nav_right_long():
-    global current_playing, queue_selection
-    try:
-        client = MPDClient()
-        client.timeout = 10
-        client.connect("localhost", 6600)
-        client.play(queue_selection)
-        client.close()
-        client.disconnect()
-        current_playing = queue_selection
-    except Exception as e:
-        core.show_message(core.t("error_play_song"))
-        if core.DEBUG:
-            print(f"Reading error: {e}")
+    global rename_input, rename_cursor
+    if rename_mode:
+        if 0 <= rename_cursor < len(rename_input):
+            char = rename_input[rename_cursor].lower()
+            for base, variants in accent_variants.items():
+                if char in variants:
+                    current_index = variants.index(char)
+                    next_variant = variants[(current_index + 1) % len(variants)]
+                    rename_input = (
+                        rename_input[:rename_cursor]
+                        + next_variant
+                        + rename_input[rename_cursor + 1:]
+                    )
+                    print(f"→ Accent switch: {char} -> {next_variant}")
+                    break
 
 def nav_info():
     global help_active, help_lines, help_selection
@@ -1232,6 +1254,7 @@ def finish_press(key):
         if key == "KEY_LEFT": nav_left_long()
         elif key == "KEY_BACK": nav_back_long()
         elif key == "KEY_RIGHT": nav_right_long()
+        elif key == "KEY_OK": nav_ok_long()
         elif key == "KEY_POWER":
             core.show_message(core.t("info_poweroff"))
             subprocess.run(["mpc", "stop"])
@@ -1440,25 +1463,40 @@ def finish_press(key):
         elif key == "KEY_RIGHT":
             if rename_cursor < len(rename_input) - 1:
                 rename_cursor += 1
-            elif rename_cursor < len(rename_input):
+            elif rename_cursor == len(rename_input) - 1:
+                last_char = rename_input[-1]
+                if last_char == " ":
+                    rename_input += "a"
+                else:
+                    rename_input += " "
                 rename_cursor += 1
-                new_char = "a"
-                rename_input += new_char
         elif key == "KEY_UP":
-            ch = rename_input[rename_cursor]
-            if ch in valid_chars:
-                new_index = (valid_chars.index(ch) - 1) % len(valid_chars)
-                new_ch = valid_chars[new_index]
-                rename_input = rename_input[:rename_cursor] + new_ch + rename_input[rename_cursor + 1:]
+            if not rename_input:
+                rename_input = "1"
+            elif rename_input and 0 <= rename_cursor < len(rename_input):
+                ch = rename_input[rename_cursor]
+                if ch in valid_chars:
+                    new_index = (valid_chars.index(ch) + 1) % len(valid_chars)
+                    new_ch = valid_chars[new_index]
+                    rename_input = rename_input[:rename_cursor] + new_ch + rename_input[rename_cursor + 1:]
         elif key == "KEY_DOWN":
-            ch = rename_input[rename_cursor]
-            if ch in valid_chars:
-                new_index = (valid_chars.index(ch) + 1) % len(valid_chars)
-                new_ch = valid_chars[new_index]
-                rename_input = rename_input[:rename_cursor] + new_ch + rename_input[rename_cursor + 1:]
+            if not rename_input:
+                rename_input = "a"
+            elif rename_input and 0 <= rename_cursor < len(rename_input):
+                ch = rename_input[rename_cursor]
+                if ch in valid_chars:
+                    new_index = (valid_chars.index(ch) - 1) % len(valid_chars)
+                    new_ch = valid_chars[new_index]
+                    rename_input = rename_input[:rename_cursor] + new_ch + rename_input[rename_cursor + 1:]
+        elif key == "KEY_CHANNELUP":
+            rename_input = rename_input[:rename_cursor] + " " + rename_input[rename_cursor:]
+        elif key == "KEY_CHANNELDOWN":
+            if 0 <= rename_cursor < len(rename_input):
+                rename_input = rename_input[:rename_cursor] + rename_input[rename_cursor + 1:]
+            rename_cursor = min(rename_cursor, len(rename_input) - 1 if rename_input else 0)
         elif key == "KEY_OK":
             playlist_rename()
-            return
+        return
 
     else:
         if key == "KEY_OK":

@@ -1,7 +1,7 @@
 # CONTEXT:queue
-OK : Ouvrir le menu
+OK : Lire la piste selectionné
+OK long: Ouvrir le menu
 ↑ ↓ : Naviguer dans la liste
-→ long: Lire la piste selectionné
 ← : Revenir sur la piste en cours de lecture
 ← long: Rafraîchir la liste de lecture
 Info : Afficher l'aide
@@ -43,5 +43,7 @@ OK : Valider
 OK : Valider
 ← → : Déplacer le curseur
 ↑ ↓ : Choisir caractères
-#CH - : Supprimer un caractère
+→ long: Choix Accentuation
 ← long: Annuler le renommage (utiliser l'ancien nom)
+CH + : Insère un espace entre le curseur et le caractère
+CH - : Supprime le caractère après le curseur

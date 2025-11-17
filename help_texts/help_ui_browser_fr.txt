@@ -37,5 +37,5 @@ OK : Lancer la recherche
 ↑ ↓ : Choisir caractères
 → long: Choix Accentuation
 ← long: Retour racine bibliothèque
-CH + : Ajouter un espace
-CH - : Supprimer un caractère
+CH + : Insère un espace entre le curseur et le caractère
+CH - : Supprime le caractère après le curseur
