@@ -34,7 +34,7 @@ OLIPI_CORE_DEV_BRANCH = "dev"
 
 # path relative to local_dir e.g. ["config/user_key.ini, something.ini"]
 PRESERVE_FILES = {
-    "moode": ["songlog.txt, search_history.txt"],
+    "moode": ["songlog.txt", "search_history.txt"],
     "core": []
 }
 
