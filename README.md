@@ -21,12 +21,20 @@ Video presentation:
 
 ## ❔ What's new?
 
-**<u>V0.3.0-pre</u>** 
+**<u>V0.3.0-pre</u> +** 
 
 If you're upgrading from a version prior to v0.3.0, a fresh install is required. You can uninstall all with: `sudo bash ~/olipi-moode/install/uninstall-olipi-moode.sh` And perform a fresh [installation](#-installation). Remember to make a backup of your config.ini if necessary. (Remote control settings are not deleted)
 
 Release Note:
 
+    Latest updates:
+    - Improved search/rename input box & relative info. 
+    - In queue ui Key_OK now play track & OK long open menu
+    - Add search_history.txt to PRESERVE_FILES
+    - Config.ini is now saved in the user /home folder before a merge or reset
+    - Optimisation: cpu % divided by 2 on zero2w in queue and library displays
+
+    V0.3.0-pre:
     - Add support for MPR121 capacitive touch with a beginnings of gesture support
     - Add independent debounce settings depending on input
     - Add support for ST7789 2.4" & 2.8"
