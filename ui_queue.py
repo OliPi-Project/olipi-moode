@@ -593,15 +593,16 @@ def draw_rename_screen():
             core.draw.text((padding_x, core.height - (max_lines - i) * 10), line, font=font_rename_info, fill=core.COLOR_INPUT_INFO)
 
 def draw_queue():
-    """
-    Queue view: header at top, adaptive layout, improved selected-item scrolling.
-    """
     now = time.time()
 
-    # Background
+    # -------------------------------
+    # 0) Background
+    # -------------------------------
     core.draw.rectangle((0, 0, core.width, core.height), fill=core.COLOR_BG)
 
-    # If queue is being refreshed show a centered message and bail out
+    # -------------------------------
+    # 1) Refreshing queue notice
+    # -------------------------------
     if refreshing_queue:
         msg = core.t("show_refreshing_queue")
         text_w = core.draw.textlength(msg, font=font_item)
@@ -609,17 +610,20 @@ def draw_queue():
                        msg, font=font_item, fill=core.COLOR_TEXT)
         return
 
-    # 1) Choose header
-    if not queue_items:
-        header = core.t("title_empty_queue")
-    else:
-        header = core.t("title_now_playing")
+    # -------------------------------
+    # 2) Header
+    # -------------------------------
+    header = core.t("title_empty_queue") if not queue_items else core.t("title_now_playing")
 
-    # 2) Dynamic paddings
+    # -------------------------------
+    # 3) Dynamic paddings
+    # -------------------------------
     padding_x = max(1, int(core.width * 0.02))
     padding_y = max(1, int(core.height * 0.01))
 
-    # 3) Title linear scroll (keep original behavior but safe-guard keys)
+    # -------------------------------
+    # 4) Title scroll
+    # -------------------------------
     state_t = core.scroll_state.setdefault("queue_title", {"offset": 0, "last_update": now})
     title_w = core.draw.textlength(header, font=font_title)
     bbox_title = font_title.getbbox("Ay")
@@ -633,38 +637,38 @@ def draw_queue():
     else:
         state_t["offset"] = 0
 
-    # 4) Draw title at top (centered or scrolling)
     if title_w <= core.width:
         xh = (core.width - title_w) // 2
         core.draw.text((xh, 0), header, font=font_title, fill=core.COLOR_TITLE)
     else:
         off = state_t.get("offset", 0)
         core.draw.text((-off, 0), header, font=font_title, fill=core.COLOR_TITLE)
-        core.draw.text((title_w + SCROLL_TITLE_QUEUE_PADDING_END - off, 0),
-                       header, font=font_title, fill=core.COLOR_TITLE)
+        core.draw.text((title_w + SCROLL_TITLE_QUEUE_PADDING_END - off, 0), header, font=font_title, fill=core.COLOR_TITLE)
 
-    # 5) Title -> items spacing depending on screen height
+    # -------------------------------
+    # 5) Vertical layout
+    # -------------------------------
     if core.height <= 64:
         spacing_title_items = 5
-        padding_item = 2
+        padding_item = 1
     elif core.height < 128:
         spacing_title_items = 5
-        padding_item = 2
+        padding_item = 1
     else:
         spacing_title_items = 6
-        padding_item = 2
+        padding_item = 1
 
-    # 6) Fixed metrics for items (based on "Ay")
-    item_bbox = font_item.getbbox("Ay")
+    item_bbox = font_item.getbbox("Aéy")
     item_h = item_bbox[3] - item_bbox[1]
     line_h = item_h + padding_item
 
-    # 7) Compute available lines (reserve top area for title + padding_y)
     start_y = title_h + spacing_title_items
     max_lines = max(1, (core.height - start_y - padding_y) // line_h)
     visible_lines = min(len(queue_items), max_lines)
 
-    # 8) Handle empty queue with two centered notices (keep original texts)
+    # -------------------------------
+    # 6) Handle empty queue
+    # -------------------------------
     if not queue_items:
         notice = core.t("show_queue_empty_notice_1")
         b = core.draw.textbbox((0, 0), notice, font=font_item)
@@ -677,12 +681,25 @@ def draw_queue():
         core.draw.text((x_notice2, start_y + 10 + line_h), notice2, font=font_rename_info, fill=core.COLOR_TEXT)
         return
 
-    # 9) Compute window of items centered on selection
+    # -------------------------------
+    # 7) Window of items centered on selection
+    # -------------------------------
     start_idx = max(0, queue_selection - visible_lines // 2)
     if start_idx + visible_lines > len(queue_items):
         start_idx = max(0, len(queue_items) - visible_lines)
 
-    # 10) Draw items
+    # -------------------------------
+    # 8) Item cache
+    # -------------------------------
+    item_cache = core.scroll_state.setdefault("queue_item_cache", {})
+    selected_scroll = core.scroll_state.setdefault(
+        "queue_selected_scroll",
+        {"text": None, "offset": 0, "phase": "pause_start", "pause_start_time": now, "last_update": now}
+    )
+
+    # -------------------------------
+    # 9) Draw items
+    # -------------------------------
     for i in range(visible_lines):
         idx = start_idx + i
         if idx >= len(queue_items):
@@ -698,79 +715,98 @@ def draw_queue():
         text_y = y_item + (line_h - item_h) // 2 - item_bbox[1]
         x_text_base = padding_x
 
-        if idx == queue_selection:
-            # selection rectangle (full width, but vertical aligned to text bbox)
-            sel_top = text_y + item_bbox[1] - 3
-            sel_bot = text_y + item_bbox[3]
-            core.draw.rectangle((0, sel_top, core.width - 1, sel_bot), outline=core.COLOR_MENU_OUTLINE, fill=core.COLOR_MENU_SELECTED_BG)
+        # ---------------------------
+        # Non-selected items -> cache
+        # ---------------------------
+        if idx != queue_selection:
+            cached = item_cache.get(full_text)
+            if cached is None:
+                img_w = max(1, int(text_w))
+                img_h = item_h
+                img_mode = "1" if core.display_format == "MONO" else "RGB"
+                bg = core.COLOR_BG
+                img = core.Image.new(img_mode, (img_w, img_h), bg)
+                d = core.screen.ImageDraw.Draw(img)
+                d.text((0, -item_bbox[1]), full_text, font=font_item, fill=core.COLOR_TEXT)
+                cached = item_cache[full_text] = img
 
-            # selected-item scroll: use phase-based state (pause_start -> scrolling -> pause_end)
-            state_i = core.scroll_state.setdefault(
-                "queue_item",
-                {"offset": 0, "last_update": time.time(), "phase": "pause_start", "pause_start_time": time.time()}
-            )
-            avail = core.width - (padding_x + 2)
+            core.screen.image.paste(cached, (padding_x, int(y_item)))
+            continue
 
-            if text_w > avail:
-                # adaptive timing
-                BASE_INTERVAL = SCROLL_SPEED_QUEUE
-                MIN_INTERVAL = 0.03
-                MAX_INTERVAL = 0.14
-                PAUSE_DURATION = 0.6
-                BLANK_DURATION = 0.12
+        # ---------------------------
+        # Selected item -> scroll
+        # ---------------------------
+        st = selected_scroll
+        if st["text"] != full_text:
+            st["text"] = full_text
+            st["offset"] = 0
+            st["phase"] = "pause_start"
+            st["pause_start_time"] = now
+            st["last_update"] = now
 
-                ratio = text_w / float(avail)
-                interval = BASE_INTERVAL / max(0.001, ratio)
-                scroll_speed = max(MIN_INTERVAL, min(MAX_INTERVAL, interval))
+        avail = core.width - (padding_x + 2)
 
-                phase = state_i.get("phase", "pause_start")
+        # ---------------------------
+        # Draw selection rectangle
+        # ---------------------------
+        sel_top = text_y + item_bbox[1] - 2
+        sel_bot = text_y + item_bbox[3]
+        core.draw.rectangle((0, sel_top, core.width - 1, sel_bot),
+                            outline=core.COLOR_MENU_OUTLINE,
+                            fill=core.COLOR_MENU_SELECTED_BG)
 
-                if phase == "pause_start":
-                    state_i["offset"] = 0
-                    if now - state_i.get("pause_start_time", 0) > PAUSE_DURATION:
-                        state_i["phase"] = "scrolling"
-                        state_i["last_update"] = now
+        if text_w > avail:
+            BASE_INTERVAL = SCROLL_SPEED_QUEUE
+            MIN_INTERVAL, MAX_INTERVAL = 0.02, 0.14
+            PAUSE_DURATION = 0.6
+            BLANK_DURATION = 0.12
 
-                elif phase == "scrolling":
-                    if now - state_i.get("last_update", 0) > scroll_speed:
-                        state_i["offset"] += 1
-                        state_i["last_update"] = now
-                        if state_i["offset"] >= (text_w - avail):
-                            # reached end => enter pause_end
-                            state_i["phase"] = "pause_end"
-                            state_i["pause_start_time"] = now
+            ratio = text_w / float(avail)
+            interval = BASE_INTERVAL / max(0.001, ratio)
+            scroll_speed = max(MIN_INTERVAL, min(MAX_INTERVAL, interval))
 
-                elif phase == "pause_end":
-                    elapsed = now - state_i.get("pause_start_time", 0)
-                    if elapsed >= PAUSE_DURATION:
-                        # full pause finished: reset
-                        state_i["offset"] = 0
-                        state_i["phase"] = "pause_start"
-                        state_i["pause_start_time"] = now
+            phase = st.get("phase", "pause_start")
 
-                # compute x once
-                off = state_i.get("offset", 0)
-                x_text = x_text_base - off if text_w > avail else x_text_base
+            if phase == "pause_start":
+                st["offset"] = 0
+                if now - st.get("pause_start_time", 0) > PAUSE_DURATION:
+                    st["phase"] = "scrolling"
+                    st["last_update"] = now
 
-                # very short blank near the end of the pause_end
-                draw_text = True
-                if state_i.get("phase") == "pause_end":
-                    elapsed = now - state_i.get("pause_start_time", 0)
-                    if elapsed >= (PAUSE_DURATION - BLANK_DURATION) and elapsed < PAUSE_DURATION:
-                        draw_text = False
+            elif phase == "scrolling":
+                if now - st.get("last_update", 0) > scroll_speed:
+                    st["offset"] += 1
+                    st["last_update"] = now
+                    if st["offset"] >= (text_w - avail):
+                        st["phase"] = "pause_end"
+                        st["pause_start_time"] = now
 
-                if draw_text:
-                    core.draw.text((x_text, text_y), full_text, font=font_item, fill=core.COLOR_MENU_SELECTED_TEXT)
-                # else: skip drawing text during brief blank
-            else:
-                # text fits: reset state and draw normally
-                state_i["offset"] = 0
-                state_i["phase"] = "pause_start"
-                state_i["pause_start_time"] = now
-                core.draw.text((x_text_base, text_y), full_text, font=font_item, fill=core.COLOR_MENU_SELECTED_TEXT)
+            elif phase == "pause_end":
+                if now - st.get("pause_start_time", 0) >= PAUSE_DURATION:
+                    st["offset"] = 0
+                    st["phase"] = "pause_start"
+                    st["pause_start_time"] = now
+
+            off = st.get("offset", 0)
+            x_text = x_text_base - off
+
+            # blank near the end of pause_end
+            draw_text = True
+            if st.get("phase") == "pause_end":
+                elapsed = now - st.get("pause_start_time", 0)
+                if elapsed >= (PAUSE_DURATION - BLANK_DURATION) and elapsed < PAUSE_DURATION:
+                    draw_text = False
+
+            # draw text if allowed
+            if draw_text:
+                core.draw.text((x_text, text_y), full_text, font=font_item, fill=core.COLOR_MENU_SELECTED_TEXT)
+
         else:
-            # non-selected item
-            core.draw.text((x_text_base, text_y), full_text, font=font_item, fill=core.COLOR_TEXT)
+            st["offset"] = 0
+            st["phase"] = "pause_start"
+            st["pause_start_time"] = now
+            core.draw.text((x_text_base, text_y), full_text, font=font_item, fill=core.COLOR_MENU_SELECTED_TEXT)
+
 
 def add_default_cover(playlist_name):
     src =  OLIPIMOODE_DIR / "NewPlaylist.jpg"

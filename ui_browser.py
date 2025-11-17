@@ -1034,10 +1034,10 @@ def draw_search_screen():
     core.draw.text((padding_x, info_centered), info1, font=font_search_info, fill=core.COLOR_INPUT_INFO)
 
 def draw_library():
-    """Library view: header at top, adaptive layout, improved selected-item scrolling."""
     now = time.time()
-
-    # --- 1) Choose header text ---
+    # -------------------------------
+    # 1) Header string
+    # -------------------------------
     if copy_mode_active:
         header = core.t("title_copy_mode")
     elif current_path == "/":
@@ -1045,164 +1045,186 @@ def draw_library():
     else:
         header = current_path
 
-    # --- 2) Dynamic paddings (adapt to screen size) ---
+    # -------------------------------
+    # 2) Header cache (text only)
+    # -------------------------------
+    head_state = core.scroll_state.setdefault("library_header_cache", {})
+
+    # compute width only once per change
+    header_changed = head_state.get("text") != header
+    if header_changed:
+        head_state["text"] = header
+        head_state["w"] = core.draw.textlength(header, font=font_title)
+        head_state["bbox"] = font_title.getbbox("Ay")
+
+    title_w = head_state["w"]
+    title_h = head_state["bbox"][3] - head_state["bbox"][1]
+
+    # -------------------------------
+    # 3) Background full clear
+    # -------------------------------
+    core.draw.rectangle((0, 0, core.width, core.height), fill=core.COLOR_BG)
+
+    # -------------------------------
+    # 4) Header linear scroll (unchanged)
+    # -------------------------------
     padding_x = max(1, int(core.width * 0.02))
     padding_y = max(1, int(core.height * 0.01))
+    inner_w = core.width - 2 * padding_x
 
-    # --- 3) Title linear scroll (keeps original behaviour) ---
     state_t = core.scroll_state.setdefault("library_title", {"offset": 0, "last_update": now})
-    title_w = core.draw.textlength(header, font=font_title)
-    bbox_title = font_title.getbbox("Ay")
-    title_h = bbox_title[3] - bbox_title[1]
 
-    inner_width_guess = core.width - 2 * padding_x
-    if title_w > inner_width_guess and now - state_t.get("last_update", 0) > SCROLL_SPEED_TITLE_LIBRARY:
+    if title_w > inner_w and now - state_t["last_update"] > SCROLL_SPEED_TITLE_LIBRARY:
         scroll_w = title_w + SCROLL_TITLE_LIB_PADDING_END
-        state_t["offset"] = (state_t.get("offset", 0) + 1) % scroll_w
+        state_t["offset"] = (state_t["offset"] + 1) % scroll_w
         state_t["last_update"] = now
-    else:
-        state_t.setdefault("offset", 0)
-
-    # --- 4) Background and draw header (top area) ---
-    core.draw.rectangle((0, 0, core.width, core.height), fill=core.COLOR_BG)
 
     if title_w <= core.width:
         xh = (core.width - title_w) // 2
         core.draw.text((xh, 0), header, font=font_title, fill=core.COLOR_TITLE)
     else:
-        off = state_t.get("offset", 0)
+        off = state_t["offset"]
         core.draw.text((-off, 0), header, font=font_title, fill=core.COLOR_TITLE)
-        core.draw.text((title_w + SCROLL_TITLE_LIB_PADDING_END - off, 0),
-                       header, font=font_title, fill=core.COLOR_TITLE)
+        core.draw.text((title_w + SCROLL_TITLE_LIB_PADDING_END - off, 0), header, font=font_title, fill=core.COLOR_TITLE)
 
-    # --- 5) Title -> items spacing based on screen height ---
+    # -------------------------------
+    # 5) Vertical layout
+    # -------------------------------
     if core.height <= 64:
         spacing_title_items = 5
-        padding_item = 2
+        padding_item = 1
     elif core.height < 128:
         spacing_title_items = 5
-        padding_item = 2
+        padding_item = 1
     else:
         spacing_title_items = 6
-        padding_item = 2
+        padding_item = 1
 
-    # --- 6) Fixed metrics for items (based on "Ay") ---
-    item_bbox = font_item.getbbox("Ay")
+    item_bbox = font_item.getbbox("Aéy")
     item_h = item_bbox[3] - item_bbox[1]
     line_h = item_h + padding_item
 
-    # --- 7) Compute available lines (reserve top area for title + padding) ---
     start_y = title_h + spacing_title_items
     max_lines = max(1, (core.height - start_y - padding_y) // line_h)
     visible_lines = min(len(library_items), max_lines)
 
-    # --- 8) Compute window of items centered on selection ---
     start_idx = max(0, library_selection - visible_lines // 2)
     if start_idx + visible_lines > len(library_items):
         start_idx = max(0, len(library_items) - visible_lines)
 
-    # --- 9) Draw items ---
+    # -------------------------------
+    # 6) Item cache (BIG SPEEDUP)
+    # -------------------------------
+    item_cache = core.scroll_state.setdefault("library_item_cache", {})
+    selected_scroll = core.scroll_state.setdefault(
+        "library_selected_scroll",
+        {"text": None, "offset": 0, "phase": "pause_start",
+         "pause_start_time": now, "last_update": now}
+    )
+
     for i in range(visible_lines):
         idx = start_idx + i
-        if idx >= len(library_items):
-            break
-
-        typ, val = library_items[idx]
         y_item = start_y + i * line_h
 
-        # --- label / display ---
+        typ, val = library_items[idx]
+
+        # label resolution
         if current_path == "RADIO":
             display = val.split("/")[-1].removesuffix(".pls")
         else:
             display = display_labels.get(val, val.split("/")[-1])
 
-        # add release year if applicable
         if sort_mode == "release" and val in release_year_labels:
             display += f" – {release_year_labels[val]}"
 
+        # Checkbox prefix
         is_selected = (typ, val) in selected_items
         prefix = "✓ " if is_selected else ""
         full_text = prefix + display
 
-        # compute text positions (baseline-stable)
+        # ---------------------------
+        # Non-selected items -> CACHE
+        # ---------------------------
+        if idx != library_selection:
+            cached = item_cache.get(full_text)
+
+            if cached is None:
+                # build cache image
+                w = core.draw.textlength(full_text, font=font_item)
+                img_w = max(1, int(w))
+                img_h = item_h
+                img_mode = "1" if core.display_format == "MONO" else "RGB"
+                bg = core.COLOR_BG
+                img = core.Image.new(img_mode, (img_w, img_h), bg)
+                d = core.screen.ImageDraw.Draw(img)
+                d.text((0, -item_bbox[1]), full_text, font=font_item, fill=core.COLOR_TEXT)
+                cached = item_cache[full_text] = img
+
+            # paste cached image
+            core.screen.image.paste(cached, (padding_x, int(y_item)))
+
+            continue
+
+        # ---------------------------
+        # Selected item -> SCROLLING
+        # ---------------------------
         text_w = core.draw.textlength(full_text, font=font_item)
+        avail = core.width - (padding_x + 2)
+
+        # highlight line
         text_y = y_item + (line_h - item_h) // 2 - item_bbox[1]
-        x_text_base = padding_x
+        sel_top = text_y + item_bbox[1] - 2
+        sel_bot = text_y + item_bbox[3]
+        core.draw.rectangle((0, sel_top, core.width - 1, sel_bot), outline=core.COLOR_MENU_OUTLINE, fill=core.COLOR_MENU_SELECTED_BG)
 
-        if idx == library_selection:
-            # --- Selection rectangle aligned to the text bbox (no outer border) ---
-            sel_top = text_y + item_bbox[1] - 3
-            sel_bot = text_y + item_bbox[3]
-            core.draw.rectangle((0, sel_top, core.width - 1, sel_bot), outline=core.COLOR_MENU_OUTLINE, fill=core.COLOR_MENU_SELECTED_BG)
+        # scrolling logic
+        st = selected_scroll
+        if st["text"] != full_text:
+            st["text"] = full_text
+            st["offset"] = 0
+            st["phase"] = "pause_start"
+            st["pause_start_time"] = now
 
-            # --- Selected-item scroll: phase-based (pause_start -> scrolling -> pause_end)
-            state_i = core.scroll_state.setdefault(
-                "library_items",
-                {"offset": 0, "last_update": time.time(), "phase": "pause_start", "pause_start_time": time.time()}
-            )
-            avail = core.width - (padding_x + 2)  # visible width for text (leave small right margin)
+        if text_w > avail:
+            BASE_INTERVAL = SCROLL_SPEED_LIBRARY
+            MIN_INTERVAL, MAX_INTERVAL = 0.02, 0.14
+            PAUSE_DURATION = 0.6
+            BLANK_DURATION = 0.12
 
-            if text_w > avail:
-                # adaptive timing (longer text -> faster stepping)
-                BASE_INTERVAL = SCROLL_SPEED_LIBRARY
-                MIN_INTERVAL = 0.02
-                MAX_INTERVAL = 0.14
-                PAUSE_DURATION = 0.6
-                BLANK_DURATION = 0.12
+            ratio = text_w / float(avail)
+            step = BASE_INTERVAL / max(0.001, ratio)
+            speed = max(MIN_INTERVAL, min(MAX_INTERVAL, step))
 
-                ratio = text_w / float(avail)
-                interval = BASE_INTERVAL / max(0.001, ratio)
-                scroll_speed = max(MIN_INTERVAL, min(MAX_INTERVAL, interval))
+            phase = st["phase"]
 
-                phase = state_i.get("phase", "pause_start")
+            if phase == "pause_start":
+                st["offset"] = 0
+                if now - st["pause_start_time"] > PAUSE_DURATION:
+                    st["phase"] = "scrolling"
+                    st["last_update"] = now
 
-                if phase == "pause_start":
-                    state_i["offset"] = 0
-                    if now - state_i.get("pause_start_time", 0) > PAUSE_DURATION:
-                        state_i["phase"] = "scrolling"
-                        state_i["last_update"] = now
+            elif phase == "scrolling":
+                if now - st["last_update"] > speed:
+                    st["offset"] += 1
+                    st["last_update"] = now
+                    if st["offset"] >= (text_w - avail):
+                        st["phase"] = "pause_end"
+                        st["pause_start_time"] = now
 
-                elif phase == "scrolling":
-                    if now - state_i.get("last_update", 0) > scroll_speed:
-                        state_i["offset"] += 1
-                        state_i["last_update"] = now
-                        if state_i["offset"] >= (text_w - avail):
-                            # reached end -> enter pause_end
-                            state_i["phase"] = "pause_end"
-                            state_i["pause_start_time"] = now
+            elif phase == "pause_end":
+                if now - st["pause_start_time"] >= PAUSE_DURATION:
+                    st["offset"] = 0
+                    st["phase"] = "pause_start"
+                    st["pause_start_time"] = now
 
-                elif phase == "pause_end":
-                    elapsed = now - state_i.get("pause_start_time", 0)
-                    # keep text visible for PAUSE_DURATION - BLANK_DURATION, then blank briefly
-                    if elapsed >= PAUSE_DURATION:
-                        # full pause finished, reset to start
-                        state_i["offset"] = 0
-                        state_i["phase"] = "pause_start"
-                        state_i["pause_start_time"] = now
-
-                # compute x once
-                off = state_i.get("offset", 0)
-                x_text = x_text_base - off if text_w > avail else x_text_base
-
-                # determine brief blank at very end of pause_end (text hidden only during this short window)
-                draw_text = True
-                if state_i.get("phase") == "pause_end":
-                    elapsed = now - state_i.get("pause_start_time", 0)
-                    if elapsed >= (PAUSE_DURATION - BLANK_DURATION) and elapsed < PAUSE_DURATION:
-                        draw_text = False
-
-                if draw_text:
-                    core.draw.text((x_text, text_y), full_text, font=font_item, fill=core.COLOR_MENU_SELECTED_TEXT)
-                # else: skip drawing text for the very short blank period
-            else:
-                # text fits: reset state and draw normally
-                state_i["offset"] = 0
-                state_i["phase"] = "pause_start"
-                state_i["pause_start_time"] = now
-                core.draw.text((x_text_base, text_y), full_text, font=font_item, fill=core.COLOR_MENU_SELECTED_TEXT)
+            off = st["offset"]
+            x_text = padding_x - off
         else:
-            # non-selected item: normal draw
-            core.draw.text((x_text_base, text_y), full_text, font=font_item, fill=core.COLOR_TEXT)
+            st["offset"] = 0
+            st["phase"] = "pause_start"
+            x_text = padding_x
+
+        core.draw.text((x_text, text_y), full_text, font=font_item, fill=core.COLOR_MENU_SELECTED_TEXT)
 
 def handle_virtual_folder_action(index, val, client):
     if val == "Radios" and current_path.startswith("Search:"):
