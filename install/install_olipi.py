@@ -767,9 +767,11 @@ def install_repo(repo_name: str, repo_url: str, local_dir: Path, branch: str,
             # if explicit force-reset for this file (only on major)
             if f in force_reset_files:
                 if user_file.exists():
+                    user = os.getenv("SUDO_USER") or os.getenv("USER") or "pi"
+                    home = Path("/home") / user
                     timestamp = time.strftime("%Y%m%d_%H%M%S")
-                    backup_file = user_file.parent / f"{user_file.name}_backup_{timestamp}"
-                    shutil.copy2(user_file, backup_file)
+                    backup_path = home / f"{user_file.name}.{timestamp}.bak"
+                    user_file.replace(backup_path)
                     print(SETUP["backup_file"][lang].format(user_file.name, backup_file))
                     log_line(msg=f"Back up file {user_file.name} → {backup_file}", context="install_repo")
                 if dist_file.exists():
