@@ -37,5 +37,5 @@ OK: Start the search
 ↑ ↓: Select characters
 → long: Select Accent
 ← long: Return to library root
-CH +: Add a space
-CH -: Delete a character
+CH +: Inserts a space between the cursor and next character
+CH -: Deletes the character after the cursor

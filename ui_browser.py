@@ -1011,8 +1011,8 @@ def draw_search_screen():
 
     # ─── Calculation of horizontal scroll based on cursor position ──────
     text_before_cursor = search_input[:search_cursor]
-    text_width_before_cursor = core.draw.textlength(text_before_cursor.replace(" ", "_"), font=font_search_input)
-    full_text_width = core.draw.textlength(search_input.replace(" ", "_"), font=font_search_input)
+    text_width_before_cursor = core.draw.textlength(text_before_cursor, font=font_search_input)
+    full_text_width = core.draw.textlength(search_input, font=font_search_input)
 
     # Automatic scroll if cursor exceeds the visible display
     visible_width = core.width - 2 * input_padding_x
@@ -1020,11 +1020,11 @@ def draw_search_screen():
     if text_width_before_cursor > visible_width:
         scroll_offset = text_width_before_cursor - visible_width + 10  # petit padding
 
-    display_text = search_input.replace(" ", "_")
+    display_text = search_input
     core.draw.text((input_padding_x - scroll_offset, input_y + input_padding_y), display_text, font=font_search_input, fill=core.COLOR_INPUT_TEXT)
 
     # Visual cursor: actual position
-    cursor_x = core.draw.textlength(search_input[:search_cursor].replace(" ", "_"), font=font_search_input) - scroll_offset + input_padding_x
+    cursor_x = core.draw.textlength(search_input[:search_cursor], font=font_search_input) - scroll_offset + input_padding_x
     cursor_y = input_y + input_padding_y
     core.draw.line((cursor_x, cursor_y, cursor_x, cursor_y + font_search_input.getbbox("A")[3]), fill=core.COLOR_INPUT_CURSOR)
 
@@ -1941,7 +1941,7 @@ def finish_press(key):
             elif search_input and 0 <= search_cursor < len(search_input):
                 ch = search_input[search_cursor]
                 if ch in valid_chars:
-                    new_index = (valid_chars.index(ch) - 1) % len(valid_chars)
+                    new_index = (valid_chars.index(ch) + 1) % len(valid_chars)
                     new_ch = valid_chars[new_index]
                     search_input = search_input[:search_cursor] + new_ch + search_input[search_cursor + 1:]
         elif key == "KEY_DOWN":
@@ -1950,7 +1950,7 @@ def finish_press(key):
             elif search_input and 0 <= search_cursor < len(search_input):
                 ch = search_input[search_cursor]
                 if ch in valid_chars:
-                    new_index = (valid_chars.index(ch) + 1) % len(valid_chars)
+                    new_index = (valid_chars.index(ch) - 1) % len(valid_chars)
                     new_ch = valid_chars[new_index]
                     search_input = search_input[:search_cursor] + new_ch + search_input[search_cursor + 1:]
         elif key == "KEY_CHANNELUP":
