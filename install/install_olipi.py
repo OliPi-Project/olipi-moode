@@ -671,11 +671,9 @@ def load_mergeable_files(repo_dir: Path):
         log_line(error=f"Failed to load mergeable files: {e}", context="load_mergeable_files")
     return [], []
 
-def install_repo(repo_name: str, repo_url: str, local_dir: Path, branch: str,
-                 settings_keys: dict, mode: str = "install") -> Path:
+def install_repo(repo_name: str, repo_url: str, local_dir: Path, branch: str, settings_keys: dict, mode: str = "install") -> Path:
 
-    print(SETUP.get(f"install_{repo_name.lower()}", {}).get(lang,
-          f"Installing {repo_name}..."))
+    print(SETUP.get(f"install_{repo_name.lower()}", {}).get(lang, f"Installing {repo_name}..."))
 
     local_dir = Path(local_dir)
     repo_exists = local_dir.exists() and (local_dir / ".git").exists()

@@ -731,24 +731,14 @@ def run_mpd_search(input_text, grouping_mode):
         if input_text == search_input_last and grouping_mode == grouping_mode_last:
             results = mpd_results_cache
             radio_matches = radio_results_cache
-            print("Using cached search results")
         else:
             tag = get_search_tag(grouping_mode)
             results = client.search(tag, input_text)
-            with open("/tmp/ui_browser_debug.log", "a") as log:
-                log.write(f"Résultats MPD : {len(results)}\n")
-                for i, song in enumerate(results):
-                    for key, value in song.items():
-                        if isinstance(value, list):
-                            log.write(f"[{i}] ❗ Clé '{key}' est une liste: {value}\n")
-                        elif not isinstance(value, str):
-                            log.write(f"[{i}] ⚠️ Clé '{key}' type inattendu: {type(value)} - {value}\n")
             radio_matches = search_radio_titles(input_text)
             mpd_results_cache = results
             radio_results_cache = radio_matches
             search_input_last = input_text
             grouping_mode_last = grouping_mode
-            print(f"Performed MPD search with tag={tag} and input='{input_text}'")
 
         client.close()
         client.disconnect()
@@ -760,7 +750,6 @@ def run_mpd_search(input_text, grouping_mode):
             selected_grouping_mode = grouping_mode
             search_cursor = max(0, len(search_input) - 1)
             core.show_message(core.t("info_no_match_found"))
-            print(f"run_mpd_search a échoué pour: {search_input} / mode: {grouping_mode}")
             return False
 
         display_labels.clear()
