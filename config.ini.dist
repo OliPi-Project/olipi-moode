@@ -3,6 +3,7 @@
 language = en
 debug = false
 screen_timeout = 0
+screensaver_mode = covers
 random_track_count = 20
 random_radio_count = 1
 random_recent_album_custom_days = 30

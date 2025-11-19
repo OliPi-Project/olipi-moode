@@ -304,6 +304,12 @@ load_icons_from_theme()
 
 show_clock = core.get_config("nowplaying", "show_clock", fallback=True, type=bool)
 
+screensaver_mode = core.get_config("settings", "screensaver_mode", fallback="blank", type=str)
+if screensaver_mode == "covers":
+    from io import BytesIO
+    if core.display_format == "MONO":
+        from PIL import ImageEnhance, ImageOps, ImageFilter
+
 spectrum = None
 PALETTE_SPECTRUM = []
 show_spectrum = core.get_config("nowplaying", "show_spectrum", fallback=False, type=bool)
@@ -342,12 +348,39 @@ def run_active_loop():
 
 def run_sleep_loop():
     global is_sleeping, screen_on
+
     if is_sleeping:
         return
-    core.clear_display()
-    core.poweroff_safe()
-    screen_on = False
+
     is_sleeping = True
+    screen_on = False
+    last_displayed_cover = None
+
+    if screensaver_mode == "covers":
+        while is_sleeping:
+            cover = global_state.get("cover_img")
+            if cover and id(cover) != last_displayed_cover:
+                core.clear_display()
+                core.draw.rectangle((0, 0, core.width, core.height), fill=core.COLOR_BG)
+                img = cover.copy()
+                margin = int(min(core.width, core.height) * 0.05)
+                if core.height <= 64:
+                    margin = 0
+                img.thumbnail((core.width - margin * 2, core.height - margin * 2), core.Image.LANCZOS)
+                x = (core.width - img.width) // 2
+                y = (core.height - img.height) // 2
+                core.image.paste(img, (x, y))
+                core.refresh()
+                last_displayed_cover = id(cover)
+            elif not cover and last_displayed_cover != "no_cover":
+                print("NO COVER")
+                last_displayed_cover = "no_cover"
+                core.clear_display()
+            time.sleep(0.2)
+
+    if screensaver_mode == "blank":
+        core.clear_display()
+        core.poweroff_safe()
 
 def has_internet_connection(timeout=2):
     try:
@@ -374,6 +407,7 @@ global_state = {
     "artist": "",
     "artist_album": "",
     "path": "",
+    "cover_img": None,
     "btsvc": "0",
     "btactive": "0",
     "airplaysvc": "0",
@@ -458,6 +492,44 @@ def format_time(seconds: float) -> str:
     m, s = divmod(m, 60)
     return f"{h:d}:{m:02d}:{s:02d}" if h else f"{m:d}:{s:02d}"
 
+def convert_img_for_display(img):
+    img = img.copy()
+    img.thumbnail((512, 512), core.Image.LANCZOS)
+    if core.display_format != "MONO":
+        return img.convert("RGB")
+    # --- For tiny OLEDs resize to target_w & crop center height ---
+    if core.height <= 64:
+        target_w = core.width - 20   # keeps margins
+        target_h = core.height
+        w, h = img.size
+        if w > target_w:
+            new_h = int(h * (target_w / w))
+            img = img.resize((target_w, new_h), core.Image.LANCZOS)
+        if img.height > target_h:
+            top = (img.height - target_h) // 2
+            img = img.crop((0, top, img.width, top + target_h))
+    # --- Sharpen & contrast first ---
+    img = ImageEnhance.Sharpness(img).enhance(2.6)
+    img = ImageEnhance.Contrast(img).enhance(1.5)
+    img = ImageEnhance.Brightness(img).enhance(1.3)
+    # --- Convert to grayscale ---
+    gray = ImageOps.grayscale(img)
+    # --- Adaptive Gaussian blur ---
+    blur_strength = 0.9 if gray.height > 90 else 0.4
+    gray = gray.filter(ImageFilter.GaussianBlur(blur_strength))
+    # --- Increase contrast moderately ---
+    gray = ImageEnhance.Contrast(gray).enhance(1.2)
+    # --- Final dithering ---
+    return gray.convert("1", dither=core.Image.FLOYDSTEINBERG)
+
+def get_fallback_image():
+    try:
+        path = "/var/www/images/default-album-cover.png"
+        img = core.Image.open(path)
+        return convert_img_for_display(img)
+    except:
+        return None
+
 def player_status_thread():
     global last_title_seen, last_artist_seen, menu_context_flag
     client = MPDClient()
@@ -471,7 +543,7 @@ def player_status_thread():
             time.sleep(5)
     first_run = True
     while True:
-        if is_sleeping:
+        if is_sleeping and screensaver_mode == "blank":
             time.sleep(1)
             continue
         now = time.time()
@@ -521,6 +593,39 @@ def player_status_thread():
                 global_state["artist_album"] = artist_album
                 global_state["path"] = path
                 global_state["state"] = status_extra.get("state", "unknown")
+
+                if screensaver_mode == "covers":
+                    cover_img = None
+                    try:
+                        if path and not path.startswith("http"):
+                            pic = client.readpicture(path)
+                            raw = pic.get("binary")
+                            if raw:
+                                try:
+                                    img = core.Image.open(BytesIO(raw))
+                                    cover_img = convert_img_for_display(img)
+                                except:
+                                    cover_img = get_fallback_image()
+                            else:
+                                cover_img = get_fallback_image()
+                        elif path and path.startswith("http") and album != "Unknown Radio":
+                            try:
+                                radio_path_cover = f"/var/local/www/imagesw/radio-logos/{album}.jpg"
+                                img = core.Image.open(radio_path_cover)
+                                cover_img = convert_img_for_display(img)
+                            except:
+                                cover_img = get_fallback_image()
+                        else:
+                            cover_img = get_fallback_image()
+                    except Exception as e:
+                        if core.DEBUG:
+                            print(f"error: {e}")
+                        cover_img = get_fallback_image()
+                    global_state["cover_img"] = cover_img
+                    if core.DEBUG:
+                        if global_state["cover_img"]:
+                                print("COVER OK :", global_state["cover_img"].size, global_state["cover_img"].mode)
+
                 audio_fmt = status_extra.get("audio", "")
                 if audio_fmt:
                     try:
@@ -2533,7 +2638,7 @@ def draw_nowplaying():
         core.draw.text((3, y_bottom), f"Vol: {volume}", font=font_vol_clock, fill=core.COLOR_VOL_CLOCK)
     else:
         # compute text height reliably from font bbox
-        bbox = font_artist.getbbox("Ay")  # (x0, y0, x1, y1)
+        bbox = font_artist.getbbox("Aéy")  # (x0, y0, x1, y1)
         text_h = max(1, int(bbox[3] - bbox[1]))
         def draw_scrolling(text, scroll_state, y, color):
             """
