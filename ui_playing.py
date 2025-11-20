@@ -38,9 +38,9 @@ DB_PATH = "/var/local/www/db/moode-sqlite3.db"
 LOCAL_STREAM_URL = "http://localhost:8080/stream.mp3"
 
 # --- Fonts ui_playing ---
-font_artist = core.get_font(OLIPIMOODE_DIR / 'Verdana.ttf', 15)
-font_vol_clock = core.get_font(OLIPIMOODE_DIR / 'Verdana.ttf', 13)
-font_stop_clock = core.get_font(OLIPIMOODE_DIR / 'Verdana.ttf', 24)
+font_artist = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 15)
+font_vol_clock = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 13)
+font_stop_clock = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 24)
 font_extra_info = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 9)
 
 core.load_translations(Path(__file__).stem)
@@ -325,7 +325,7 @@ if core.height > 64:
     show_extra_infos = core.get_config("nowplaying", "show_extra_infos", fallback=False, type=bool)
     show_progress_barre = core.get_config("nowplaying", "show_progress_barre", fallback=False, type=bool)
 
-if core.height >= 128 and show_spectrum:
+if screensaver_mode == "spectrum" or show_spectrum:
     load_spectrum_palette(core.THEME_NAME)
 
 last_title_seen = ""
@@ -356,11 +356,15 @@ def run_sleep_loop():
     screen_on = False
     last_displayed_cover = None
 
-    if screensaver_mode == "covers":
+    if screensaver_mode == "covers" and global_state.get("state", "unknown") != "stop":
         while is_sleeping:
             cover = global_state.get("cover_img")
-            if cover and id(cover) != last_displayed_cover:
-                core.clear_display()
+            if global_state.get("state", "unknown") == "stop":
+                screen_on = True
+                is_sleeping = False
+                last_displayed_cover = None
+                return
+            elif cover and id(cover) != last_displayed_cover:
                 core.draw.rectangle((0, 0, core.width, core.height), fill=core.COLOR_BG)
                 img = cover.copy()
                 margin = int(min(core.width, core.height) * 0.05)
@@ -378,7 +382,22 @@ def run_sleep_loop():
                 core.clear_display()
             time.sleep(0.2)
 
-    if screensaver_mode == "blank":
+    elif screensaver_mode == "spectrum":
+        if core.height <= 64:
+            y_top = 20
+            spectrum_h = core.height - 25
+        else:
+            y_top = core.height // 2 + 10
+            spectrum_h = core.height // 2 - 20
+        while is_sleeping:
+            if spectrum:
+                core.draw.rectangle((0, 0, core.width, core.height), fill=core.COLOR_BG)
+                levels = spectrum.get_levels()
+                draw_spectrum(y_top=y_top, height=spectrum_h, levels=levels)
+                core.refresh()
+            time.sleep(core.REFRESH_INTERVAL)
+
+    elif screensaver_mode == "blank" or global_state.get("state", "unknown") == "stop":
         core.clear_display()
         core.poweroff_safe()
 
@@ -1858,7 +1877,6 @@ def stream_songlog_entry():
                     return
 
                 # Thread: read stderr continuously to avoid blocking ffmpeg.
-                # decode with 'replace' to avoid unicode decode errors on arbitrary binary output.
                 def _read_stderr(proc):
                     global error_type
                     try:
@@ -1921,7 +1939,6 @@ def stream_songlog_entry():
                         break
 
             except Exception as e:
-                # keep your previous special-case for the NoneType stdout on ffmpeg stop
                 if "NoneType" in str(e) and "stdout" in str(e):
                     if core.DEBUG:
                         print(f"Ignored stream error on ffmpeg stop: {e}")
@@ -2000,15 +2017,13 @@ def stream_songlog_entry():
         client.play()
 
         start_time = time.time()
-        while time.time() - start_time < 20:  # timeout max 20s
+        while time.time() - start_time < 20:
             status = client.status()
             if status.get("state") == "play":
                 song = client.currentsong()
                 title = song.get("title", "")
-                # on considère que la lecture est "vraie" si un titre est présent
                 if title != "Local Stream":
                     break
-            # petit délai pour ne pas poller le CPU
             time.sleep(0.3)
 
         client.close()
@@ -2526,7 +2541,6 @@ def draw_spectrum(y_top, height, levels):
     bar_width = (core.width - 4) // num_bars if num_bars > 0 else core.width - 4
     total_width = bar_width * num_bars
     margin_left = (core.width - total_width) // 2
-
     # Precompute global gradient if needed
     global_gradient = []
     if height <= 1:
@@ -2536,7 +2550,6 @@ def draw_spectrum(y_top, height, levels):
         for yy in range(height):
             value = 1.0 - (yy / (height - 1))  # bottom → top
             global_gradient.append(interpolate_palette(value, palette))
-
     # Draw bars
     for i, level in enumerate(levels):
         bar_h = int(level * height)
@@ -2718,8 +2731,8 @@ def draw_nowplaying():
                 core.image.paste(render_img, (x, y))
 
         if core.height <= 96:
-            spacing = 3
-            top_bar_h = icon_width + 4
+            spacing = 2
+            top_bar_h = icon_width + 2
         elif core.height <= 128:
             spacing = 3 if show_spectrum else 10
             top_bar_h = icon_width + 4 if show_spectrum else icon_width + 10
@@ -3002,7 +3015,7 @@ def finish_press(key):
                 if core.DEBUG:
                     print(f"Direction key '{key}' ignored in sleep mode (not now_playing_mode)")
                 return
-        elif key in USED_MEDIA_KEYS:
+        elif key in USED_MEDIA_KEYS and global_state.get("state", "unknown") != "stop":
             if core.DEBUG:
                 print(f"Media key '{key}' ignored in sleep mode (no wake)")
             pass
@@ -3016,7 +3029,7 @@ def finish_press(key):
                 print(f"Wake up on key '{key}' (action skipped)")
             return
 
-    if time.time() - last_wake_time < 2:
+    if time.time() - last_wake_time < 1:
         if key in ("KEY_CHANNELUP", "KEY_CHANNELDOWN"):
             if core.DEBUG:
                 print(f"Input '{key}' allowed (within post-wake delay)")
@@ -3649,7 +3662,7 @@ def main():
     threading.Thread(target=mixer_status_thread, daemon=True).start()
     threading.Thread(target=options_status_thread, daemon=True).start()
     threading.Thread(target=non_idle_status_thread, daemon=True).start()
-    if core.height >= 128 and show_spectrum:
+    if show_spectrum or screensaver_mode != "spectrum":
         threading.Thread(target=lambda: (time.sleep(0.5), delayed_spectrum_start()), daemon=True).start()
     try:
         while True:
@@ -3661,7 +3674,10 @@ def main():
                     run_sleep_loop()
             elif screen_on:
                 run_active_loop()
-            time.sleep(0.1 if is_sleeping else core.REFRESH_INTERVAL)
+            if is_sleeping and screensaver_mode != "spectrum":
+                time.sleep(0.1)
+            else:
+                time.sleep(core.REFRESH_INTERVAL)
     except KeyboardInterrupt:
         if core.DEBUG:
             print("Closing")
