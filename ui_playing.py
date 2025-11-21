@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright 2025 OliPi Project
+# Copyright Sizenko Alexander for Digital-7 Font
+
 import faulthandler
 faulthandler.enable()
 import os
@@ -220,17 +222,17 @@ help_selection = 0
 
 # ---- ICON PATHS (keep as file paths) ----
 ICON_PATHS = {
-    "play": OLIPIMOODE_DIR / "icons/play.png",
-    "pause": OLIPIMOODE_DIR / "icons/pause.png",
-    "stop": OLIPIMOODE_DIR / "icons/stop.png",
-    "random_on": OLIPIMOODE_DIR / "icons/random.png",
-    "repeat_on": OLIPIMOODE_DIR / "icons/repeat.png",
-    "repeat1_on": OLIPIMOODE_DIR / "icons/repeat1.png",
-    "single_on": OLIPIMOODE_DIR / "icons/single.png",
-    "consume_on": OLIPIMOODE_DIR / "icons/consume.png",
-    "favorite": OLIPIMOODE_DIR / "icons/favorite.png",
-    "bluetooth": OLIPIMOODE_DIR / "icons/bluetooth.png",
-    "empty": OLIPIMOODE_DIR / "icons/empty.png",
+    "play": OLIPIMOODE_DIR / "assets/icons/play.png",
+    "pause": OLIPIMOODE_DIR / "assets/icons/pause.png",
+    "stop": OLIPIMOODE_DIR / "assets/icons/stop.png",
+    "random_on": OLIPIMOODE_DIR / "assets/icons/random.png",
+    "repeat_on": OLIPIMOODE_DIR / "assets/icons/repeat.png",
+    "repeat1_on": OLIPIMOODE_DIR / "assets/icons/repeat1.png",
+    "single_on": OLIPIMOODE_DIR / "assets/icons/single.png",
+    "consume_on": OLIPIMOODE_DIR / "assets/icons/consume.png",
+    "favorite": OLIPIMOODE_DIR / "assets/icons/favorite.png",
+    "bluetooth": OLIPIMOODE_DIR / "assets/icons/bluetooth.png",
+    "empty": OLIPIMOODE_DIR / "assets/icons/empty.png",
 }
 
 # runtime cache of loaded (and possibly tinted) icons
@@ -397,7 +399,49 @@ def run_sleep_loop():
                 core.refresh()
             time.sleep(core.REFRESH_INTERVAL)
 
-    elif screensaver_mode == "blank" or global_state.get("state", "unknown") == "stop":
+    elif screensaver_mode == "clock":
+        margin = int(min(core.width, core.height) * 0.14)
+        font_path = OLIPIMOODE_DIR / "assets/fonts/digital_7/digital-7.ttf"
+        test_text = "88:88"
+        max_w = core.width - margin * 2
+        max_h = core.height - margin * 2
+        size = core.height
+        while size > 5:
+            font = core.get_font(font_path, size)
+            bbox = font.getbbox(test_text)
+            w = bbox[2] - bbox[0]
+            h_txt = bbox[3] - bbox[1]
+            if w <= max_w and h_txt <= max_h:
+                break
+            size -= 2
+        font = core.get_font(font_path, size)
+        space_px = int(size * 0.06)
+        colon_visible = True
+        while is_sleeping:
+            core.draw.rectangle((0, 0, core.width, core.height), fill=core.COLOR_BG)
+            h = time.strftime("%H")
+            m = time.strftime("%M")
+            w_h = font.getlength(h)
+            w_col = font.getlength(":")
+            w_m = font.getlength(m)
+            total_w = w_h + space_px + w_col + space_px + w_m
+            x = (core.width - total_w) // 2
+            y = (core.height - h_txt) // 2 - bbox[1]
+            pos = x
+            # ---- "HH" ----
+            core.draw.text((pos, y), h, font=font, fill=core.COLOR_SCREENSAVER_CLOCK)
+            pos += w_h + space_px
+            # ---- ":" ----
+            color = core.COLOR_SCREENSAVER_CLOCK if colon_visible else core.COLOR_BG
+            core.draw.text((pos, y), ":", font=font, fill=color)
+            pos += w_col + space_px
+            # ---- "MM" ----
+            core.draw.text((pos, y), m, font=font, fill=core.COLOR_SCREENSAVER_CLOCK)
+            core.refresh()
+            colon_visible = not colon_visible
+            time.sleep(1)
+
+    elif screensaver_mode == "blank":
         core.clear_display()
         core.poweroff_safe()
 
@@ -1353,22 +1397,22 @@ def prune_yt_cache_to_songlog():
 
 def ensure_local_stream():
     # Copy logo if present (optional)
-    if os.path.exists(OLIPIMOODE_DIR / "local-stream.jpg") and not os.path.exists(LOGO_PATH):
+    if os.path.exists(OLIPIMOODE_DIR / "assets/local-stream.jpg") and not os.path.exists(LOGO_PATH):
         if core.DEBUG:
             print("Copying Local Stream logo...")
-        subprocess.run(["sudo", "cp", OLIPIMOODE_DIR / "local-stream.jpg", LOGO_PATH])
+        subprocess.run(["sudo", "cp", OLIPIMOODE_DIR / "assets/local-stream.jpg", LOGO_PATH])
         subprocess.run(["sudo", "chmod", "777", LOGO_PATH])
         subprocess.run(["sudo", "chown", "root:root", LOGO_PATH])
 
         # Create large thumbnail (same as original logo)
         if core.DEBUG:
             print("Creating thumbnails...")
-        subprocess.run(["sudo", "cp", OLIPIMOODE_DIR / "local-stream.jpg", THUMB_PATH])
+        subprocess.run(["sudo", "cp", OLIPIMOODE_DIR / "assets/local-stream.jpg", THUMB_PATH])
         subprocess.run(["sudo", "chmod", "777", THUMB_PATH])
         subprocess.run(["sudo", "chown", "root:root", THUMB_PATH])
 
         # Create small thumbnail (80x80)
-        img = core.Image.open(OLIPIMOODE_DIR / "local-stream.jpg")
+        img = core.Image.open(OLIPIMOODE_DIR / "assets/local-stream.jpg")
         img.thumbnail((80, 80))
         img = img.convert("RGB")  # Ensure JPEG format
         temp_thumb_sm = "/tmp/local-stream-thumb-sm.jpg"
@@ -1424,7 +1468,7 @@ Version=2
         subprocess.run(["sudo", "chmod", "777", PLS_PATH])
         subprocess.run(["sudo", "chown", "root:root", PLS_PATH])
         subprocess.run(f"sudo touch '{PLS_PATH}'", shell=True, check=True)
-        subprocess.run(["sudo", "php", OLIPIMOODE_DIR / "update_local_stream.php", LOCAL_STREAM_URL, "Local Stream", "r", "", "MP3"])
+        subprocess.run(["sudo", "php", OLIPIMOODE_DIR / "assets/update_local_stream.php", LOCAL_STREAM_URL, "Local Stream", "r", "", "MP3"])
 
     else:
         if core.DEBUG:
@@ -1628,7 +1672,7 @@ def yt_search_track(index, preload=False, _fallback_attempt=False, local_query=N
         if "_type" in info and "entries" in info:
             entries = [v for v in info["entries"] if v.get("duration", 0) and v["duration"] > 60]
             if not entries:
-                entries = info["entries"]  # fallback si rien trouvé
+                entries = info["entries"]
             video = entries[0]
         else:
             video = info
@@ -2195,7 +2239,7 @@ def toggle_audio_output(mode):
     def act_bluaudiout():
         try:
             result = subprocess.run(
-                ["sudo", "php", str(OLIPIMOODE_DIR / "audioout-toggle.php"), mode],
+                ["sudo", "php", str(OLIPIMOODE_DIR / "assets/audioout-toggle.php"), mode],
                 capture_output=True, text=True, check=False
             )
             output.append(result.stdout.strip())
@@ -2233,11 +2277,8 @@ def toggle_audio_output(mode):
 
 def render_screen():
     with render_lock:
-        #t0 = time.perf_counter()
         global now_playing_mode
         now_playing_mode = False
-
-        #t_s = time.perf_counter()
         if core.message_text:
             core.draw_message()
             idle_timer = time.time()
@@ -2284,12 +2325,7 @@ def render_screen():
         else:
             now_playing_mode = True
             draw_nowplaying()
-
-        #t_draw = time.perf_counter() - t_s
-        #t_b = time.perf_counter()
         core.refresh()
-        #t_blit = time.perf_counter() - t_b
-        #print(f"TIMING nowplaying draw {t_draw*1000:.1f} ms | blit {t_blit*1000:.1f} ms | total {(time.perf_counter()-t0)*1000:.1f} ms")
 
 def draw_menu():
     global menu_options_contextuel
@@ -2353,7 +2389,6 @@ def draw_tool_menu():
     core.draw_custom_menu([item["label"] for item in tool_menu_options], tool_menu_selection, title=core.t("title_tools"))
 
 def draw_theme_menu():
-    # currently selected theme
     selected = {item["label"] for item in theme_menu_options if item["id"] == core.THEME_NAME}
     core.draw_custom_menu([item["label"] for item in theme_menu_options], theme_menu_selection, title=core.t("title_theme"), multi=selected)
 
@@ -2480,7 +2515,6 @@ def monitor_spectrum():
     client = MPDClient()
     client.timeout = 10
     while True:
-        # Try to connect until success
         while True:
             try:
                 client.connect("localhost", 6600)
@@ -2510,7 +2544,7 @@ def monitor_spectrum():
                 except Exception:
                     pass
                 time.sleep(2)
-                break  # leave inner loop, go back to reconnect
+                break
 
 def delayed_spectrum_start():
     if not is_spectrum_available():
@@ -2523,7 +2557,7 @@ def delayed_spectrum_start():
 
 def interpolate_palette(value, palette):
     """Interpolate between colors in a palette (value ∈ [0,1])."""
-    value = max(0.0, min(1.0, value))  # clamp
+    value = max(0.0, min(1.0, value))
     for i in range(len(palette) - 1):
         v0, c0 = palette[i]
         v1, c1 = palette[i + 1]
@@ -2636,7 +2670,7 @@ def draw_nowplaying():
     # Stop state
     if state == "stop" and not is_renderer_active():
         clock_text = global_state["clock"]
-        bbox = font_stop_clock.getbbox(clock_text)  # (x0, y0, x1, y1)
+        bbox = font_stop_clock.getbbox(clock_text)
         text_w = bbox[2] - bbox[0]
         text_h = bbox[3] - bbox[1]
         x = (core.width - text_w) // 2
@@ -2645,13 +2679,13 @@ def draw_nowplaying():
         core.draw.text((x, y), clock_text, font=font_stop_clock, fill=core.COLOR_STOP_CLOCK)
 
         # Volume barre
-        bottom_bar_h = font_vol_clock.getbbox("Vol: 100")[3] + 0  # height + padding
+        bottom_bar_h = font_vol_clock.getbbox("Vol: 100")[3]
         y_bottom = core.height - bottom_bar_h - padding_y
 
         core.draw.text((3, y_bottom), f"Vol: {volume}", font=font_vol_clock, fill=core.COLOR_VOL_CLOCK)
     else:
         # compute text height reliably from font bbox
-        bbox = font_artist.getbbox("Aéy")  # (x0, y0, x1, y1)
+        bbox = font_artist.getbbox("Aéy")
         text_h = max(1, int(bbox[3] - bbox[1]))
         def draw_scrolling(text, scroll_state, y, color):
             """
@@ -2688,7 +2722,7 @@ def draw_nowplaying():
             display_width = core.width
             now = time.time()
 
-            # If the text is larger than display, do scrolling logic (unchanged)
+            # If the text is larger than display, do scrolling logic
             if text_width > display_width:
                 phase = scroll_state.get("phase", "pause_start")
                 PAUSE_DURATION = 1.5
@@ -2911,9 +2945,9 @@ def nav_channeldown():
 
 def nav_info():
     global help_active, help_lines, help_selection
-    help_base_path = OLIPIMOODE_DIR / f"help_texts/help_ui_playing_{core.LANGUAGE}.txt"
+    help_base_path = OLIPIMOODE_DIR / f"assets/help_texts/help_ui_playing_{core.LANGUAGE}.txt"
     if not help_base_path.exists():
-        help_base_path = OLIPIMOODE_DIR / "help_texts/help_ui_playing_en.txt"
+        help_base_path = OLIPIMOODE_DIR / "assets/help_texts/help_ui_playing_en.txt"
     context = "nowplaying_mode" if now_playing_mode else "menu"
     try:
         with open(help_base_path, "r", encoding="utf-8") as f:
@@ -3312,7 +3346,7 @@ def finish_press(key):
             else:
                 action = "off" if global_state.get(renderer + "svc") == "1" else "on"
                 core.show_message(core.t("info_renderer_switched", name=renderer.capitalize(), status=action))
-                subprocess.call(["sudo", "php", str(OLIPIMOODE_DIR / f"renderer-toggle.php"), renderer, action])
+                subprocess.call(["sudo", "php", str(OLIPIMOODE_DIR / f"assets/renderer-toggle.php"), renderer, action])
                 load_renderer_states_from_db()
             core.reset_scroll("menu_item", "menu_title")
         return
@@ -3336,7 +3370,7 @@ def finish_press(key):
             if item == "bt_toggle":
                 action = "off" if global_state.get("btsvc") == "1" else "on"
                 core.show_message(core.t("info_renderer_switched", name="Bluetooth", status=action))
-                subprocess.call(["sudo", "php", str(OLIPIMOODE_DIR / "renderer-toggle.php"), "bluetooth", action])
+                subprocess.call(["sudo", "php", str(OLIPIMOODE_DIR / "assets/renderer-toggle.php"), "bluetooth", action])
                 load_renderer_states_from_db()
             elif item == "bt_scan":
                 bluetooth_menu_active = False
@@ -3599,7 +3633,7 @@ def finish_press(key):
             core.save_config("color_theme", core.THEME_NAME , section="settings")
             core.show_message(core.t("info_theme_set", selected=theme_menu_options[theme_menu_selection]["label"]))
             time.sleep(1)
-            os.execv(sys.executable, ['python3'] + sys.argv)  # restart to apply theme
+            os.execv(sys.executable, ['python3'] + sys.argv)
         return
 
     if hardware_info_active:

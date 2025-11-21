@@ -1586,9 +1586,9 @@ def nav_channeldown():
 
 def nav_info():
     global help_active, help_lines, help_selection
-    help_base_path = OLIPIMOODE_DIR / f"help_texts/help_ui_browser_{core.LANGUAGE}.txt"
+    help_base_path = OLIPIMOODE_DIR / f"assets/help_texts/help_ui_browser_{core.LANGUAGE}.txt"
     if not help_base_path.exists():
-        help_base_path = OLIPIMOODE_DIR / "help_texts/help_ui_browser_en.txt"
+        help_base_path = OLIPIMOODE_DIR / "assets/help_texts/help_ui_browser_en.txt"
     context = "library"
 
     if menu_active or tool_menu_active or sort_menu_active or grouping_mode_active or previous_search_menu_active or menu_search_screen_active or confirm_Box_active or copy_action_menu_active:

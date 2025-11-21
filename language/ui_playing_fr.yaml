@@ -31,7 +31,7 @@ error_lirc_missing: "LIRC non disponible"
 error_gpio_missing: "GPIO non disponible"
 error_audioout_bt_missing: "Aucun périphérique Bluetooth connecté"
 error_audioout_invalid: "Sortie audio invalide (Local ou Bluetooth)"
-error_audioout_usage: "Usage: audioout-toggle.php [Local|Bluetooth]"
+error_audioout_usage: "Usage: assets/audioout-toggle.php [Local|Bluetooth]"
 error_audioout: "Erreur audioout"
 error_spectrum: "Error Spectro: Vous devez activer Alsa Loopback."
 
