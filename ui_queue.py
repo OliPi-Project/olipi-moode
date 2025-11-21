@@ -814,7 +814,7 @@ def draw_queue():
 
 
 def add_default_cover(playlist_name):
-    src =  OLIPIMOODE_DIR / "NewPlaylist.jpg"
+    src =  OLIPIMOODE_DIR / "assets/NewPlaylist.jpg"
     src_tmp =  OLIPIMOODE_DIR / "NewPlaylist-tmp.jpg"
     dest_dir = "/var/local/www/imagesw/playlist-covers"
     dest = os.path.join(dest_dir, f"{playlist_name}.jpg")
@@ -1133,9 +1133,9 @@ def nav_right_long():
 
 def nav_info():
     global help_active, help_lines, help_selection
-    help_base_path = OLIPIMOODE_DIR / f"help_texts/help_ui_queue_{core.LANGUAGE}.txt"
+    help_base_path = OLIPIMOODE_DIR / f"assets/help_texts/help_ui_queue_{core.LANGUAGE}.txt"
     if not help_base_path.exists():
-        help_base_path = OLIPIMOODE_DIR / "help_texts/help_ui_queue_en.txt"
+        help_base_path = OLIPIMOODE_DIR / "assets/help_texts/help_ui_queue_en.txt"
     context = "queue"
 
     if playlist_view_mode:

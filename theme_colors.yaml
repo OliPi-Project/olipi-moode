@@ -9,13 +9,14 @@ user:
     progress:           [0, 220, 180]
     progress_bg:        [0, 105, 209]
     stop_clock:         [0, 105, 209]
+    screensaver_clock:  [0, 105, 209]
     artist:             [92, 173, 255]
     track_title:        [0, 105, 209]
     vol_clock:          [0, 180, 255]
     input_bg:           [92, 173, 255]
     input_text:         [245, 240, 200]
     input_cursor:       [255, 255, 255]
-    input_info:          [140, 200, 240]
+    input_info:         [140, 200, 240]
     menu_bg:            [184, 219, 255]
     menu_outline:       [0, 105, 209]
     menu_title:         [92, 173, 255]
@@ -42,13 +43,14 @@ ocean:
     progress:           [0, 220, 180]
     progress_bg:        [0, 105, 209]
     stop_clock:         [0, 105, 209]
+    screensaver_clock:  [0, 105, 209]
     artist:             [92, 173, 255]
     track_title:        [0, 105, 209]
     vol_clock:          [0, 180, 255]
     input_bg:           [92, 173, 255]
     input_text:         [245, 240, 200]
     input_cursor:       [255, 255, 255]
-    input_info:          [140, 200, 240]
+    input_info:         [140, 200, 240]
     menu_bg:            [184, 219, 255]
     menu_outline:       [0, 105, 209]
     menu_title:         [92, 173, 255]
@@ -75,13 +77,14 @@ autumn:
     progress:           [255, 140, 0]
     progress_bg:        [100, 0, 10]
     stop_clock:         [255, 230, 210]
+    screensaver_clock:  [255, 230, 210]
     artist:             [255, 212, 184]
     track_title:        [255, 185, 138]
     vol_clock:          [255, 200, 100]
     input_bg:           [100, 40, 0]
     input_text:         [255, 230, 210]
     input_cursor:       [255, 140, 0]
-    input_info:          [220, 170, 120]
+    input_info:         [220, 170, 120]
     menu_bg:            [26, 10, 0]
     menu_title:         [255, 140, 0]
     menu_text:          [255, 230, 210]
@@ -92,9 +95,9 @@ autumn:
     message_text:       [255, 230, 210]
     message_outline:    [180, 120, 70]
   spectrum:
-    - [0.0, [100, 40, 0]]     # marron (bas)
+    - [0.0, [100, 40, 0]]     # brown (bottom)
     - [0.5, [220, 110, 0]]    # orange
-    - [1.0, [255, 200, 0]]    # jaune foncé (haut)
+    - [1.0, [255, 200, 0]]    # dark yellow (top)
 
 rasta:
   colors:
@@ -107,13 +110,14 @@ rasta:
     progress:           [255, 0, 0]
     progress_bg:        [50, 50, 50]
     stop_clock:         [255, 255, 255]
+    screensaver_clock:  [255, 255, 255]
     artist:             [255, 255, 255]
     track_title:        [255, 255, 0]
     vol_clock:          [255, 255, 255]
     input_bg:           [0, 0, 0]
     input_text:         [255, 255, 255]
     input_cursor:       [255, 255, 0]
-    input_info:          [180, 255, 0]
+    input_info:         [180, 255, 0]
     menu_bg:            [0, 0, 0]
     menu_outline:       [255, 255, 255]
     menu_title:         [255, 255, 0]
@@ -124,9 +128,9 @@ rasta:
     message_text:       [255, 255, 255]
     message_outline:    [255, 255, 255]
   spectrum:
-    - [0.0, [0, 255, 0]]     # vert (bas)
-    - [0.4, [255, 255, 0]]   # jaune
-    - [0.9, [255, 0, 0]]     # rouge (haut)
+    - [0.0, [0, 255, 0]]     # green (bottom)
+    - [0.4, [255, 255, 0]]   # yellow
+    - [0.9, [255, 0, 0]]     # red (top)
 
 unicorn:
   colors:
@@ -139,13 +143,14 @@ unicorn:
     progress:           [200, 0, 255]
     progress_bg:        [70, 30, 90]
     stop_clock:         [255, 220, 255]
+    screensaver_clock:  [255, 220, 255]
     artist:             [255, 210, 245]
     track_title:        [255, 240, 255]
     vol_clock:          [255, 160, 230]
     input_bg:           [54, 16, 72]
     input_text:         [255, 220, 255]
     input_cursor:       [255, 128, 200]
-    input_info:          [230, 180, 235]
+    input_info:         [230, 180, 235]
     menu_bg:            [40, 8, 60]
     menu_outline:       [220, 140, 230]
     menu_title:         [255, 150, 220]
@@ -156,10 +161,10 @@ unicorn:
     message_text:       [255, 220, 255]
     message_outline:    [220, 140, 230]
   spectrum:
-    - [0.0, [255, 210, 255]]  # clair (bas)
-    - [0.2, [255, 128, 200]]    # rose
+    - [0.0, [255, 210, 255]]  # clear (bottom)
+    - [0.2, [255, 128, 200]]  # pink
     - [0.5, [255, 0, 255]]    # magenta
-    - [0.8, [200, 0, 255]]  # violet (haut)
+    - [0.8, [200, 0, 255]]    # violet (top)
 
 # defaut theme black and white for monochrome screen.
 default:
@@ -173,13 +178,14 @@ default:
     progress:           [255, 255, 255]
     progress_bg:        [255, 255, 255]
     stop_clock:         [255, 255, 255]
+    screensaver_clock:  [255, 255, 255]
     artist:             [255, 255, 255]
     track_title:        [255, 255, 255]
     vol_clock:          [255, 255, 255]
     input_bg:           [255, 255, 255]
     input_text:         [0, 0, 0]
     input_cursor:       [0, 0, 0]
-    input_info:          [255, 255, 255]
+    input_info:         [255, 255, 255]
     menu_bg:            [0, 0, 0]
     menu_outline:       [255, 255, 255]
     menu_title:         [255, 255, 255]
