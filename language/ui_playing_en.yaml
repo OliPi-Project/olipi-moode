@@ -176,6 +176,7 @@ theme_default: "Default"
 theme_user: "User"
 
 menu_ui: "Configure UI"
+menu_icons: "Display icons bare"
 menu_extra_infos: "Display audio infos"
 menu_progress_bare: "Display progress barre"
 menu_spectrum: "Display spectrum"

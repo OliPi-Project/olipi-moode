@@ -52,6 +52,7 @@ if screensaver_mode == "covers":
     from io import BytesIO
     if core.display_format == "MONO":
         from PIL import ImageEnhance, ImageOps, ImageFilter
+show_icons = core.get_config("nowplaying", "show_icons", fallback=False, type=bool)
 show_extra_infos = core.get_config("nowplaying", "show_extra_infos", fallback=False, type=bool)
 show_progress_barre = core.get_config("nowplaying", "show_progress_barre", fallback=False, type=bool)
 show_spectrum = core.get_config("nowplaying", "show_spectrum", fallback=False, type=bool)
@@ -158,13 +159,12 @@ config_menu_active = False
 config_menu_selection = 0
 config_menu_options = [
     {"id": "language", "label": core.t("menu_language")},
+    {"id": "ui", "label": core.t("menu_ui")},
     {"id": "screensaver", "label": core.t("menu_screensaver")},
     {"id": "debug", "label": core.t("menu_debug")}
 ]
 if core.display_format != "MONO":
     config_menu_options.insert(1, {"id": "theme", "label": core.t("menu_theme")})
-if core.height >= 128:
-    config_menu_options.insert(2, {"id": "ui", "label": core.t("menu_ui")})
 
 language_menu_active = False
 language_menu_selection = 0
@@ -185,12 +185,14 @@ theme_menu_options = [
 ui_menu_active = False
 ui_menu_selection = 0
 ui_menu_options = [
+    {"id": "icons", "label": core.t("menu_icons")},
     {"id": "extra", "label": core.t("menu_extra_infos")},
     {"id": "progress", "label": core.t("menu_progress_bare")},
-    {"id": "spectrum", "label": core.t("menu_spectrum")},
     {"id": "clock_elapse", "label": core.t("menu_clock")},
     {"id": "apply", "label": core.t("menu_apply")}
 ]
+if core.height >= 128:
+    ui_menu_options.insert(3, {"id": "spectrum", "label": core.t("menu_spectrum")})
 
 screensaver_menu_active = False
 screensaver_menu_selection = 0
@@ -2464,6 +2466,8 @@ def draw_theme_menu():
 
 def draw_ui_menu():
     ui_flags = set()
+    if show_icons:
+        ui_flags.add(core.t("menu_icons"))
     if show_extra_infos:
         ui_flags.add(core.t("menu_extra_infos"))
     if show_progress_barre:
@@ -2675,36 +2679,37 @@ def draw_nowplaying():
     padding_y = max(2, int(core.height * 0.01))
 
     # Top barre
-    icon1 = icons["play"] if state == "play" else icons["pause"] if state == "pause" else icons["stop"] if state == "stop" else icons["empty"]
-    icon2 = icons["random_on"] if global_state.get("random", "0") == "1" else icons["empty"]
-    repeat = global_state.get("repeat", "0")
-    single = global_state.get("single", "0")
-    consume = global_state.get("consume", "0")
+    if show_icons:
+        icon1 = icons["play"] if state == "play" else icons["pause"] if state == "pause" else icons["stop"] if state == "stop" else icons["empty"]
+        icon2 = icons["random_on"] if global_state.get("random", "0") == "1" else icons["empty"]
+        repeat = global_state.get("repeat", "0")
+        single = global_state.get("single", "0")
+        consume = global_state.get("consume", "0")
 
-    if repeat == "1" and single == "1" and consume == "0":
-        icon3 = icons["repeat1_on"]; icon4 = icons["empty"]
-    elif consume == "1" and repeat == "1" and single == "1":
-        icon3 = icons["empty"]; icon4 = icons["empty"]
-    elif consume == "1" and single == "1" and repeat == "0":
-        icon3 = icons["empty"]; icon4 = icons["single_on"]
-    else:
-        icon3 = icons["repeat_on"] if repeat == "1" else icons["empty"]
-        icon4 = icons["single_on"] if single == "1" else icons["empty"]
+        if repeat == "1" and single == "1" and consume == "0":
+            icon3 = icons["repeat1_on"]; icon4 = icons["empty"]
+        elif consume == "1" and repeat == "1" and single == "1":
+            icon3 = icons["empty"]; icon4 = icons["empty"]
+        elif consume == "1" and single == "1" and repeat == "0":
+            icon3 = icons["empty"]; icon4 = icons["single_on"]
+        else:
+            icon3 = icons["repeat_on"] if repeat == "1" else icons["empty"]
+            icon4 = icons["single_on"] if single == "1" else icons["empty"]
 
-    icon5 = icons["consume_on"] if consume == "1" else icons["empty"]
-    icon6 = icons["favorite"] if global_state.get("favorite") else icons["empty"]
-    icon7 = icons["bluetooth"] if global_state.get("audioout") == "Bluetooth" else icons["empty"]
+        icon5 = icons["consume_on"] if consume == "1" else icons["empty"]
+        icon6 = icons["favorite"] if global_state.get("favorite") else icons["empty"]
+        icon7 = icons["bluetooth"] if global_state.get("audioout") == "Bluetooth" else icons["empty"]
 
-    spacing_icon = 2
-    core.image.paste(icon1, (0 * icon_width, -0), mask=icon1)
-    if menu_context_flag != "local_stream" and not is_renderer_active():
-        core.image.paste(icon2, (1 * (icon_width + spacing_icon), -0), mask=icon2)
-        core.image.paste(icon3, (2 * (icon_width + spacing_icon), -0), mask=icon3)
-        core.image.paste(icon4, (3 * (icon_width + spacing_icon), -0), mask=icon4)
-        core.image.paste(icon5, (4 * (icon_width + spacing_icon), -0), mask=icon5)
-        core.image.paste(icon6, (5 * (icon_width + spacing_icon), -0), mask=icon6)
-    icon7_x = core.width - icon_width - padding_x
-    core.image.paste(icon7, (icon7_x, -0), mask=icon7)
+        spacing_icon = 2
+        core.image.paste(icon1, (0 * icon_width, -0), mask=icon1)
+        if menu_context_flag != "local_stream" and not is_renderer_active():
+            core.image.paste(icon2, (1 * (icon_width + spacing_icon), -0), mask=icon2)
+            core.image.paste(icon3, (2 * (icon_width + spacing_icon), -0), mask=icon3)
+            core.image.paste(icon4, (3 * (icon_width + spacing_icon), -0), mask=icon4)
+            core.image.paste(icon5, (4 * (icon_width + spacing_icon), -0), mask=icon5)
+            core.image.paste(icon6, (5 * (icon_width + spacing_icon), -0), mask=icon6)
+        icon7_x = core.width - icon_width - padding_x
+        core.image.paste(icon7, (icon7_x, -0), mask=icon7)
 
     # Stop state
     if state == "stop" and not is_renderer_active():
@@ -2805,7 +2810,7 @@ def draw_nowplaying():
 
         if core.height <= 96:
             spacing = 2
-            top_bar_h = icon_width + 4
+            top_bar_h = icon_width + 3
         elif core.height <= 128:
             spacing = 3 if show_spectrum else 10
             top_bar_h = icon_width + 4 if show_spectrum else icon_width + 10
@@ -2818,6 +2823,8 @@ def draw_nowplaying():
         else:
             spacing = 12 if show_spectrum else 24
             top_bar_h = icon_width + 13 if show_spectrum else icon_width + 24
+        if not show_icons:
+            top_bar_h = top_bar_h - icon_width - spacing
 
         # --- Artist / Album ---
         y_artist = top_bar_h
@@ -2829,7 +2836,7 @@ def draw_nowplaying():
 
         # --- Extra Infos ---
         y_extra_info = y_title + text_h + spacing
-        if core.height > 64 and show_extra_infos:
+        if show_extra_infos:
             extra_info = global_state.get("audio", "")
             bitrate = global_state.get("bitrate", "")
             if bitrate:
@@ -2852,18 +2859,18 @@ def draw_nowplaying():
         elapsed = float(global_state.get("elapsed", 0.0))
         duration = float(global_state.get("duration", 0.0))
         # --- Progress Bar ---
-        if core.height > 64 and show_progress_barre:
-            progress_h = 2
+        if show_progress_barre:
+            progress_h = 2 if core.height > 64 else 1
             progress_w = int(core.width - (padding_x * 2))
             progress_x = (core.width - progress_w) // 2
             ratio = elapsed / duration if duration > 0 else 0
             fill_w = int(progress_w * ratio)
             # Background barre
-            core.draw.rectangle((progress_x, y_progress + 2, progress_x + progress_w, y_progress + 2 + progress_h),
+            core.draw.rectangle((progress_x, y_progress + 1, progress_x + progress_w, y_progress + 1 + progress_h),
                                 outline=core.COLOR_PROGRESS_BG, fill=core.COLOR_PROGRESS_BG)
             # Progress fill
             if fill_w > 0:
-                core.draw.rectangle((progress_x, y_progress + 2, progress_x + fill_w, y_progress + 2 + progress_h),
+                core.draw.rectangle((progress_x, y_progress + 1, progress_x + fill_w, y_progress + 1 + progress_h),
                                     outline=core.COLOR_PROGRESS, fill=core.COLOR_PROGRESS)
             y_spectrum = y_progress + progress_h + spacing
         else:
@@ -3669,7 +3676,7 @@ def finish_press(key):
         return
 
     if ui_menu_active:
-        global show_extra_infos, show_progress_barre, show_spectrum, show_clock
+        global show_icons, show_extra_infos, show_progress_barre, show_spectrum, show_clock
         if key == "KEY_UP" and ui_menu_selection > 0:
             ui_menu_selection -= 1
             core.reset_scroll("menu_item")
@@ -3682,14 +3689,29 @@ def finish_press(key):
             core.reset_scroll("menu_item")
         elif key == "KEY_OK":
             option_id = ui_menu_options[ui_menu_selection]["id"]
-            if option_id == "extra":
+            if option_id == "icons":
+                new_icons = not show_icons
+                core.save_config("show_icons", new_icons, section="nowplaying")
+                show_icons = new_icons
+                if core.height == 64 and show_icons:
+                    show_extra_infos = False
+                    core.save_config("show_extra_infos", False, section="nowplaying")
+                    show_progress_barre = False
+                    core.save_config("show_progress_barre", False, section="nowplaying")
+            elif option_id == "extra":
                 new_extra = not show_extra_infos
                 core.save_config("show_extra_infos", new_extra, section="nowplaying")
                 show_extra_infos = new_extra
+                if core.height == 64 and show_extra_infos:
+                    show_icons = False
+                    core.save_config("show_icons", False, section="nowplaying")
             elif option_id == "progress":
                 new_progress = not show_progress_barre
                 core.save_config("show_progress_barre", new_progress, section="nowplaying")
                 show_progress_barre = new_progress
+                if core.height == 64 and show_progress_barre:
+                    show_icons = False
+                    core.save_config("show_icons", False, section="nowplaying")
             elif option_id == "spectrum":
                 if not is_spectrum_available():
                     core.show_message(core.t("error_spectrum"))
