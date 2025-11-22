@@ -476,6 +476,10 @@ def has_internet_connection(timeout=2):
     except OSError:
         return False
 
+def restart_service():
+    subprocess.Popen(["sudo", "systemctl", "restart", "olipi-ui-playing.service"])
+    sys.exit(0)
+
 global_state = {
     "favorite": False,
     "state": "unknown",
@@ -3025,7 +3029,7 @@ def nav_info_long():
     core.save_config("show_clock", new_clock, section="nowplaying")
     core.show_message(core.t("info_clock_on") if new_clock else core.t("info_clock_off"))
     time.sleep(1)
-    os.execv(sys.executable, ['python3'] + sys.argv)
+    restart_service()
 
 def nav_back():
     core.show_message(core.t("info_go_library_screen"))
@@ -3632,7 +3636,7 @@ def finish_press(key):
                 core.save_config("debug", new_debug, section="settings")
                 core.show_message(core.t("info_debug_on") if new_debug else core.t("info_debug_off"))
                 time.sleep(1)
-                os.execv(sys.executable, ['python3'] + sys.argv)
+                restart_service()
         return
 
     if language_menu_active:
@@ -3652,7 +3656,7 @@ def finish_press(key):
             core.save_config("language", core.LANGUAGE, section="settings")
             core.show_message(core.t("info_language_set", selected=language_menu_options[language_menu_selection]["label"]))
             time.sleep(1)
-            os.execv(sys.executable, ['python3'] + sys.argv)
+            restart_service()
         return
 
     if theme_menu_active:
@@ -3672,7 +3676,7 @@ def finish_press(key):
             core.save_config("color_theme", core.THEME_NAME , section="settings")
             core.show_message(core.t("info_theme_set", selected=theme_menu_options[theme_menu_selection]["label"]))
             time.sleep(1)
-            os.execv(sys.executable, ['python3'] + sys.argv)
+            restart_service()
         return
 
     if ui_menu_active:
@@ -3728,7 +3732,7 @@ def finish_press(key):
                 ui_menu_active = False
                 core.show_message(core.t("info_reload_screen"))
                 time.sleep(1)
-                os.execv(sys.executable, ['python3'] + sys.argv)
+                restart_service()
             core.reset_scroll("menu_item", "menu_title")
         return
 
@@ -3758,7 +3762,7 @@ def finish_press(key):
                 core.save_config("screensaver_mode", screensaver_mode , section="settings")
                 core.show_message(core.t("info_screensaver_set", selected=screensaver_menu_options[screensaver_menu_selection]["label"]))
                 time.sleep(1)
-                os.execv(sys.executable, ['python3'] + sys.argv)
+                restart_service()
             core.reset_scroll("menu_item", "menu_title")
         return
 
@@ -3822,7 +3826,7 @@ def main():
     threading.Thread(target=mixer_status_thread, daemon=True).start()
     threading.Thread(target=options_status_thread, daemon=True).start()
     threading.Thread(target=non_idle_status_thread, daemon=True).start()
-    if show_spectrum or screensaver_mode != "spectrum":
+    if show_spectrum or screensaver_mode == "spectrum":
         threading.Thread(target=lambda: (time.sleep(0.5), delayed_spectrum_start()), daemon=True).start()
     try:
         while True:
