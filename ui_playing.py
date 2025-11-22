@@ -47,6 +47,16 @@ font_extra_info = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bol
 
 core.load_translations(Path(__file__).stem)
 
+screensaver_mode = core.get_config("settings", "screensaver_mode", fallback="blank", type=str)
+if screensaver_mode == "covers":
+    from io import BytesIO
+    if core.display_format == "MONO":
+        from PIL import ImageEnhance, ImageOps, ImageFilter
+show_extra_infos = core.get_config("nowplaying", "show_extra_infos", fallback=False, type=bool)
+show_progress_barre = core.get_config("nowplaying", "show_progress_barre", fallback=False, type=bool)
+show_spectrum = core.get_config("nowplaying", "show_spectrum", fallback=False, type=bool)
+show_clock = core.get_config("nowplaying", "show_clock", fallback=True, type=bool)
+
 render_lock = threading.Lock()
 now_playing_mode = False
 
@@ -147,16 +157,14 @@ error_type = None
 config_menu_active = False
 config_menu_selection = 0
 config_menu_options = [
-    {"id": "sleep", "label": None},
     {"id": "language", "label": core.t("menu_language")},
+    {"id": "screensaver", "label": core.t("menu_screensaver")},
     {"id": "debug", "label": core.t("menu_debug")}
 ]
 if core.display_format != "MONO":
-    config_menu_options.insert(2, {"id": "theme", "label": core.t("menu_theme")})
+    config_menu_options.insert(1, {"id": "theme", "label": core.t("menu_theme")})
 if core.height >= 128:
-    config_menu_options.insert(3, {"id": "spectrum", "label": core.t("menu_spectrum")})
-sleep_timeout_options = [0, 15, 30, 60, 300, 600]
-sleep_timeout_labels = {0: "Off", 15: "15s", 30: "30s", 60: "1m", 300: "5m", 600: "10m"}
+    config_menu_options.insert(2, {"id": "ui", "label": core.t("menu_ui")})
 
 language_menu_active = False
 language_menu_selection = 0
@@ -174,6 +182,29 @@ theme_menu_options = [
     {"id": "user",  "label": core.t("theme_user")},
     {"id": "default", "label": core.t("theme_default")}
 ]
+ui_menu_active = False
+ui_menu_selection = 0
+ui_menu_options = [
+    {"id": "extra", "label": core.t("menu_extra_infos")},
+    {"id": "progress", "label": core.t("menu_progress_bare")},
+    {"id": "spectrum", "label": core.t("menu_spectrum")},
+    {"id": "clock_elapse", "label": core.t("menu_clock")},
+    {"id": "apply", "label": core.t("menu_apply")}
+]
+
+screensaver_menu_active = False
+screensaver_menu_selection = 0
+screensaver_menu_options = [
+    {"id": "sleep", "label": None},
+    {"id": "select", "label": core.t("menu_select")},
+    {"id": "blank", "label": core.t("mode_blank")},
+    {"id": "clock", "label": core.t("mode_clock")},
+    {"id": "covers", "label": core.t("mode_covers")},
+    {"id": "spectrum", "label": core.t("mode_spectrum")}
+]
+sleep_timeout_options = [0, 15, 30, 60, 300, 600]
+sleep_timeout_labels = {0: "Off", 15: "15s", 30: "30s", 60: "1m", 300: "5m", 600: "10m"}
+
 hardware_info_active = False
 hardware_info_selection = 0
 hardware_info_lines = []
@@ -271,6 +302,9 @@ def _resize_icon(img, base_size=16):
     if img is None:
         return None
 
+    if core.height == 64:
+        return img.resize((15, 15), core.Image.Resampling.LANCZOS)
+
     if core.ppi <= 150:
         return img
 
@@ -290,7 +324,10 @@ def load_icons_from_theme():
     color = getattr(core, "COLOR_ICONS", None)
     for key, path in ICON_PATHS.items():
         try:
-            im = core.Image.open(path).convert("RGBA")
+            if is_mono:
+                im = core.Image.open(path).convert("1")
+            else:
+                im = core.Image.open(path).convert("RGBA")
         except Exception:
             im = core.Image.new("RGBA", (1, 1), (0, 0, 0, 0))
         im = _resize_icon(im, base_size=16)
@@ -304,17 +341,8 @@ def load_icons_from_theme():
         icon_width = 16
 load_icons_from_theme()
 
-show_clock = core.get_config("nowplaying", "show_clock", fallback=True, type=bool)
-
-screensaver_mode = core.get_config("settings", "screensaver_mode", fallback="blank", type=str)
-if screensaver_mode == "covers":
-    from io import BytesIO
-    if core.display_format == "MONO":
-        from PIL import ImageEnhance, ImageOps, ImageFilter
-
 spectrum = None
 PALETTE_SPECTRUM = []
-show_spectrum = core.get_config("nowplaying", "show_spectrum", fallback=False, type=bool)
 
 def load_spectrum_palette(theme_name="default"):
     themes = core.load_theme_file()
@@ -322,13 +350,7 @@ def load_spectrum_palette(theme_name="default"):
     if "spectrum" in theme:
         global PALETTE_SPECTRUM
         PALETTE_SPECTRUM = [(float(val), core.get_color(tuple(col))) for val, col in theme["spectrum"]]
-
-if core.height > 64:
-    show_extra_infos = core.get_config("nowplaying", "show_extra_infos", fallback=False, type=bool)
-    show_progress_barre = core.get_config("nowplaying", "show_progress_barre", fallback=False, type=bool)
-
-if screensaver_mode == "spectrum" or show_spectrum:
-    load_spectrum_palette(core.THEME_NAME)
+load_spectrum_palette(core.THEME_NAME)
 
 last_title_seen = ""
 last_artist_seen = ""
@@ -2288,6 +2310,10 @@ def render_screen():
             draw_confirm_box()
         elif hardware_info_active:
             draw_hardware_info()
+        elif screensaver_menu_active:
+            draw_screensaver_menu()
+        elif ui_menu_active:
+            draw_ui_menu()
         elif theme_menu_active:
             draw_theme_menu()
         elif language_menu_active:
@@ -2388,29 +2414,6 @@ def draw_songlog_action_menu():
 def draw_tool_menu():
     core.draw_custom_menu([item["label"] for item in tool_menu_options], tool_menu_selection, title=core.t("title_tools"))
 
-def draw_theme_menu():
-    selected = {item["label"] for item in theme_menu_options if item["id"] == core.THEME_NAME}
-    core.draw_custom_menu([item["label"] for item in theme_menu_options], theme_menu_selection, title=core.t("title_theme"), multi=selected)
-
-def draw_language_menu():
-    selected = {item["label"] for item in language_menu_options if item["id"] == core.LANGUAGE}
-    core.draw_custom_menu([item["label"] for item in language_menu_options], language_menu_selection, title=core.t("title_language"), multi=selected)
-
-def draw_config_menu():
-    for item in config_menu_options:
-        if item["id"] == "sleep":
-            item["label"] = core.t("menu_sleep") + f": {sleep_timeout_labels.get(core.SCREEN_TIMEOUT, 'Off')}"
-            break
-    config_flags = set()
-    if core.DEBUG:
-        config_flags.add(core.t("menu_debug"))
-    if show_spectrum:
-        config_flags.add(core.t("menu_spectrum"))
-    core.draw_custom_menu([item["label"] for item in config_menu_options], config_menu_selection, title=core.t("title_config"), multi=config_flags)
-
-def draw_help_screen():
-    core.draw_custom_menu(help_lines, help_selection, title=core.t("title_help"))
-
 def draw_renderers_menu():
     active = []
     for item in renderers_menu_options:
@@ -2445,8 +2448,45 @@ def draw_bluetooth_device_actions_menu():
 def draw_hardware_info():
     core.draw_custom_menu(hardware_info_lines, hardware_info_selection, title=core.t("title_hardware_info"))
 
+def draw_config_menu():
+    config_flags = set()
+    if core.DEBUG:
+        config_flags.add(core.t("menu_debug"))
+    core.draw_custom_menu([item["label"] for item in config_menu_options], config_menu_selection, title=core.t("title_config"), multi=config_flags)
+
+def draw_language_menu():
+    selected = {item["label"] for item in language_menu_options if item["id"] == core.LANGUAGE}
+    core.draw_custom_menu([item["label"] for item in language_menu_options], language_menu_selection, title=core.t("title_language"), multi=selected)
+
+def draw_theme_menu():
+    selected = {item["label"] for item in theme_menu_options if item["id"] == core.THEME_NAME}
+    core.draw_custom_menu([item["label"] for item in theme_menu_options], theme_menu_selection, title=core.t("title_theme"), multi=selected)
+
+def draw_ui_menu():
+    ui_flags = set()
+    if show_extra_infos:
+        ui_flags.add(core.t("menu_extra_infos"))
+    if show_progress_barre:
+        ui_flags.add(core.t("menu_progress_bare"))
+    if show_spectrum:
+        ui_flags.add(core.t("menu_spectrum"))
+    if show_clock:
+        ui_flags.add(core.t("menu_clock"))
+    core.draw_custom_menu([item["label"] for item in ui_menu_options], ui_menu_selection, title=core.t("title_ui"), multi=ui_flags)
+
+def draw_screensaver_menu():
+    for item in screensaver_menu_options:
+        if item["id"] == "sleep":
+            item["label"] = core.t("menu_sleep") + f": {sleep_timeout_labels.get(core.SCREEN_TIMEOUT, 'Off')}"
+            break
+    selected = {item["label"] for item in screensaver_menu_options if item["id"] == screensaver_mode}
+    core.draw_custom_menu([item["label"] for item in screensaver_menu_options], screensaver_menu_selection, title=core.t("title_screensaver"), multi=selected)
+
 def draw_confirm_box():
     core.draw_custom_menu([item["label"] for item in confirm_box_options], confirm_box_selection, title=confirm_box_title)
+
+def draw_help_screen():
+    core.draw_custom_menu(help_lines, help_selection, title=core.t("title_help"))
 
 def is_spectrum_available():
     global spectrum
@@ -2471,7 +2511,6 @@ def start_spectrum():
         except Exception as e:
             print(f"[Spectrum] Import failed: {e}")
             show_spectrum = False
-
         num_bars = core.get_config("spectrum", "num_bars", fallback=36, type=int)
         fmin = core.get_config("spectrum", "fmin", fallback=0, type=int)
         fmax = core.get_config("spectrum", "fmax", fallback=None, type=int)
@@ -2766,7 +2805,7 @@ def draw_nowplaying():
 
         if core.height <= 96:
             spacing = 2
-            top_bar_h = icon_width + 2
+            top_bar_h = icon_width + 4
         elif core.height <= 128:
             spacing = 3 if show_spectrum else 10
             top_bar_h = icon_width + 4 if show_spectrum else icon_width + 10
@@ -2892,6 +2931,7 @@ def nav_left_long():
             "menu_active", "confirm_box_active", "help_active",
             "songlog_active", "songlog_action_active",
             "tool_menu_active", "language_menu_active", "hardware_info_active", "config_menu_active",
+            "screensaver_menu_active", "ui_menu_active","theme_menu_active",
             "power_menu_active", "renderers_menu_active", "bluetooth_menu_active",
             "bluetooth_scan_menu_active", "bluetooth_paired_menu_active",
             "bluetooth_audioout_menu_active", "bluetooth_device_actions_menu_active", "playback_modes_menu_active"
@@ -3000,7 +3040,8 @@ def finish_press(key):
     global power_menu_active, power_menu_selection, playback_modes_menu_active, playback_modes_selection
     global stream_queue_active, stream_queue_selection, stream_queue_action_active, stream_queue_action_selection
     global stream_queue_pos, stream_manual_skip, stream_transition_in_progress
-    global tool_menu_selection, tool_menu_active, config_menu_active, config_menu_selection, sleep_timeout_options, theme_menu_active, theme_menu_selection
+    global tool_menu_selection, tool_menu_active, config_menu_active, config_menu_selection
+    global theme_menu_active, theme_menu_selection, ui_menu_active, ui_menu_selection, screensaver_menu_active, screensaver_menu_selection, sleep_timeout_options
     global help_active, help_selection, hardware_info_active, hardware_info_selection, language_menu_active, language_menu_selection
     global confirm_box_active, confirm_box_selection, confirm_box_callback, renderers_menu_active, renderers_menu_selection
     global bluetooth_menu_active, bluetooth_menu_selection, bluetooth_scan_menu_active, bluetooth_scan_menu_selection
@@ -3562,12 +3603,7 @@ def finish_press(key):
             core.reset_scroll("menu_item")
         elif key == "KEY_OK":
             option_id = config_menu_options[config_menu_selection]["id"]
-            if option_id == "sleep":
-                idx = sleep_timeout_options.index(core.SCREEN_TIMEOUT)
-                idx = (idx + 1) % len(sleep_timeout_options)
-                core.SCREEN_TIMEOUT = sleep_timeout_options[idx]
-                core.save_config("screen_timeout", core.SCREEN_TIMEOUT, section="settings")
-            elif option_id == "language":
+            if option_id == "language":
                 config_menu_active = False
                 language_menu_active = True
                 language_menu_selection = 0
@@ -3575,6 +3611,14 @@ def finish_press(key):
                 config_menu_active = False
                 theme_menu_active = True
                 theme_menu_selection = 0
+            elif option_id == "ui":
+                config_menu_active = False
+                ui_menu_active = True
+                ui_menu_selection = 0
+            elif option_id == "screensaver":
+                config_menu_active = False
+                screensaver_menu_active = True
+                screensaver_menu_selection = 0
             elif option_id == "debug":
                 config_menu_active = False
                 new_debug = not core.DEBUG
@@ -3582,18 +3626,6 @@ def finish_press(key):
                 core.show_message(core.t("info_debug_on") if new_debug else core.t("info_debug_off"))
                 time.sleep(1)
                 os.execv(sys.executable, ['python3'] + sys.argv)
-            elif option_id == "spectrum":
-                if not is_spectrum_available():
-                    core.show_message(core.t("error_spectrum"))
-                    time.sleep(1)
-                    return
-                config_menu_active = False
-                new_spectrum = not show_spectrum
-                core.save_config("show_spectrum", new_spectrum, section="nowplaying")
-                core.show_message(core.t("info_spectrum_on") if new_spectrum else core.t("info_spectrum_off"))
-                time.sleep(1)
-                os.execv(sys.executable, ['python3'] + sys.argv)
-            core.reset_scroll("menu_item", "menu_title")
         return
 
     if language_menu_active:
@@ -3605,7 +3637,7 @@ def finish_press(key):
             core.reset_scroll("menu_item")
         elif key == "KEY_LEFT":
             language_menu_active = False
-            tool_menu_active = True
+            config_menu_active = True
             core.reset_scroll("menu_item")
         elif key == "KEY_OK":
             language_menu_active = False
@@ -3634,6 +3666,78 @@ def finish_press(key):
             core.show_message(core.t("info_theme_set", selected=theme_menu_options[theme_menu_selection]["label"]))
             time.sleep(1)
             os.execv(sys.executable, ['python3'] + sys.argv)
+        return
+
+    if ui_menu_active:
+        global show_extra_infos, show_progress_barre, show_spectrum, show_clock
+        if key == "KEY_UP" and ui_menu_selection > 0:
+            ui_menu_selection -= 1
+            core.reset_scroll("menu_item")
+        elif key == "KEY_DOWN" and ui_menu_selection < len(ui_menu_options) - 1:
+            ui_menu_selection += 1
+            core.reset_scroll("menu_item")
+        elif key == "KEY_LEFT":
+            ui_menu_active = False
+            config_menu_active = True
+            core.reset_scroll("menu_item")
+        elif key == "KEY_OK":
+            option_id = ui_menu_options[ui_menu_selection]["id"]
+            if option_id == "extra":
+                new_extra = not show_extra_infos
+                core.save_config("show_extra_infos", new_extra, section="nowplaying")
+                show_extra_infos = new_extra
+            elif option_id == "progress":
+                new_progress = not show_progress_barre
+                core.save_config("show_progress_barre", new_progress, section="nowplaying")
+                show_progress_barre = new_progress
+            elif option_id == "spectrum":
+                if not is_spectrum_available():
+                    core.show_message(core.t("error_spectrum"))
+                    time.sleep(1)
+                    return
+                new_spectrum = not show_spectrum
+                core.save_config("show_spectrum", new_spectrum, section="nowplaying")
+                show_spectrum = new_spectrum
+            elif option_id == "clock_elapse":
+                new_clock = not show_clock
+                core.save_config("show_clock", new_clock, section="nowplaying")
+                show_clock = new_clock
+            elif option_id == "apply":
+                ui_menu_active = False
+                core.show_message(core.t("info_reload_screen"))
+                time.sleep(1)
+                os.execv(sys.executable, ['python3'] + sys.argv)
+            core.reset_scroll("menu_item", "menu_title")
+        return
+
+    if screensaver_menu_active:
+        if key == "KEY_UP" and screensaver_menu_selection > 0:
+            screensaver_menu_selection -= 1
+            core.reset_scroll("menu_item")
+        elif key == "KEY_DOWN" and screensaver_menu_selection < len(screensaver_menu_options) - 1:
+            screensaver_menu_selection += 1
+            core.reset_scroll("menu_item")
+        elif key == "KEY_LEFT":
+            screensaver_menu_active = False
+            config_menu_active = True
+            core.reset_scroll("menu_item")
+        elif key == "KEY_OK":
+            option_id = screensaver_menu_options[screensaver_menu_selection]["id"]
+            if option_id == "sleep":
+                idx = sleep_timeout_options.index(core.SCREEN_TIMEOUT)
+                idx = (idx + 1) % len(sleep_timeout_options)
+                core.SCREEN_TIMEOUT = sleep_timeout_options[idx]
+                core.save_config("screen_timeout", core.SCREEN_TIMEOUT, section="settings")
+            elif option_id == "select":
+                pass
+            else:
+                screensaver_menu_active = False
+                screensaver_mode = screensaver_menu_options[screensaver_menu_selection]["id"]
+                core.save_config("screensaver_mode", screensaver_mode , section="settings")
+                core.show_message(core.t("info_screensaver_set", selected=screensaver_menu_options[screensaver_menu_selection]["label"]))
+                time.sleep(1)
+                os.execv(sys.executable, ['python3'] + sys.argv)
+            core.reset_scroll("menu_item", "menu_title")
         return
 
     if hardware_info_active:
