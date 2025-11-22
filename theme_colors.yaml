@@ -176,7 +176,7 @@ default:
     outline:            [255, 255, 255]
     extra_info:         [255, 255, 255]
     progress:           [255, 255, 255]
-    progress_bg:        [255, 255, 255]
+    progress_bg:        [0, 0, 0]
     stop_clock:         [255, 255, 255]
     screensaver_clock:  [255, 255, 255]
     artist:             [255, 255, 255]

@@ -176,6 +176,7 @@ theme_default: "Default"
 theme_user: "Perso"
 
 menu_ui: "Configurer UI"
+menu_icons: "Afficher la barre icons"
 menu_extra_infos: "Afficher infos audio"
 menu_progress_bare: "afficher barre de progression"
 menu_spectrum: "Afficher Spectromètre"

@@ -19,6 +19,7 @@ current_screen =
 #invert = True
 
 [nowplaying]
+show_icons = True
 show_extra_infos = True
 show_progress_barre = True
 show_clock = True
