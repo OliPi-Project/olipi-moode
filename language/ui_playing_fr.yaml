@@ -67,9 +67,9 @@ info_reload_screen: "Recharger l'écran"
 info_restart_mpd: "Redémarrer MPD"
 info_no_additional: "Aucune info supplémentaire"
 
-info_language_set: "Langue : {selected}"
-info_theme_set: " Thème séléctionné: {selected}"
-info_screensaver_set: "Ecran de veille séléctionné: {selected}"
+info_language_set: "Langue : {selected} - rechargement..."
+info_theme_set: " Thème séléctionné: {selected} - rechargement..."
+info_screensaver_set: "Ecran de veille séléctionné: {selected} - rechargement..."
 info_debug_on: "Debug activé, rechargement..."
 info_debug_off: "Debug désactivé, rechargement..."
 

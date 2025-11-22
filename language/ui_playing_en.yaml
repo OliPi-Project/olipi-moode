@@ -67,9 +67,9 @@ info_reload_screen: "Reloading Screen"
 info_restart_mpd: "Restart Mpd"
 info_no_additional: "No additional info"
 
-info_language_set: "Language: {selected}"
-info_theme_set: "Theme selected: {selected}"
-info_screensaver_set: "Screensaver selected: {selected}"
+info_language_set: "Language: {selected} - reloading..."
+info_theme_set: "Theme selected: {selected} - reloading..."
+info_screensaver_set: "Screensaver selected: {selected} - reloading..."
 info_debug_on: "Debug On, reloading..."
 info_debug_off: "Debug Off, reloading..."
 
