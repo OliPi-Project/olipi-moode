@@ -47,16 +47,16 @@ font_extra_info = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bol
 
 core.load_translations(Path(__file__).stem)
 
+show_icons = core.get_config("nowplaying", "show_icons", fallback=False, type=bool)
+show_extra_infos = core.get_config("nowplaying", "show_extra_infos", fallback=False, type=bool)
+show_progress_barre = core.get_config("nowplaying", "show_progress_barre", fallback=False, type=bool)
+show_spectrum = False if core.height <= 128 else core.get_config("nowplaying", "show_spectrum", fallback=False, type=bool)
+show_clock = core.get_config("nowplaying", "show_clock", fallback=True, type=bool)
 screensaver_mode = core.get_config("settings", "screensaver_mode", fallback="blank", type=str)
 if screensaver_mode == "covers":
     from io import BytesIO
     if core.display_format == "MONO":
         from PIL import ImageEnhance, ImageOps, ImageFilter
-show_icons = core.get_config("nowplaying", "show_icons", fallback=False, type=bool)
-show_extra_infos = core.get_config("nowplaying", "show_extra_infos", fallback=False, type=bool)
-show_progress_barre = core.get_config("nowplaying", "show_progress_barre", fallback=False, type=bool)
-show_spectrum = core.get_config("nowplaying", "show_spectrum", fallback=False, type=bool)
-show_clock = core.get_config("nowplaying", "show_clock", fallback=True, type=bool)
 
 render_lock = threading.Lock()
 now_playing_mode = False
