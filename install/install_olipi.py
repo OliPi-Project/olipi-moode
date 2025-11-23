@@ -509,41 +509,54 @@ def merge_ini_with_dist(user_file: Path, dist_file: Path):
     user_file.write_text("\n".join(merged_lines) + "\n")
 
 def sync_user_themes():
-    themes_main = {}
-    if THEME_PATH_MAIN.exists():
-        with THEME_PATH_MAIN.open("r", encoding="utf-8") as f:
-            themes_main = yaml.safe_load(f) or {}
-
+    themes_main = yaml.safe_load(THEME_PATH_MAIN.read_text(encoding="utf-8")) or {}
     default_theme = themes_main.get("default", {})
-    user_data = {}
-    if THEME_PATH_USER.exists():
-        with THEME_PATH_USER.open("r", encoding="utf-8") as f:
-            user_data = yaml.safe_load(f) or {}
+    theme_user = yaml.safe_load(THEME_PATH_USER.read_text(encoding="utf-8")) or {}
     changed = False
-    for theme_name, theme in user_data.items():
-        def add_missing_keys(ref, target):
-            nonlocal changed
-            for k, v in ref.items():
-                if k not in target:
-                    target[k] = v if not isinstance(v, dict) else v.copy()
-                    changed = True
-                elif isinstance(v, dict) and isinstance(target.get(k), dict):
-                    add_missing_keys(v, target[k])
-
-        add_missing_keys(default_theme, theme)
-        def remove_extra_keys(ref, target):
-            nonlocal changed
-            for k in list(target.keys()):
-                if k not in ref:
-                    del target[k]
-                    changed = True
-                elif isinstance(target[k], dict) and isinstance(ref.get(k), dict):
-                    remove_extra_keys(ref[k], target[k])
-        remove_extra_keys(default_theme, theme)
+    def sync_dict(template: dict, user_dict: dict) -> dict:
+        nonlocal changed
+        res = {}
+        for key, tval in template.items():
+            if key in user_dict:
+                uval = user_dict[key]
+                if isinstance(tval, dict) and isinstance(uval, dict):
+                    res[key] = sync_dict(tval, uval)
+                else:
+                    res[key] = deepcopy(uval)
+            else:
+                res[key] = deepcopy(tval)
+                changed = True
+        return res
+    new_user = {}
+    for theme_name, theme_val in theme_user.items():
+        if not isinstance(theme_val, dict):
+            new_user[theme_name] = deepcopy(default_theme)
+            changed = True
+        else:
+            new_user[theme_name] = sync_dict(default_theme, theme_val)
     if changed:
+        class FlowListDumper(yaml.SafeDumper):
+            pass
+        def _repr_list(dumper, data):
+            if isinstance(data, list) and len(data) == 3 and all(isinstance(x, int) for x in data):
+                return dumper.represent_sequence('tag:yaml.org,2002:seq', data, flow_style=True)
+            if (
+                isinstance(data, list)
+                and len(data) == 2
+                and (isinstance(data[0], (int, float)) or (isinstance(data[0], str) and re.match(r'^\d*\.?\d+$', data[0])))
+                and isinstance(data[1], list)
+                and len(data[1]) == 3
+                and all(isinstance(x, int) for x in data[1])
+            ):
+                return dumper.represent_sequence('tag:yaml.org,2002:seq', data, flow_style=True)
+            return dumper.represent_sequence('tag:yaml.org,2002:seq', data, flow_style=False)
+        FlowListDumper.add_representer(list, _repr_list)
+        backup = THEME_PATH_USER.with_suffix(".yaml.bak")
+        THEME_PATH_USER.replace(backup)
         with THEME_PATH_USER.open("w", encoding="utf-8") as f:
-            yaml.safe_dump(user_data, f, sort_keys=False, allow_unicode=True)
-    return changed
+            yaml.dump(new_user, f, Dumper=FlowListDumper, sort_keys=False, allow_unicode=True)
+        print(SETUP.get("theme_user_updated", {}).get(lang, "🎨 User themes updated"))
+    print(SETUP.get("theme_user_ok", {}).get(lang, "🎨 User themes already up to date"))
 
 def save_settings(settings: dict):
     try:
@@ -826,7 +839,7 @@ def install_repo(repo_name: str, repo_url: str, local_dir: Path, branch: str, se
                 log_line(msg=f"Merged file {user_file} with {dist_file}", context="install_repo")
             else:
                 print(SETUP["no_dist"][lang].format(user_file.name))
-
+        
     # Save/record installation metadata
     settings = load_settings()
     settings[settings_keys["branch"]] = branch
@@ -1741,8 +1754,7 @@ def main():
                 print(SETUP.get("reexecut_script", {}).get(lang, "\n🔁 Re-executing freshly cloned install_olipi.py to pick up updates..."))
                 print(f"[debug] → relaunching with args: --dev")
                 os.execv(sys.executable, [sys.executable, script_path, "--dev"])
-            if sync_user_themes():
-                print(SETUP.get("merged_theme", {}).get(lang, "📦 Updated theme_user.yaml with missing/obsolete keys"))
+            sync_user_themes()
             configure_screen(OLIPI_MOODE_DIR, OLIPI_CORE_DIR)
             check_ram()
             install_venv = check_virtualenv()
@@ -1773,8 +1785,7 @@ def main():
                 script_path = os.path.abspath(__file__)
                 print(SETUP.get("reexecut_script", {}).get(lang, "\n🔁 Re-executing freshly cloned install_olipi.py to pick up updates..."))
                 os.execv(sys.executable, [sys.executable, script_path, "--install"])
-            if sync_user_themes():
-                print(SETUP.get("merged_theme", {}).get(lang, "📦 Updated theme_user.yaml with missing/obsolete keys"))
+            sync_user_themes()
             configure_screen(OLIPI_MOODE_DIR, OLIPI_CORE_DIR)
             check_ram()
             install_venv = check_virtualenv()
@@ -1804,8 +1815,7 @@ def main():
                 script_path = os.path.abspath(__file__)
                 print(SETUP.get("reexecut_script", {}).get(lang, "\n🔁 Re-executing freshly cloned install_olipi.py to pick up updates..."))
                 os.execv(sys.executable, [sys.executable, script_path, "--update"])
-            if sync_user_themes():
-                print(SETUP.get("merged_theme", {}).get(lang, "📦 Updated theme_user.yaml with missing/obsolete keys"))
+            sync_user_themes()
             install_venv = check_virtualenv()
             if install_venv:
                 setup_virtualenv(DEFAULT_VENV_PATH)
