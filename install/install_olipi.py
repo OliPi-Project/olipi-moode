@@ -51,8 +51,8 @@ SETTINGS_FILE = Path(INSTALL_DIR) / ".setup-settings.json"
 REEXEC_FLAG = Path(tempfile.gettempdir()) / f"olipi_reexec_{os.getuid()}.flag"
 TMP_LOG_FILE = Path("/tmp/setup.log")
 CONFIG_TXT = "/boot/firmware/config.txt"
-THEME_PATH_MAIN = os.path.join(OLIPI_MOODE_DIR, "theme_colors.yaml")
-THEME_PATH_USER = os.path.join(OLIPI_MOODE_DIR, "theme_user.yaml")
+THEME_PATH_MAIN = Path(OLIPI_MOODE_DIR) / "theme_colors.yaml"
+THEME_PATH_USER = Path(OLIPI_MOODE_DIR) / "theme_user.yaml"
 
 _LOG_INITIALIZED = False
 
