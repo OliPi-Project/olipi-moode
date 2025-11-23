@@ -180,6 +180,7 @@ theme_menu_options = [
     {"id": "rasta",  "label": core.t("theme_rasta")},
     {"id": "unicorn",  "label": core.t("theme_unicorn")},
     {"id": "user",  "label": core.t("theme_user")},
+    {"id": "user2",  "label": core.t("theme_user2")},
     {"id": "default", "label": core.t("theme_default")}
 ]
 ui_menu_active = False
