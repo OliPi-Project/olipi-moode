@@ -1,37 +1,3 @@
-user:
-  colors:
-    bg:                 [255, 255, 255]
-    icons:              [0, 180, 255]
-    text:               [0, 105, 209]
-    title:              [0, 220, 180]
-    outline:            [0, 105, 209]
-    extra_info:         [120, 200, 230]
-    progress:           [0, 220, 180]
-    progress_bg:        [0, 105, 209]
-    stop_clock:         [0, 105, 209]
-    screensaver_clock:  [0, 105, 209]
-    artist:             [92, 173, 255]
-    track_title:        [0, 105, 209]
-    vol_clock:          [0, 180, 255]
-    input_bg:           [92, 173, 255]
-    input_text:         [245, 240, 200]
-    input_cursor:       [255, 255, 255]
-    input_info:         [140, 200, 240]
-    menu_bg:            [184, 219, 255]
-    menu_outline:       [0, 105, 209]
-    menu_title:         [92, 173, 255]
-    menu_text:          [0, 105, 209]
-    menu_selected_bg:   [92, 173, 255]
-    menu_selected_text: [245, 240, 200]
-    message_bg:         [184, 219, 255]
-    message_text:       [0, 105, 209]
-    message_outline:    [0, 105, 209]
-  spectrum:
-    - [0.0,  [0, 36, 71]]
-    - [0.4,  [0, 105, 209]]
-    - [0.7, [92, 173, 255]]
-    - [0.9,  [184, 219, 255]]
-
 ocean:
   colors:
     bg:                 [255, 255, 255]

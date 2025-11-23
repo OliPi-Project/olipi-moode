@@ -15,6 +15,7 @@ import tempfile
 import urllib.request
 import urllib.error
 import re
+from copy import deepcopy
 from pathlib import Path
 from lang import SETUP
 
@@ -34,7 +35,7 @@ OLIPI_CORE_DEV_BRANCH = "dev"
 
 # path relative to local_dir e.g. ["config/user_key.ini, something.ini"]
 PRESERVE_FILES = {
-    "moode": ["songlog.txt", "search_history.txt"],
+    "moode": ["songlog.txt", "search_history.txt", "theme_user.yaml"],
     "core": []
 }
 
@@ -50,6 +51,8 @@ SETTINGS_FILE = Path(INSTALL_DIR) / ".setup-settings.json"
 REEXEC_FLAG = Path(tempfile.gettempdir()) / f"olipi_reexec_{os.getuid()}.flag"
 TMP_LOG_FILE = Path("/tmp/setup.log")
 CONFIG_TXT = "/boot/firmware/config.txt"
+THEME_PATH_MAIN = OLIPI_DIR / "theme_colors.yaml"
+THEME_PATH_USER = OLIPI_DIR / "theme_user.yaml"
 
 _LOG_INITIALIZED = False
 
@@ -503,6 +506,43 @@ def merge_ini_with_dist(user_file: Path, dist_file: Path):
     print(f"✅ backup file saved to {backup_path}")
     # Write new merged file
     user_file.write_text("\n".join(merged_lines) + "\n")
+
+def sync_user_themes():
+    themes_main = {}
+    if THEME_PATH_MAIN.exists():
+        with THEME_PATH_MAIN.open("r", encoding="utf-8") as f:
+            themes_main = yaml.safe_load(f) or {}
+
+    default_theme = themes_main.get("default", {})
+    user_data = {}
+    if THEME_PATH_USER.exists():
+        with THEME_PATH_USER.open("r", encoding="utf-8") as f:
+            user_data = yaml.safe_load(f) or {}
+    changed = False
+    for theme_name, theme in user_data.items():
+        def add_missing_keys(ref, target):
+            nonlocal changed
+            for k, v in ref.items():
+                if k not in target:
+                    target[k] = v if not isinstance(v, dict) else v.copy()
+                    changed = True
+                elif isinstance(v, dict) and isinstance(target.get(k), dict):
+                    add_missing_keys(v, target[k])
+
+        add_missing_keys(default_theme, theme)
+        def remove_extra_keys(ref, target):
+            nonlocal changed
+            for k in list(target.keys()):
+                if k not in ref:
+                    del target[k]
+                    changed = True
+                elif isinstance(target[k], dict) and isinstance(ref.get(k), dict):
+                    remove_extra_keys(ref[k], target[k])
+        remove_extra_keys(default_theme, theme)
+    if changed:
+        with THEME_PATH_USER.open("w", encoding="utf-8") as f:
+            yaml.safe_dump(user_data, f, sort_keys=False, allow_unicode=True)
+    return changed
 
 def save_settings(settings: dict):
     try:
@@ -1700,6 +1740,8 @@ def main():
                 print(SETUP.get("reexecut_script", {}).get(lang, "\n🔁 Re-executing freshly cloned install_olipi.py to pick up updates..."))
                 print(f"[debug] → relaunching with args: --dev")
                 os.execv(sys.executable, [sys.executable, script_path, "--dev"])
+            if sync_user_themes():
+                print(SETUP.get("merged_theme", {}).get(lang, "📦 Updated theme_user.yaml with missing/obsolete keys"))
             configure_screen(OLIPI_MOODE_DIR, OLIPI_CORE_DIR)
             check_ram()
             install_venv = check_virtualenv()
@@ -1730,6 +1772,8 @@ def main():
                 script_path = os.path.abspath(__file__)
                 print(SETUP.get("reexecut_script", {}).get(lang, "\n🔁 Re-executing freshly cloned install_olipi.py to pick up updates..."))
                 os.execv(sys.executable, [sys.executable, script_path, "--install"])
+            if sync_user_themes():
+                print(SETUP.get("merged_theme", {}).get(lang, "📦 Updated theme_user.yaml with missing/obsolete keys"))
             configure_screen(OLIPI_MOODE_DIR, OLIPI_CORE_DIR)
             check_ram()
             install_venv = check_virtualenv()
@@ -1759,6 +1803,8 @@ def main():
                 script_path = os.path.abspath(__file__)
                 print(SETUP.get("reexecut_script", {}).get(lang, "\n🔁 Re-executing freshly cloned install_olipi.py to pick up updates..."))
                 os.execv(sys.executable, [sys.executable, script_path, "--update"])
+            if sync_user_themes():
+                print(SETUP.get("merged_theme", {}).get(lang, "📦 Updated theme_user.yaml with missing/obsolete keys"))
             install_venv = check_virtualenv()
             if install_venv:
                 setup_virtualenv(DEFAULT_VENV_PATH)
