@@ -174,15 +174,8 @@ language_menu_options = [
 ]
 theme_menu_active = False
 theme_menu_selection = 0
-theme_menu_options = [
-    {"id": "ocean",  "label": core.t("theme_ocean")},
-    {"id": "autumn",  "label": core.t("theme_autumn")},
-    {"id": "rasta",  "label": core.t("theme_rasta")},
-    {"id": "unicorn",  "label": core.t("theme_unicorn")},
-    {"id": "user",  "label": core.t("theme_user")},
-    {"id": "user2",  "label": core.t("theme_user2")},
-    {"id": "default", "label": core.t("theme_default")}
-]
+theme_menu_options = core.get_theme_menu()
+
 ui_menu_active = False
 ui_menu_selection = 0
 ui_menu_options = [
