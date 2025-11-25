@@ -13,6 +13,9 @@ OliPi MoOde is an user interface for OLED/LCD screens >= 128x64 for [Moode Audio
   <img src="https://github.com/OliPi-Project/olipi-moode/blob/main/docs/screenshots/TFT_demo.gif" width="400" alt="All Screens Demo">
   <img src="https://github.com/OliPi-Project/olipi-moode/blob/main/docs/screenshots/SSD1306_demo.gif" width="400" alt="Menus Demo">
 </p>
+<p align="center">
+  <img src="https://github.com/OliPi-Project/olipi-moode/blob/main/docs/screenshots/v0-3-4.JPEG" width="400" alt="v0.3.4 Demo">
+</p>
 
 Video presentation:
 [https://youtu.be/9Y13UeyyT7k?si=hkOkiP9gk0rjxlB8](https://youtu.be/9Y13UeyyT7k?si=hkOkiP9gk0rjxlB8)
