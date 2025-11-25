@@ -336,10 +336,14 @@ A small on-screen menu allows you to change:
     - Display SongLog and allows to search logged tracks and listen to YT.
     - Display hardware stats
     - Config Menu:
-      - Screen sleep delay
       - Language (currently English and French)
       - Change color theme
-      - Toggle spectrum
+      - Configure UI:
+        - Show/hide: icons barre, audio infos, progress bare, spectrum
+        - Display clock or elapsed time
+      - Configure screensaver:
+        - Screen sleep delay
+        - Choose: blank, LCD clock, covers, or spectrum
       - Toggle debug mode  
 
 
