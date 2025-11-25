@@ -28,11 +28,18 @@ If you're upgrading from a version prior to v0.3.0, a fresh install is required.
 Release Note:
 
     Latest updates:
+
+    - Separate theme_colors so you can use theme_user.yaml to change colors and don't lose your settings during an update
+    - Add screensavers (LCD clock, Covers, spectrum) and menu options to select them
+    - Files and folders have been reorganized
+    ...
+
     - Improved search/rename input box & relative info. 
     - In queue ui Key_OK now play track & OK long open menu
     - Add search_history.txt to PRESERVE_FILES
     - Config.ini is now saved in the user /home folder before a merge or reset
     - Optimisation: cpu % divided by 2 on zero2w in queue and library displays
+    ...
 
     V0.3.0-pre:
     - Add support for MPR121 capacitive touch with a beginnings of gesture support
