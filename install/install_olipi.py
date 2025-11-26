@@ -784,10 +784,15 @@ def install_repo(repo_name: str, repo_url: str, local_dir: Path, branch: str, se
 
     # Force-reset files = intersection of repo-declared force_on_major and mergeable files
     force_reset_files = []
+    force_reset = False
     if change_type == "major":
         force_reset_files = [f for f in repo_force_on_major if f in mergeable_files]
         if force_reset_files:
-            print(SETUP.get("found_force_dist", {}).get(lang, "⚙️ Major update → force new files for {}: {}").format(repo_name, force_reset_files or "none"))
+            choice = input(SETUP.get("found_force_dist", {}).get(lang, "\n⚙️ Major update → Do you want to force a reset for OliPi-{}: {} ? [Y/n]").format(repo_name, force_reset_files or "none") + " > ").strip().lower()
+            if choice in ["", "y", "o"]:
+                force_reset = True
+            else:
+                force_reset = False
 
     # Update preserve files: mergeable files must be preserved during cleanup/move
     current_preserve = set(PRESERVE_FILES.get(repo_name.lower(), []) or [])
@@ -817,7 +822,7 @@ def install_repo(repo_name: str, repo_url: str, local_dir: Path, branch: str, se
             dist_file = local_dir / f"{f}.dist"
 
             # if explicit force-reset for this file (only on major)
-            if f in force_reset_files:
+            if f in force_reset_files and force_reset:
                 if user_file.exists():
                     user = os.getenv("SUDO_USER") or os.getenv("USER") or "pi"
                     home = Path("/home") / user
