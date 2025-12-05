@@ -41,6 +41,7 @@ SETUP = {
                          "fr": "ℹ️ Patch update, pas besoin de merger les fichiers."},
     "backup_file": {"en": "📦 Backed up {} → {}", "fr": "📦 Sauvegarde de {} → {}"},
     "forced_overwrite": {"en": "⚡ Forced overwrite of {} with {}", "fr": "⚡ Écrasement forcé de {} avec {}"},
+    "create_file": {"en": "⚡ {} does not exist, create the file from {}", "fr": "⚡ {} n'existe pas, création du fichier à partir de {}"},
     "merged_file": {"en": "📦 Merged {} with {}", "fr": "📦 Fusion de {} avec {}"},
     "no_dist": {"en": "ℹ️ No .dist file to merge/overwrite. ignored", "fr": "ℹ️ Aucun .dist à fusionner/écraser. Ignoré"},
     "theme_user_updated": {"en": "\n🎨 User themes updated", "fr": "\n🎨 Thèmes utilisateur mis à jour"},
