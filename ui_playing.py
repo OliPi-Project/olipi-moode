@@ -15,6 +15,7 @@ import datetime
 import threading
 import requests
 import math
+import random
 import html
 import http.server
 import sqlite3
@@ -57,6 +58,7 @@ if screensaver_mode == "covers":
     from io import BytesIO
     if core.display_format == "MONO":
         from PIL import ImageEnhance, ImageOps, ImageFilter
+DYNAMIC_SS = ("orbital", "spectrum")
 
 render_lock = threading.Lock()
 now_playing_mode = False
@@ -198,6 +200,8 @@ screensaver_menu_options = [
     {"id": "covers", "label": core.t("mode_covers")},
     {"id": "spectrum", "label": core.t("mode_spectrum")}
 ]
+if core.display_format != "MONO":
+    screensaver_menu_options.insert(6, {"id": "orbital", "label": core.t("mode_orbital")})
 sleep_timeout_options = [0, 15, 30, 60, 300, 600]
 sleep_timeout_labels = {0: "Off", 15: "15s", 30: "30s", 60: "1m", 300: "5m", 600: "10m"}
 
@@ -383,7 +387,7 @@ def run_sleep_loop():
                 screen_on = True
                 is_sleeping = False
                 last_displayed_cover = None
-                return
+                break
             elif cover and id(cover) != last_displayed_cover:
                 core.draw.rectangle((0, 0, core.width, core.height), fill=core.COLOR_BG)
                 img = cover.copy()
@@ -401,6 +405,16 @@ def run_sleep_loop():
                 last_displayed_cover = "no_cover"
                 core.clear_display()
             time.sleep(0.2)
+
+    elif screensaver_mode == "orbital":
+        from screensavers.screensaver_orbital import SaverOrbital
+        saver = SaverOrbital(core, palette=PALETTE_SPECTRUM)
+        while is_sleeping:
+            levels = spectrum.get_levels() if spectrum else None
+            saver.update(levels)
+            saver.draw()
+            core.refresh()
+            time.sleep(core.REFRESH_INTERVAL)
 
     elif screensaver_mode == "spectrum":
         if core.height <= 64:
@@ -734,7 +748,7 @@ def player_status_thread():
                 client.connect("localhost", 6600)
             except Exception:
                 time.sleep(5)
-        time.sleep(0.5)
+        time.sleep(0.1)
 
 def mixer_status_thread():
     client = MPDClient()
@@ -772,7 +786,7 @@ def mixer_status_thread():
                 client.connect("localhost", 6600)
             except Exception:
                 time.sleep(5)
-        time.sleep(0.5)
+        time.sleep(0.3)
 
 def options_status_thread():
     client = MPDClient()
@@ -837,7 +851,7 @@ def non_idle_status_thread():
                 global_state["elapsed"] = float(status_extra.get("elapsed", 0.0))
                 global_state["bitrate"] = status_extra.get("bitrate", "")
             except Exception as e:
-                print("Non idle status error:", e)
+                print("Non_idle_status error:", e)
                 try:
                     client.disconnect()
                 except Exception:
@@ -2508,26 +2522,9 @@ def is_spectrum_available():
 def start_spectrum():
     with render_lock:
         global spectrum, show_spectrum
-        try:
-            from spectrum_capture import SpectrumCapture
-        except Exception as e:
-            print(f"[Spectrum] Import failed: {e}")
-            show_spectrum = False
-        num_bars = core.get_config("spectrum", "num_bars", fallback=36, type=int)
-        fmin = core.get_config("spectrum", "fmin", fallback=0, type=int)
-        fmax = core.get_config("spectrum", "fmax", fallback=None, type=int)
-        profile_str = core.get_config("spectrum", "spectrum_profile", fallback="", type=str)
-        try:
-            profile_dict = json.loads(profile_str) if profile_str else None
-        except json.JSONDecodeError as e:
-            print(f"Invalid JSON for spectrum_profile in ini: {e}")
-            profile_dict = None
-        spectrum = SpectrumCapture(
-            num_bars=num_bars,
-            fmin=fmin,
-            fmax=fmax,
-            profile=profile_dict
-        )
+        from spectrum_capture import SpectrumCapture
+        n_bars = core.get_config("spectrum", "num_bars", fallback=21, type=int)
+        spectrum = SpectrumCapture(n_bars)
         spectrum.start()
         if core.DEBUG:
             print(f"Samplerate: {spectrum.samplerate} Hz, Channels: {spectrum.channels}, Format: {spectrum.format_name}")
@@ -2571,12 +2568,12 @@ def monitor_spectrum():
                     if time.time() - last_toggle < 0.2:
                         continue
                     stop_spectrum()
-                    time.sleep(0.1)
+                    time.sleep(0.02)
                     client.pause()
-                    time.sleep(0.05)
+                    time.sleep(0.01)
                     client.pause()
                     last_toggle = time.time()
-                    time.sleep(0.1)
+                    time.sleep(0.02)
                     start_spectrum()
             except Exception as e:
                 print("MPD monitor error:", e)
@@ -2610,33 +2607,68 @@ def interpolate_palette(value, palette):
             return (r, g, b)
     return palette[-1][1]
 
-def draw_spectrum(y_top, height, levels):
+def draw_spectrum(y_top, height, levels,
+                  attack=0.84,    # rapid rise (0..1): larger = more reactive to rise
+                  release=0.89,   # slow descent (0..1): smaller = slower to lower
+                  max_drop=0.30,  # optional: max fraction of height a bar can drop per frame (e.g. 0.25), or None to disable
+                  gamma=0.98):     # perceptual compression (<=1 compress), 1=no effect
+
     palette = PALETTE_SPECTRUM
     num_bars = len(levels)
-    bar_width = (core.width - 4) // num_bars if num_bars > 0 else core.width - 4
-    total_width = bar_width * num_bars
-    margin_left = (core.width - total_width) // 2
-    # Precompute global gradient if needed
-    global_gradient = []
+    if num_bars <= 0:
+        return
+    # initialize persistent visual array (kept on function object)
+    if not hasattr(draw_spectrum, "vis_levels") or len(draw_spectrum.vis_levels) != num_bars:
+        draw_spectrum.vis_levels = [0.0] * num_bars
+    vis = draw_spectrum.vis_levels
+    # layout: keep 1px spacing (pitch - 1)
+    total_width = core.width - 4
+    pitch = total_width // num_bars
+    bar_width = max(1, pitch - 1)
+    margin_left = (core.width - (pitch * num_bars)) // 2
+    # Precompute gradient (top -> bottom)
     if height <= 1:
-        color = interpolate_palette(1.0, palette)
-        global_gradient = [color]
+        global_gradient = [interpolate_palette(1.0, palette)]
     else:
-        for yy in range(height):
-            value = 1.0 - (yy / (height - 1))  # bottom → top
-            global_gradient.append(interpolate_palette(value, palette))
-    # Draw bars
-    for i, level in enumerate(levels):
-        bar_h = int(level * height)
+        global_gradient = [
+            interpolate_palette(1.0 - (yy / (height - 1)), palette)
+            for yy in range(height)
+        ]
+    # Convert levels to a simple list of floats and optionally compress perceptually
+    # We normalize by the current maximum so that bars scale reasonably without forced clipping.
+    lv = [float(x) for x in levels]
+    peak = max(max(lv), 1e-6)
+    if gamma is not None and gamma > 0 and gamma != 1.0:
+        norm_levels = [(l / peak) ** gamma for l in lv]
+    else:
+        norm_levels = [l / peak for l in lv]
+    # Per-bar asymmetric smoothing
+    for i, tgt in enumerate(norm_levels):
+        prev = vis[i]
+        if tgt >= prev:
+            a = attack
+            new = prev * (1.0 - a) + tgt * a
+        else:
+            r = release
+            new = prev * (1.0 - r) + tgt * r
+            # optional max_drop: prevent very large immediate drops in one frame
+            if max_drop is not None and max_drop > 0:
+                max_allowed = max_drop  # fraction of full scale per frame
+                if prev - new > max_allowed:
+                    new = prev - max_allowed
+        vis[i] = new
+    # draw bars
+    for i, v in enumerate(vis):
+        bar_h = int(v * height)
         if bar_h <= 0:
             continue
-        x0 = margin_left + i * bar_width
+        x0 = margin_left + i * pitch
+        x1 = x0 + bar_width - 1
         y_start = y_top + height - bar_h
         for y in range(bar_h):
-            idx = y_start + y - y_top
-            idx = max(0, min(idx, len(global_gradient) - 1))
+            idx = max(0, min((y_start + y - y_top), len(global_gradient) - 1))
             color = global_gradient[idx]
-            core.draw.rectangle((x0, y_start + y, x0 + bar_width - 1, y_start + y), fill=color)
+            core.draw.rectangle((x0, y_start + y, x1, y_start + y), fill=color)
 
 def draw_nowplaying():
     now = time.time()
@@ -2822,7 +2854,7 @@ def draw_nowplaying():
             spacing = 12 if show_spectrum else 24
             top_bar_h = icon_width + 13 if show_spectrum else icon_width + 24
         if not show_icons:
-            top_bar_h = top_bar_h - icon_width - spacing
+            top_bar_h = spacing
 
         # --- Artist / Album ---
         y_artist = top_bar_h
@@ -3820,7 +3852,7 @@ def main():
     threading.Thread(target=mixer_status_thread, daemon=True).start()
     threading.Thread(target=options_status_thread, daemon=True).start()
     threading.Thread(target=non_idle_status_thread, daemon=True).start()
-    if show_spectrum or screensaver_mode == "spectrum":
+    if show_spectrum or screensaver_mode in DYNAMIC_SS:
         threading.Thread(target=lambda: (time.sleep(0.5), delayed_spectrum_start()), daemon=True).start()
     try:
         while True:
@@ -3832,7 +3864,7 @@ def main():
                     run_sleep_loop()
             elif screen_on:
                 run_active_loop()
-            if is_sleeping and screensaver_mode != "spectrum":
+            if is_sleeping and screensaver_mode not in DYNAMIC_SS:
                 time.sleep(0.1)
             else:
                 time.sleep(core.REFRESH_INTERVAL)

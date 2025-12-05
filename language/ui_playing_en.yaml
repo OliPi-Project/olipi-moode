@@ -190,6 +190,7 @@ mode_blank: "Blank screen"
 mode_clock: "LCD clock"
 mode_covers: "Covers"
 mode_spectrum: "Spectrum"
+mode_orbital: "Orbital"
 
 menu_debug: "Debug"
 

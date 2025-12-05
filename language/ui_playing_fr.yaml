@@ -190,6 +190,7 @@ mode_blank: "Ecran vide"
 mode_clock: "Horloge lcd"
 mode_covers: "Pochette d'album"
 mode_spectrum: "Spectromètre"
+mode_orbital: "Orbital"
 
 menu_debug: "Debug"
 
