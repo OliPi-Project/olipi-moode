@@ -843,7 +843,7 @@ def install_repo(repo_name: str, repo_url: str, local_dir: Path, branch: str, se
                 log_line(msg=f"{user_file.name} does not exist, create the file from {dist_file.name}", context="install_repo")
 
             # normal merge if .dist exists
-            if user_file.exists() and dist_file.exists():
+            elif user_file.exists() and dist_file.exists():
                 merge_ini_with_dist(user_file, dist_file)
                 print(SETUP["merged_file"][lang].format(user_file.name, dist_file.name))
                 log_line(msg=f"Merged file {user_file} with {dist_file}", context="install_repo")
