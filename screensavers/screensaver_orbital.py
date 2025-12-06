@@ -34,8 +34,8 @@ class SaverOrbital:
 
         "speed_min": 1.6,
         "speed_max": 20.0,
-        "speed_exp": 4.2,
-        "peak_mult": 2.1,
+        "speed_exp": 3.8,
+        "peak_mult": 1.9,
 
         "audio_alpha_up": 0.50,
         "audio_alpha_down": 0.40,
@@ -48,14 +48,14 @@ class SaverOrbital:
         "ripple_band_threshold": 0.30,
 
         "burst_enabled": True,
-        "burst_threshold": 0.15,
+        "burst_threshold": 0.12,
         "burst_particles": 5,
         "burst_per_hit": 5,
         "max_bursts": 300,
         "burst_speed": 3.3,
         "burst_life": 12,
 
-        "level_percentile": 99,
+        "level_percentile": 98,
         "max_norm_floor": 1e-4,
 
         "min_particles": 12,
@@ -136,6 +136,7 @@ class SaverOrbital:
 
         # bursts pool
         mb = int(self.params["max_bursts"])
+        self._prev_treble = 0.0
         self.burst_x = [0.0] * mb
         self.burst_y = [0.0] * mb
         self.burst_vx = [0.0] * mb
@@ -180,10 +181,9 @@ class SaverOrbital:
 
         bass = float(norm[:bass_count].mean()) if bass_count > 0 else 0.0
         mid_start = bass_count
-        mid_end = mid_start + (L - bass_count)//2
+        mid_end = mid_start + (2*(L - bass_count)//3)
         mid = float(norm[mid_start:mid_end].mean()) if mid_end > mid_start else 0.0
         treble = float(norm[mid_end:].mean()) if mid_end < L else 0.0
-
         # energy metric + smoothing
         energy_mean = float(norm.mean()); energy_peak = float(norm.max())
         energy = 0.70 * energy_mean + 0.30 * energy_peak
