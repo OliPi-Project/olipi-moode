@@ -2,6 +2,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright 2025 OliPi Project
 
+# spectrum_capture.py
+
 import threading, time
 from typing import List, Tuple, Optional
 import numpy as np
@@ -100,7 +102,7 @@ class SpectrumCapture(threading.Thread):
             self.rec = alsaaudio.PCM(type=alsaaudio.PCM_CAPTURE, device=self.device)
             info = self.rec.info()
         except Exception as e:
-            print("[Spectrum] open fail:",e)
+            print("[Spectro] open fail:",e)
             self.available=False
             return
 
