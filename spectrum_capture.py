@@ -252,4 +252,4 @@ class SpectrumCapture(threading.Thread):
                 if self.stream_buf.size > self.win_s * 8:
                     self.stream_buf = self.stream_buf[-self.win_s:]
 
-            time.sleep(0.003)
+            time.sleep(0.001)
