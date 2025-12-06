@@ -53,7 +53,7 @@ class SaverOrbital:
 
         # normalization
         "level_percentile": 99,
-        "max_norm_floor": 1e-6,
+        "max_norm_floor": 1e-4,
 
         # perf clamping
         "min_particles": 12,
@@ -113,8 +113,10 @@ class SaverOrbital:
         # center breathing / ripples
         self.center_r = int(self.base_r * 0.16)
         self.center_smooth = float(self.params["center_smooth"])
+
         self.ripples = []
-        self.bass_prev = 0.0
+        self.prev_bass_levels = None
+        self.ripple_band_threshold = 0.30
 
         # head visuals fixed
         self.head_size = max(1, int(round(self.params["head_size"])))
@@ -136,9 +138,7 @@ class SaverOrbital:
         self._burst_pool_idx = 0
         self._burst_count = mb
 
-    # ---------- public API ----------
     def update(self, levels: Optional[Iterable[float]] = None):
-        """Update state from spectral `levels` (list / np.array)."""
         # prepare levels array
         if levels is None or len(levels) == 0:
             lv = np.zeros(1, dtype=np.float32)
@@ -155,17 +155,17 @@ class SaverOrbital:
         # compute bass/mid/treble
         L = norm.size
         if L <= 13:
-            bass_count = 2
-        elif L <= 18:
             bass_count = 3
-        elif L <= 28:
+        elif L <= 18:
             bass_count = 4
-        elif L <= 35:
+        elif L <= 28:
             bass_count = 5
-        elif L <= 41:
+        elif L <= 35:
             bass_count = 6
-        else:
+        elif L <= 41:
             bass_count = 7
+        else:
+            bass_count = 8
         bass_count = min(bass_count, L)
         bass = float(norm[:bass_count].mean()) if bass_count > 0 else 0.0
         mid_start = bass_count
@@ -221,11 +221,29 @@ class SaverOrbital:
         center_target = int(self.base_r * (0.16 + min(1.0, bass * 2.8) * 0.45))
         self.center_r = int(self.center_r * (1.0 - self.center_smooth) + center_target * self.center_smooth)
 
-        bass_delta = (bass - getattr(self, "bass_prev", 0.0))
-        self.bass_prev = bass
-        if bass_delta > 0.12:
-            # spawn a ripple
-            self.ripples.append({"r": self.center_r + 2, "alpha": 0.9, "speed": 1.6 + bass * 2.6})
+        # --- per-band bass deltas -> ripples ---
+        # Ensure prev array shape
+        if self.prev_bass_levels is None or len(self.prev_bass_levels) != bass_count:
+            self.prev_bass_levels = np.zeros(bass_count, dtype=np.float32)
+
+        # current bass per-band
+        if bass_count > 0:
+            bass_bands = norm[:bass_count]
+            # for each band check delta
+            for bi in range(bass_count):
+                delta = float(bass_bands[bi]) - float(self.prev_bass_levels[bi])
+                if delta > self.ripple_band_threshold:
+                    # spawn ripple — parametrize alpha and speed by delta and band index
+                    speed = 1.2 + delta * 3.0 + (bi / max(1, bass_count)) * 0.6
+                    alpha = min(1.0, 0.25 + delta * 1.6)
+                    # optionally vary initial radius slightly by band index to visualise spread
+                    base_r = int(self.center_r * (0.9 + 0.1 * (bi / max(1, bass_count))))
+                    self.ripples.append({"r": base_r + 2, "alpha": alpha, "speed": speed})
+            # save for next frame
+            self.prev_bass_levels[:bass_count] = bass_bands
+        else:
+            # no bass bands → reset
+            self.prev_bass_levels = np.zeros(0, dtype=np.float32)
 
         # main particles update (angles, radii, trails)
         max_step = max(2, int(max(8, self.base_r * 0.15)))
@@ -248,8 +266,8 @@ class SaverOrbital:
             # jitter (treble-driven) modulated by bass for stability
             tval = treble
             j_scale = 1.0 - min(0.9, float(self.curr_r[i]) / float(max(1, int(self.base_r * 1.8))))
-            jx = int(math.cos(a * 3.0 + self.phases[i]) * ((tval ** 1.1) * (1.0 + 0.6 * bass)) * self.jitter_scale * j_scale)
-            jy = int(math.sin(a * 2.0 + self.phases[i]) * ((tval ** 1.1) * (1.0 + 0.6 * bass)) * self.jitter_scale * j_scale)
+            jx = int(math.cos(a * 3.0 + self.phases[i]) * ((tval ** 1.1) * (1.0 + 0.5 * bass)) * self.jitter_scale * j_scale)
+            jy = int(math.sin(a * 2.0 + self.phases[i]) * ((tval ** 1.1) * (1.0 + 0.5 * bass)) * self.jitter_scale * j_scale)
 
             x = int(self.cx + math.cos(a) * self.curr_r[i]) + jx
             y = int(self.cy + math.sin(a) * self.curr_r[i]) + jy
@@ -320,7 +338,7 @@ class SaverOrbital:
         core = self.core
         core.draw.rectangle((0, 0, core.width, core.height), fill=core.COLOR_BG)
 
-        # --- build reversed color ladder (highest -> lowest) ---
+        # --- build reversed color ladder from spectrum palette (highest -> lowest) ---
         if self.palette:
             # palette entries are like (pos, [r,g,b])
             pal = [p[1] for p in self.palette]
@@ -346,9 +364,9 @@ class SaverOrbital:
         center_raw = pick(1) if len(col_ladder) > 1 else pick(0)
         ripple_raw = pick(2) if len(col_ladder) > 2 else center_raw
 
-        # luminosity scalers (tweak these to taste)
-        sun_lum = 0.45 + 0.30 * min(1.0, self.prev_energy * 1.1)    # brighter when energy up
-        center_lum = 0.25 + 0.20 * min(1.0, self.prev_energy * 1.1)
+        # luminosity scalers
+        sun_lum = 0.65 + 0.10 * min(1.0, self.prev_energy * 1.0)
+        center_lum = 0.30 + 0.15 * min(1.0, self.prev_energy * 1.0)
 
         # compute final colors (scale then blend a bit toward bg so ripples fade properly on inverted screens)
         sun_col = blend_to_bg(tuple(int(c) for c in sun_raw), bg, min(1.0, sun_lum))
@@ -364,7 +382,7 @@ class SaverOrbital:
         )
 
         # -----------------------
-        #  BREATHING RING (outline) - same as before
+        #  BREATHING RING (outline)
         # -----------------------
         ring_col = center_col
         core.draw.ellipse(
@@ -379,8 +397,8 @@ class SaverOrbital:
         for rp in self.ripples:
             if rp["alpha"] <= 0:
                 continue
-            lum = max(0.08, min(0.35, rp["alpha"]))   # clamp
-            # blend ripple color towards background for fade effect (works on inverted displays)
+            lum = max(0.03, min(0.33, rp["alpha"]))   # clamp
+            # blend ripple color towards background for fade effect
             ripple_col = blend_to_bg(tuple(int(c) for c in ripple_raw), bg, lum)
             rr = int(rp["r"])
             if rr >= 2:
@@ -415,7 +433,7 @@ class SaverOrbital:
                 core.draw.point((x, y), fill=c)
 
         # -----------------------
-        #  BURSTS (micro particles): keep artist color but blend by alpha
+        #  BURSTS (micro particles)
         # -----------------------
         for i in range(self._burst_count):
             if self.burst_life[i] > 0:
@@ -423,5 +441,4 @@ class SaverOrbital:
                 by = int(self.burst_y[i])
                 a = max(0.06, min(1.0, self.burst_alpha[i]))
                 col = blend_to_bg(tuple(core.COLOR_ARTIST), bg, a)
-                # offer a slightly larger dot when stronger
                 core.draw.point((bx, by), fill=col)
