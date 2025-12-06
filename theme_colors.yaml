@@ -1,18 +1,18 @@
 ocean:
   colors:
     bg:                 [255, 255, 255]
-    icons:              [0, 180, 255]
+    icons:              [0, 105, 209]
     text:               [0, 105, 209]
     title:              [0, 220, 180]
     outline:            [0, 105, 209]
-    extra_info:         [120, 200, 230]
+    extra_info:         [0, 105, 209]
     progress:           [0, 220, 180]
-    progress_bg:        [0, 105, 209]
+    progress_bg:        [120, 200, 230]
     stop_clock:         [0, 105, 209]
     screensaver_clock:  [0, 105, 209]
-    artist:             [92, 173, 255]
-    track_title:        [0, 105, 209]
-    vol_clock:          [0, 180, 255]
+    artist:             [0, 80, 128]
+    track_title:        [92, 173, 255]
+    vol_clock:          [0, 105, 209]
     input_bg:           [92, 173, 255]
     input_text:         [245, 240, 200]
     input_cursor:       [255, 255, 255]
@@ -27,10 +27,10 @@ ocean:
     message_text:       [0, 105, 209]
     message_outline:    [0, 105, 209]
   spectrum:
-    - [0.0,  [0, 36, 71]]
-    - [0.4,  [0, 105, 209]]
-    - [0.7,  [92, 173, 255]]
-    - [0.9,  [184, 219, 255]]
+    - [0.0,  [10, 161, 255]]
+    - [0.4,  [0, 136, 219]]
+    - [0.7,  [0, 105, 168]]
+    - [1.0,  [0, 74, 117]]
 
 autumn:
   colors:
@@ -61,7 +61,7 @@ autumn:
     message_text:       [255, 230, 210]
     message_outline:    [180, 120, 70]
   spectrum:
-    - [0.0, [150, 90, 0]]     # brown (bottom)
+    - [0.0, [190, 95, 0]]     # brown (bottom)
     - [0.4, [220, 110, 0]]    # orange
     - [0.7, [250, 165, 0]]    # dark yellow
     - [1.0, [255, 200, 20]]   # yellow (top)
