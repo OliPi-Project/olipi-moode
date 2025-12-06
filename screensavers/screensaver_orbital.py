@@ -324,7 +324,7 @@ class SaverOrbital:
         ripple_raw = self._pick(2) if len(self.col_ladder) > 2 else center_raw
 
         sun_lum = 0.65 + 0.10 * min(1.0, self.prev_energy * 1.0)
-        center_lum = 0.30 + 0.15 * min(1.0, self.prev_energy * 1.0)
+        center_lum = 0.27 + 0.10 * min(1.0, self.prev_energy * 1.0)
 
         sun_col = blend_to_bg(sun_raw, bg, min(1.0, sun_lum))
         center_col = blend_to_bg(center_raw, bg, min(1.0, center_lum))
@@ -342,7 +342,7 @@ class SaverOrbital:
         # ripples
         for rp in self.ripples:
             if rp["alpha"] <= 0: continue
-            lum = max(0.03, min(0.33, rp["alpha"]))
+            lum = max(0.02, min(0.25, rp["alpha"]))
             ripple_col = blend_to_bg(ripple_raw, bg, lum)
             rr = int(rp["r"])
             if rr >= 2:
