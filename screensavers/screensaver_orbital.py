@@ -27,30 +27,32 @@ class SaverOrbital:
         # speed mapping
         "speed_min": 1.6,
         "speed_max": 20.0,
-        "speed_exp": 5.2,
-        "peak_mult": 2.8,
+        "speed_exp": 4.2,
+        "peak_mult": 2.1,
 
         # smoothing
-        "audio_alpha_up": 0.24,
-        "audio_alpha_down": 0.14,
-        "radius_smooth_alpha": 0.46,
-        "global_speed_alpha": 0.22,
-        "global_radius_alpha": 0.38,
+        "audio_alpha_up": 0.50,       # smooth < raw
+        "audio_alpha_down": 0.40,     # smooth < raw
 
-        # ripple
-        "center_smooth": 0.30,
+        "radius_smooth_alpha": 0.40,  # small/concentrate particle radius < larger particle radius
+
+        "global_speed_alpha": 0.45,   # smoothing speed < raw speed
+        "global_radius_alpha": 0.50,  # smooth growing radius speed < raw growing radius speed
+
+        # center circle breathing & start ripples
+        "center_smooth": 0.20,
 
         # bursts (treble fireworks)
         "burst_enabled": True,
-        "burst_threshold": 0.10,
+        "burst_threshold": 0.15,
         "burst_particles": 5,
-        "burst_per_hit": 6,
+        "burst_per_hit": 5,
         "max_bursts": 300,
         "burst_speed": 3.3,
         "burst_life": 12,
 
         # normalization
-        "level_percentile": 98,
+        "level_percentile": 99,
         "max_norm_floor": 1e-6,
 
         # perf clamping
@@ -69,7 +71,7 @@ class SaverOrbital:
         area = core.width * core.height
         pcount = self.params["particle_count"]
         if pcount is None:
-            auto = int(area // 1300)
+            auto = int(area // 1400)
             pcount = max(self.params["min_particles"], min(self.params["max_particles"], auto))
         self.pcount = int(pcount)
 
@@ -85,7 +87,7 @@ class SaverOrbital:
         rnd = random.Random(42)
         self.angles = [ (i / self.pcount) * 2 * math.pi + rnd.uniform(-0.4, 0.4) for i in range(self.pcount) ]
         self.rfacts = [ 0.5 + rnd.random() * 0.8 for _ in range(self.pcount) ]
-        self.speeds = [ 0.005 + rnd.random() * 0.026 for _ in range(self.pcount) ]
+        self.speeds = [ 0.005 + rnd.random() * 0.024 for _ in range(self.pcount) ]
         self.phases = [ rnd.random() * 2 * math.pi for _ in range(self.pcount) ]
         self.col_idx = [ i % max(1, len(self.palette or [1])) for i in range(self.pcount) ]
         self.trails = [ [(self.cx, self.cy)] * self.trail_len for _ in range(self.pcount) ]
@@ -174,7 +176,7 @@ class SaverOrbital:
         # energy metric
         energy_mean = float(norm.mean())
         energy_peak = float(norm.max())
-        energy = 0.65 * energy_mean + 0.35 * energy_peak
+        energy = 0.70 * energy_mean + 0.30 * energy_peak
 
         # asymmetrical smoothing of audio energy
         a = self.audio_alpha_up if energy > self.energy_smooth else self.audio_alpha_down
