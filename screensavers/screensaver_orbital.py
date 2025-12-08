@@ -95,7 +95,7 @@ class SaverOrbital:
         rnd = random.Random(42)
         self.angles = [(i / self.pcount) * 2 * math.pi + rnd.uniform(-0.4, 0.4) for i in range(self.pcount)]
         self.rfacts = [0.5 + rnd.random() * 0.8 for _ in range(self.pcount)]
-        self.speeds = [0.005 + rnd.random() * 0.024 for _ in range(self.pcount)]
+        self.speeds = [0.005 + rnd.random() * 0.019 for _ in range(self.pcount)]
         self.phases = [rnd.random() * 2 * math.pi for _ in range(self.pcount)]
         self.col_idx = [i % max(1, len(self.col_ladder)) for i in range(self.pcount)]
         self.trails = [[(self.cx, self.cy)] * self.trail_len for _ in range(self.pcount)]
