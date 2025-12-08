@@ -418,16 +418,29 @@ def run_sleep_loop():
 
     elif screensaver_mode == "spectrum":
         if core.height <= 64:
-            y_top = 20
+            y_spectrum_top = 20
             spectrum_h = core.height - 25
         else:
-            y_top = core.height // 2 + 10
+            y_spectrum_top = core.height // 2 + 10
             spectrum_h = core.height // 2 - 20
         while is_sleeping:
             if spectrum:
                 core.draw.rectangle((0, 0, core.width, core.height), fill=core.COLOR_BG)
+
                 levels = spectrum.get_levels()
-                draw_spectrum(y_top=y_top, height=spectrum_h, levels=levels)
+                peak_info = spectrum.get_channel_peaks(return_db=True, use_agc=False)
+
+                # compute layout for VU bars
+                vu_bar_h = max(3, min(12, core.height // 12))
+                vu_gap = 4
+                y_vu_top = 2
+                y_vu_bottom = y_vu_top + vu_bar_h + vu_gap
+
+                # draw peak meters (top=left, bottom=right)
+                draw_peak_meters(y_vu_top, y_vu_bottom, core.width - 4, peak_info)
+                # draw spectre between
+                draw_spectrum(y_top=y_spectrum_top, height=spectrum_h, levels=levels)
+
                 core.refresh()
             time.sleep(core.REFRESH_INTERVAL)
 
@@ -2669,6 +2682,125 @@ def draw_spectrum(y_top, height, levels,
             idx = max(0, min((y_start + y - y_top), len(global_gradient) - 1))
             color = global_gradient[idx]
             core.draw.rectangle((x0, y_start + y, x1, y_start + y), fill=color)
+
+def draw_peak_meters(y_top, y_bottom, width, peak_info,
+                     attack=0.75, release=0.88, peak_hold_time=0.6,
+                     ref_db=-12.0):
+    """
+    peak_info: dict from SpectrumCapture.get_channel_peaks(return_db=True, use_agc=True)
+    The function will:
+      - use left_peak_agc/right_peak_agc if present (recommended)
+      - else fallback to left_peak_db/right_peak_db -> mapped to visual scale
+    """
+    # --- safe init ---
+    default_state = {
+        "left_vis": 0.0, "right_vis": 0.0,
+        "left_peak": 0.0, "right_peak": 0.0,
+        "left_peak_ts": 0.0, "right_peak_ts": 0.0,
+    }
+    if not hasattr(draw_peak_meters, "state"):
+        draw_peak_meters.state = default_state.copy()
+    else:
+        for k, v in default_state.items():
+            draw_peak_meters.state.setdefault(k, v)
+    s = draw_peak_meters.state
+
+    # --- extract usable visual targets ---
+    # prefer AGC scaled linear values if present
+    if isinstance(peak_info, dict):
+        left_agc = peak_info.get("left_peak_agc", None)
+        right_agc = peak_info.get("right_peak_agc", None)
+        left_db_raw = peak_info.get("left_peak_db", None)
+        right_db_raw = peak_info.get("right_peak_db", None)
+    else:
+        # legacy tuple (left_peak, right_peak, left_rms, right_rms)
+        left_agc = float(peak_info[0]) if len(peak_info) >= 1 else 0.0
+        right_agc = float(peak_info[1]) if len(peak_info) >= 2 else 0.0
+        left_db_raw = None
+        right_db_raw = None
+
+    # If AGC values available -> use them directly (0..1)
+    if left_agc is not None and right_agc is not None:
+        left_vis_target = max(0.0, min(1.0, float(left_agc)))
+        right_vis_target = max(0.0, min(1.0, float(right_agc)))
+    else:
+        # fallback: map raw dB to 0..1 using ref_db
+        def db_to_vis(db, ref_db_local=ref_db):
+            if db is None or db <= -200.0:
+                return 0.0
+            vis = (db - ref_db_local) / (0.0 - ref_db_local)
+            vis = max(0.0, min(vis, 1.0))
+            return vis ** 0.9
+        left_vis_target = db_to_vis(left_db_raw)
+        right_vis_target = db_to_vis(right_db_raw)
+
+    # smoothing
+    def smooth(prev, tgt):
+        if tgt >= prev:
+            a = attack
+            return prev * (1.0 - a) + tgt * a
+        else:
+            r = release
+            return prev * (1.0 - r) + tgt * r
+
+    s["left_vis"] = smooth(s.get("left_vis", 0.0), left_vis_target)
+    s["right_vis"] = smooth(s.get("right_vis", 0.0), right_vis_target)
+
+    # peak hold (visual peaks, not raw dB peaks)
+    now_ts = time.time()
+    if s["left_vis"] > s.get("left_peak", 0.0):
+        s["left_peak"] = s["left_vis"]; s["left_peak_ts"] = now_ts
+    else:
+        if now_ts - s.get("left_peak_ts", 0.0) > peak_hold_time:
+            s["left_peak"] = max(0.0, s.get("left_peak", 0.0) * 0.96)
+
+    if s["right_vis"] > s.get("right_peak", 0.0):
+        s["right_peak"] = s["right_vis"]; s["right_peak_ts"] = now_ts
+    else:
+        if now_ts - s.get("right_peak_ts", 0.0) > peak_hold_time:
+            s["right_peak"] = max(0.0, s.get("right_peak", 0.0) * 0.96)
+
+    # --- draw bars (simple) ---
+    pad_x = 2
+    x0 = pad_x; x1 = core.width - pad_x
+    bar_w = x1 - x0
+    bar_h = max(3, min(14, core.height // 12))
+
+    # top bar (left channel)
+    y0 = y_top
+    core.draw.rectangle((x0, y0, x1, y0 + bar_h - 1), fill=core.COLOR_PROGRESS_BG)
+    filled = int(s["left_vis"] * bar_w)
+    if filled > 0:
+        core.draw.rectangle((x0, y0, x0 + filled, y0 + bar_h - 1), fill=core.COLOR_PROGRESS)
+    # peak marker (visual)
+    pkx = x0 + int(s.get("left_peak", 0.0) * bar_w)
+    core.draw.rectangle((pkx, y0, min(pkx+1, x1), y0 + bar_h - 1), fill=core.COLOR_ARTIST)
+
+    # bottom bar (right channel)
+    y1 = y_bottom
+    core.draw.rectangle((x0, y1, x1, y1 + bar_h - 1), fill=core.COLOR_PROGRESS_BG)
+    filled_r = int(s["right_vis"] * bar_w)
+    if filled_r > 0:
+        core.draw.rectangle((x0, y1, x0 + filled_r, y1 + bar_h - 1), fill=core.COLOR_PROGRESS)
+    pkx_r = x0 + int(s.get("right_peak", 0.0) * bar_w)
+    core.draw.rectangle((pkx_r, y1, min(pkx_r+1, x1), y1 + bar_h - 1), fill=core.COLOR_ARTIST)
+
+    # optional: draw small raw-peak markers (if provided) as thin lines above bars
+    if isinstance(peak_info, dict) and peak_info.get("left_peak_db") is not None:
+        # map raw dB to visual position using same db->vis scale (ref_db)
+        raw_left_db = float(peak_info.get("left_peak_db", -999.0))
+        raw_right_db = float(peak_info.get("right_peak_db", -999.0))
+        # convert to vis using same ref_db
+        def dbpos(db):
+            v = (db - ref_db) / (0.0 - ref_db)
+            v = max(0.0, min(1.0, v))
+            return int(x0 + v * bar_w)
+        if raw_left_db > -200.0:
+            rx = dbpos(raw_left_db)
+            core.draw.rectangle((rx, y0, min(rx+1, x1), y0 + bar_h - 1), fill=core.COLOR_BG)
+        if raw_right_db > -200.0:
+            rx = dbpos(raw_right_db)
+            core.draw.rectangle((rx, y1, min(rx+1, x1), y1 + bar_h - 1), fill=core.COLOR_BG)
 
 def draw_nowplaying():
     now = time.time()

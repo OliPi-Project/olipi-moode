@@ -95,6 +95,16 @@ class SpectrumCapture(threading.Thread):
         self.running=True
         self.available=False
 
+        # AGC / reference smoothing
+        self.last_rms_update_ts = time.time()
+        self.rms_long_left = 1e-9
+        self.rms_long_right = 1e-9
+        self.rms_long_tau = 4.0   # seconds smoothing window (tunable)
+        self.headroom_db = 12.0   # default headroom (tunable, 9..20)
+        # safety min/max gain
+        self.min_gain_db = -40.0  # don't boost quieter than -40 dB
+        self.max_gain_db = 12.0   # limit max gain (prevent explosion)
+
         self._open_device()
 
     def _open_device(self):
@@ -170,6 +180,77 @@ class SpectrumCapture(threading.Thread):
         try: self.rec.close()
         except: pass
 
+    def get_channel_peaks(self, return_db=True, use_agc=True):
+        """
+        Returns a dict with:
+        left_peak, right_peak, left_rms, right_rms (linear 0..1)
+        left_peak_db, right_peak_db, left_rms_db (raw dBFS)
+        left_peak_agc, right_peak_agc, left_peak_agc_db, right_peak_agc_db (after AGC/gain & compression)
+        """
+        if not self.available:
+            return {
+                "left_peak":0.0,"right_peak":0.0,"left_rms":0.0,"right_rms":0.0,
+                "left_peak_db":-999.0,"right_peak_db":-999.0,"left_rms_db":-999.0,"right_rms_db":-999.0,
+                "left_peak_agc":0.0,"right_peak_agc":0.0,"left_peak_agc_db":-999.0,"right_peak_agc_db":-999.0,
+            }
+
+        lp = float(getattr(self, "peak_left", 0.0))
+        rp = float(getattr(self, "peak_right", 0.0))
+        lr = float(getattr(self, "rms_left", 0.0))
+        rr = float(getattr(self, "rms_right", 0.0))
+
+        def lin_to_db(a):
+            if a <= 0.0:
+                return -999.0
+            return float(20.0 * np.log10(a))
+
+        out = {
+            "left_peak": lp, "right_peak": rp,
+            "left_rms": lr, "right_rms": rr,
+            "left_peak_db": lin_to_db(lp), "right_peak_db": lin_to_db(rp),
+            "left_rms_db": lin_to_db(lr), "right_rms_db": lin_to_db(rr),
+        }
+
+        # AGC: derive reference db from long RMS + headroom
+        if use_agc:
+            # pick channel-average long RMS (you can use max, mean, or any rule)
+            rms_long = max(1e-12, 0.5 * (self.rms_long_left + self.rms_long_right))
+            rms_long_db = lin_to_db(rms_long)
+            ref_db = rms_long_db + float(getattr(self, "headroom_db", 12.0))
+
+            # clamp ref_db so gain doesn't explode
+            ref_db = max(self.min_gain_db, min(ref_db, self.max_gain_db))
+
+            # linear gain to apply
+            gain_lin = 10.0 ** (-ref_db / 20.0)
+
+            # optional mild compression after gain to tame peaks (soft saturator)
+            def compress_lin(x):
+                # x >= 0
+                # simple soft-knee compressor: out = x / (1 + x)
+                return x / (1.0 + x)
+
+            lp_agc = min(1.0, compress_lin(lp * gain_lin))
+            rp_agc = min(1.0, compress_lin(rp * gain_lin))
+
+            out.update({
+                "left_peak_agc": float(lp_agc),
+                "right_peak_agc": float(rp_agc),
+                "left_peak_agc_db": lin_to_db(lp_agc),
+                "right_peak_agc_db": lin_to_db(rp_agc),
+                "ref_db": float(ref_db),
+                "rms_long_db": float(rms_long_db),
+            })
+        else:
+            # if not using AGC, copy raw to agc fields
+            out.update({
+                "left_peak_agc": lp, "right_peak_agc": rp,
+                "left_peak_agc_db": lin_to_db(lp), "right_peak_agc_db": lin_to_db(rp),
+                "ref_db": None, "rms_long_db": None,
+            })
+
+        return out
+
     def get_levels(self):
         if not self.available:
             return np.zeros(self.n_bars,dtype=np.float32)
@@ -201,7 +282,52 @@ class SpectrumCapture(threading.Thread):
 
             # stereo -> mono
             if self.channels == 2 and samples.size % 2 == 0:
-                samples = samples.reshape(-1, 2).mean(axis=1)
+                stereo = samples.reshape(-1, 2)
+            else:
+                stereo = np.column_stack((samples, samples))
+
+            left = stereo[:, 0]
+            right = stereo[:, 1]
+
+            # compute sample-peak and rms per channel (raw integer -> float)
+            full_scale = 2 ** (8 * np.dtype(dtype).itemsize - 1)  # e.g. int16 -> 32768, int32->2**31
+            # but better: if dtype == np.int16: full_scale=32768, if int32 and 24-bit: 2**23
+            if dtype == np.int16:
+                full_scale = 32768.0
+            else:
+                # approximate for int32 used for 24-bit capture
+                full_scale = float(2 ** 23)
+
+            # normalize to 0..1
+            peak_left = float(np.max(np.abs(left))) / (full_scale + EPS)
+            peak_right = float(np.max(np.abs(right))) / (full_scale + EPS)
+            rms_left = float(np.sqrt(np.mean(left.astype(np.float32) ** 2))) / (full_scale + EPS)
+            rms_right = float(np.sqrt(np.mean(right.astype(np.float32) ** 2))) / (full_scale + EPS)
+
+            # store in the object for drawing
+            self.peak_left = min(1.0, peak_left)
+            self.peak_right = min(1.0, peak_right)
+            self.rms_left = min(1.0, rms_left)
+            self.rms_right = min(1.0, rms_right)
+
+            # timestamp & alpha calc for exponential smoothing (time-aware)
+            now_ts = time.time()
+            dt = max(1e-6, now_ts - getattr(self, "last_rms_update_ts", now_ts))
+            self.last_rms_update_ts = now_ts
+
+            # compute alpha from tau: alpha = 1 - exp(-dt / tau)
+            alpha = 1.0 - np.exp(-dt / max(1e-6, self.rms_long_tau))
+
+            # update long-term RMS (per-channel)
+            # use the current frame rms (rms_left/rms_right computed earlier)
+            self.rms_long_left = (1.0 - alpha) * getattr(self, "rms_long_left", rms_left) + alpha * rms_left
+            self.rms_long_right = (1.0 - alpha) * getattr(self, "rms_long_right", rms_right) + alpha * rms_right
+
+            #################
+            # Spectrum
+            ##############
+            # stereo > mono
+            samples = np.sqrt((stereo[:,0]**2 + stereo[:,1]**2) * 0.5)
 
             sr = self.samplerate
             while sr >= 88200:
