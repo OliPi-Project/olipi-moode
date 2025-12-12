@@ -418,8 +418,8 @@ def run_sleep_loop():
 
     elif screensaver_mode == "spectrum":
         if core.height <= 64:
-            y_spectrum_top = 20
-            spectrum_h = core.height - 25
+            y_spectrum_top = 34
+            spectrum_h = 30
         else:
             y_spectrum_top = core.height // 2 + 10
             spectrum_h = core.height // 2 - 20
@@ -429,21 +429,18 @@ def run_sleep_loop():
 
                 levels = spectrum.get_levels()
                 peaks = spectrum.get_channel_peaks(
-                    return_db=True,
                     volume_state=global_state.get("volume"),
                     mixer_type=global_state.get("mpdmixer"),
                     volume_mpd_max=float(global_state.get("volume_mpd_max", 100))
                 )
+                
+                peak_bar_h = max(3, min(12, core.height // 12))
+                peak_gap = 4
+                y_peak_top = 2
+                y_peak_bottom = y_peak_top + peak_bar_h + peak_gap
 
-                # compute layout for VU bars
-                vu_bar_h = max(3, min(12, core.height // 12))
-                vu_gap = 4
-                y_vu_top = 2
-                y_vu_bottom = y_vu_top + vu_bar_h + vu_gap
-
-                # draw peak meters (top=left, bottom=right)
-                draw_peak_meters(y_vu_top, y_vu_bottom, core.width - 4, peaks)
-                # draw spectre between
+                #draw_peak_meters(y_peak_top, y_peak_bottom, core.width - 4, peaks)
+                
                 draw_spectrum(y_top=y_spectrum_top, height=spectrum_h, levels=levels)
 
                 core.refresh()
@@ -2546,8 +2543,6 @@ def start_spectrum():
         n_bars = core.get_config("spectrum", "num_bars", fallback=21, type=int)
         spectrum = SpectrumCapture(n_bars)
         spectrum.start()
-        if core.DEBUG:
-            print(f"Samplerate: {spectrum.samplerate} Hz, Channels: {spectrum.channels}, Format: {spectrum.format_name}")
 
 def stop_spectrum(timeout=2.0):
     with render_lock:
@@ -2690,8 +2685,7 @@ def draw_spectrum(y_top, height, levels,
             color = global_gradient[idx]
             core.draw.rectangle((x0, y_start + y, x1, y_start + y), fill=color)
 
-def draw_peak_meters(y_top, y_bottom, width, peak_info,
-                     attack=0.75, release=0.88, peak_hold_time=0.6):
+def draw_peak_meters(y_top, y_bottom, width, peak_info, attack=0.9, release=0.9, peak_hold_time=0.5):
     default_state = {
         "left_vis": 0.0,
         "right_vis": 0.0,
@@ -2710,8 +2704,8 @@ def draw_peak_meters(y_top, y_bottom, width, peak_info,
 
     s = draw_peak_meters.state
 
-    left_lin = peak_info.get("left_peak", peak_info.get("left_peak_raw", 0.0))
-    right_lin = peak_info.get("right_peak", peak_info.get("right_peak_raw", 0.0))
+    left_lin = peak_info.get("left_peak", 0.0)
+    right_lin = peak_info.get("right_peak", 0.0)
     # make a small power curve for visibility
     left_vis_target = left_lin ** 0.8
     right_vis_target = right_lin ** 0.8
