@@ -210,7 +210,7 @@ After that you can:
 
 4. ❗ <u>Moode configuration reminder</u>
 
-    To display the spectrometer you need to enable loopback in Moode UI: `configure > Audio > ALSA Options`. And change `show_spectrum = false` to `true` in `~/olipi-moode/config.ini` or activate it via menu.
+    To display the spectrometer or screensaver "Orbital" you need to enable loopback in Moode UI: `configure > Audio > ALSA Options`.
 
 ## 🖥 Services
 
