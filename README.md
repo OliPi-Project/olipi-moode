@@ -157,7 +157,6 @@ Release Note:
   scipy>=1.16.3
   PyYAML>=6.0.3
   Requests>=2.32.5
-  rpi_lgpio>=0.6
   smbus2>=0.5.0
   yt_dlp>=2025.10.22
   ```

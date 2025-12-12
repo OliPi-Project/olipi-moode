@@ -23,7 +23,7 @@ from lang import SETUP
 APT_DEPENDENCIES = [
     "git", "python3-pil", "python3-venv", "python3-pip", "python3-tk", "libasound2-dev",
     "libopenblas-dev", "libopenblas-pthread-dev", "libblas-dev", "liblapack-dev", "libgfortran5",
-    "swig", "build-essential", "i2c-tools", "libgpiod-dev", "python3-libgpiod", "python3-lgpio", "python3-setuptools"
+    "i2c-tools", "python3-rpi-lgpio", "python3-setuptools"
 ]
 
 LOW_RAM_THRESHOLD_MB = 512
@@ -1416,7 +1416,7 @@ def setup_virtualenv(venv_path):
     requirements_path = os.path.join(OLIPI_MOODE_DIR, "requirements.txt")
     if not os.path.exists(venv_path):
         print(SETUP["venv_install"][lang].format(venv_path))
-        run_command(f"python3 -m venv {venv_path}", log_out=True, show_output=True, check=True)
+        run_command(f"python3 -m venv --system-site-packages {venv_path}", log_out=True, show_output=True, check=True)
     pip_path = os.path.join(venv_path, "bin", "pip")
     if not os.path.isfile(pip_path):
         print(f"❌ pip not found in the virtual environment at {pip_path}.")
