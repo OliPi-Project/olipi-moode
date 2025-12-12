@@ -166,13 +166,14 @@ class SpectrumCapture(threading.Thread):
         try: self.rec.close()
         except: pass
 
-    def get_channel_peaks(self, return_db=True, volume_state=None, mixer_type=None, volume_mpd_max=100.0):
+    def get_channel_peaks(self, volume_state=None, mixer_type=None, volume_mpd_max=100.0, debug_peak=False):
         # --- init accumulators ---
-        if not hasattr(self, "_rms_accum_hw"):
-            self._rms_accum_hw = []
-            self._rms_accum_sw = []
-            self._peak_max_hw = 0.0
-            self._peak_max_sw = 0.0
+        if not hasattr(self, "_rms_accum"):
+            self._rms_accum = []
+            self._peak_max = 0.0
+
+        # --- linear -> dB ---
+        def lin2db(x): return -999.0 if x<=0 else 20*np.log10(x)
 
         # --- read stored normalized values ---
         lp = float(getattr(self, "peak_left", 0.0))
@@ -223,45 +224,29 @@ class SpectrumCapture(threading.Thread):
             rr_norm = min(rr_norm * gain * CORRECTION_FACTOR, 1.0)
 
         # --- update accumulators ---
-        rms_avg = (lr_norm + rr_norm) / 2.0
-        peak_avg = max(lp_norm, rp_norm)
+        if self._warmup_count >= self._warmup_frames:
+            rms_avg = (lr_norm + rr_norm) / 2.0
+            peak_avg = max(lp_norm, rp_norm)
+            self._rms_accum.append(rms_avg)
+            self._peak_max = max(self._peak_max, peak_avg)
 
-        if mixer_type and str(mixer_type).lower()=="hardware":
-            self._rms_accum_hw.append(rms_avg)
-            self._peak_max_hw = max(self._peak_max_hw, peak_avg)
-        elif mixer_type and str(mixer_type).lower()=="software":
-            self._rms_accum_sw.append(rms_avg)
-            self._peak_max_sw = max(self._peak_max_sw, peak_avg)
-
-        # --- linear -> dB ---
-        def lin2db(x): return -999.0 if x<=0 else 20*np.log10(x)
+        avg_db = lin2db(np.mean(self._rms_accum)) if self._rms_accum else None
+        peak_max_db = lin2db(self._peak_max) if self._peak_max else None
 
         out = {
             "left_peak":lp_norm, "right_peak":rp_norm,
             "left_rms":lr_norm, "right_rms":rr_norm,
+            "left_peak_db":lin2db(lp_norm), "right_peak_db":lin2db(rp_norm),
+            "left_rms_db":lin2db(lr_norm), "right_rms_db":lin2db(rr_norm),
+            "avg_db":avg_db, "peak_max_db":peak_max_db,
         }
 
-        if return_db:
-            out.update({
-                "left_peak_db":lin2db(lp_norm),
-                "right_peak_db":lin2db(rp_norm),
-                "left_rms_db":lin2db(lr_norm),
-                "right_rms_db":lin2db(rr_norm),
-            })
-
         # --- debug prints ---
-        if getattr(self, "debug", False):
-            print(f"[PEAK] mixer={mixer_type!s} vol_state={volume_state!s} raw_norm=True used_full_scale={used_full_scale!s}")
-            print(f"raw lp={lp_norm:.6f} rp={rp_norm:.6f}")
+        if getattr(self, "debug", False) and debug_peak:
+            print(f"[PEAK] mixer={mixer_type!s} vol_state={volume_state!s} used_full_scale={used_full_scale!s}")
+            print(f"raw: lp={lp_norm:.6f} rp={rp_norm:.6f}")
             print(f"display lp_db={out.get('left_peak_db'):.1f} rp_db={out.get('right_peak_db'):.1f}")
-
-            # --- print average RMS and peak so far ---
-            if self._rms_accum_hw:
-                avg_hw_db = lin2db(np.mean(self._rms_accum_hw))
-                print(f"Avg RMS HW: {avg_hw_db:.2f} dB, Peak HW: {lin2db(self._peak_max_hw):.2f} dB")
-            if self._rms_accum_sw:
-                avg_sw_db = lin2db(np.mean(self._rms_accum_sw))
-                print(f"Avg RMS SW: {avg_sw_db:.2f} dB, Peak SW: {lin2db(self._peak_max_sw):.2f} dB")
+            print(f"Avg RMS: {avg_db:.2f} dB, Max Peak: {peak_max_db:.2f} dB")
 
         return out
 
@@ -356,10 +341,13 @@ class SpectrumCapture(threading.Thread):
                 valid = (samples.size // self.channels) * self.channels
                 samples = samples[:valid]
 
+            if samples.size == 0:
+                self.levels *= 0.92
+                time.sleep(0.001)
+                continue
+
             # reshape to stereo (or duplicate mono)
             if self.channels == 2:
-                if samples.size == 0:
-                    continue
                 stereo = samples.reshape(-1, 2)
             else:
                 stereo = np.column_stack((samples, samples))
