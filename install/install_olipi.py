@@ -23,7 +23,7 @@ from lang import SETUP
 APT_DEPENDENCIES = [
     "git", "python3-pil", "python3-venv", "python3-pip", "python3-tk", "libasound2-dev",
     "libopenblas-dev", "libopenblas-pthread-dev", "libblas-dev", "liblapack-dev", "libgfortran5",
-    "i2c-tools", "libgpiod-dev", "python3-libgpiod", "python3-lgpio", "python3-setuptools"
+    "swig", "build-essential", "i2c-tools", "libgpiod-dev", "python3-libgpiod", "python3-lgpio", "python3-setuptools"
 ]
 
 LOW_RAM_THRESHOLD_MB = 512
