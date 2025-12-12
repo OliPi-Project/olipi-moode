@@ -237,11 +237,7 @@ def create_backup(file_path, critical=True):
                     pass
 
 def update_olipi_section(lines, marker, new_lines=None, replace_prefixes=None, clear=False):
-    """
-    Update the '# --- Olipi-moode START ---' / END section and a '# @marker: {marker}' sub-block.
-    - replace_prefixes: list of prefixes; any line in the whole file matching ^\s*(#\s*)?{prefix} will be removed first.
-    - clear=True: remove the contents under the marker (not the marker itself).
-    """
+
     section_start = "# --- Olipi-moode START ---"
     section_end = "# --- Olipi-moode END ---"
     marker_line = f"# @marker: {marker}"
