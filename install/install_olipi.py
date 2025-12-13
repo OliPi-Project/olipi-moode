@@ -26,9 +26,6 @@ APT_DEPENDENCIES = [
     "i2c-tools", "python3-rpi-lgpio", "python3-setuptools"
 ]
 
-LOW_RAM_THRESHOLD_MB = 512
-ZRAM_RECOMMENDED_MB = 256
-
 REQUIRED_MOODE_VERSION = "9.3.7"
 OLIPI_CORE_REPO = "https://github.com/OliPi-Project/olipi-core.git"
 OLIPI_MOODE_REPO = "https://github.com/OliPi-Project/olipi-moode.git"
