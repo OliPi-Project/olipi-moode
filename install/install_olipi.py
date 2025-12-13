@@ -46,7 +46,6 @@ OLIPI_CORE_DIR = os.path.join(OLIPI_MOODE_DIR, "olipi_core")
 DEFAULT_VENV_PATH = os.path.expanduser("~/.olipi-moode-venv")
 INSTALL_LIRC_REMOTE_PATH = os.path.join(INSTALL_DIR, "install_lirc_remote.py")
 SETUP_SCRIPT_PATH = os.path.join(INSTALL_DIR, "install_olipi.py")
-SETTINGS_FILE = Path(INSTALL_DIR) / ".setup-settings.json"
 REEXEC_FLAG = Path(tempfile.gettempdir()) / f"olipi_reexec_{os.getuid()}.flag"
 TMP_LOG_FILE = Path("/tmp/setup.log")
 CONFIG_TXT = "/boot/firmware/config.txt"
@@ -234,14 +233,11 @@ def create_backup(file_path, critical=True):
                     pass
 
 def update_olipi_section(lines, marker, new_lines=None, replace_prefixes=None, clear=False):
-
     section_start = "# --- Olipi-moode START ---"
     section_end = "# --- Olipi-moode END ---"
     marker_line = f"# @marker: {marker}"
-
     # Normalize input
     new_lines = new_lines or []
-
     # If requested, remove any lines matching replace_prefixes **anywhere** in the file.
     if replace_prefixes:
         # Build regexes that match optional leading whitespace, optional comment sign, then the prefix
@@ -259,7 +255,6 @@ def update_olipi_section(lines, marker, new_lines=None, replace_prefixes=None, c
                 continue
             cleaned.append(ln)
         lines = cleaned
-
     # Locate section boundaries
     start_idx = None
     end_idx = None
@@ -269,7 +264,6 @@ def update_olipi_section(lines, marker, new_lines=None, replace_prefixes=None, c
         elif line.strip() == section_end and start_idx is not None:
             end_idx = i
             break
-
     # If section not found, create it at the end of file
     if start_idx is None or end_idx is None:
         if lines and lines[-1].strip() != "":
@@ -278,17 +272,14 @@ def update_olipi_section(lines, marker, new_lines=None, replace_prefixes=None, c
         lines.append(section_end + "\n")
         start_idx = len(lines) - 2
         end_idx = len(lines) - 1
-
     # Extract block content between START and END (list of lines, with newlines preserved)
     block = lines[start_idx + 1:end_idx]
-
     # Find marker inside the block
     marker_idx = None
     for i, line in enumerate(block):
         if line.strip().lower() == marker_line.lower():
             marker_idx = i
             break
-
     # If clear=True → remove the whole block under this marker (only inside block)
     if marker_idx is not None and clear:
         end_m = marker_idx + 1
@@ -297,14 +288,12 @@ def update_olipi_section(lines, marker, new_lines=None, replace_prefixes=None, c
         block[marker_idx+1:end_m] = []
         lines[start_idx + 1:end_idx] = block
         return lines
-
     # Update or add marker section
     if marker_idx is not None and not clear:
         # Find block end (next marker or end of section)
         end_m = marker_idx + 1
         while end_m < len(block) and not block[end_m].lstrip().startswith("# @marker:"):
             end_m += 1
-
         # Replace or append new_lines under marker. Keep existing non-matching lines.
         # We keep existing lines, then append new_lines (like your "filtered extend" behavior).
         existing = block[marker_idx+1:end_m]
@@ -319,7 +308,6 @@ def update_olipi_section(lines, marker, new_lines=None, replace_prefixes=None, c
         block.append(marker_line + "\n")
         if not clear and new_lines:
             block.extend([l.rstrip("\n") + "\n" for l in new_lines])
-
     # Write back updated block into lines
     lines[start_idx + 1:end_idx] = block
     return lines
@@ -327,14 +315,11 @@ def update_olipi_section(lines, marker, new_lines=None, replace_prefixes=None, c
 def safe_cleanup(path: Path, preserve_files=None, base: Path = None):
     preserve_files = preserve_files or []
     base = base or path
-
     for item in path.iterdir():
         rel_path = str(item.relative_to(base))
-
         # Skip preserved files
         if rel_path in preserve_files:
             continue
-
         try:
             if item.is_dir():
                 safe_cleanup(item, preserve_files=preserve_files, base=base)
@@ -374,20 +359,11 @@ def move_contents(src: Path, dst: Path, preserve_files=None, base: Path = None):
             shutil.move(str(item), str(target))
 
 def merge_ini_with_dist(user_file: Path, dist_file: Path):
-    """
-    Merge user and dist .ini files while preserving:
-      - Order and comments from dist_file
-      - Existing user values and comment state
-      - Section and key association
-      - Distinction between '###' (explanatory comments) and '#key = value' (commented keys)
-    """
-
     def parse_ini_with_comments(lines):
         """Parse ini preserving comments and blank lines per section."""
         sections = {}
         current_section = None
         buffer = []
-
         for line in lines:
             m = re.match(r'^\s*\[([^\]]+)\]\s*$', line)
             if m:
@@ -401,7 +377,6 @@ def merge_ini_with_dist(user_file: Path, dist_file: Path):
         if current_section:
             sections[current_section] = buffer
         return sections
-
     def extract_key_info(lines):
         """Extract info on each key: value and whether it was commented."""
         info = {}
@@ -417,28 +392,21 @@ def merge_ini_with_dist(user_file: Path, dist_file: Path):
                     "commented": prefix.strip().startswith("#"),
                 }
         return info
-
     # --- Load both files
     dist_lines = dist_file.read_text().splitlines()
     user_lines = user_file.read_text().splitlines()
-
     dist_sections = parse_ini_with_comments(dist_lines)
     user_sections = parse_ini_with_comments(user_lines)
     user_info = {s: extract_key_info(lines) for s, lines in user_sections.items()}
-
     merged_lines = []
-
     # --- Iterate through dist sections in order
     for section, dist_lines in dist_sections.items():
         merged_lines.append(f"[{section}]")
         dist_info = extract_key_info(dist_lines)
         user_vals = user_info.get(section, {})
-
         pending_comments = []
-
         for line in dist_lines[1:]:
             stripped = line.strip()
-
             # Blank line
             if not stripped:
                 if pending_comments:
@@ -446,23 +414,19 @@ def merge_ini_with_dist(user_file: Path, dist_file: Path):
                     pending_comments = []
                 merged_lines.append("")
                 continue
-
             # Explanatory comment
             if stripped.startswith("###"):
                 pending_comments.append(line)
                 continue
-
             # Key (active or commented)
             m = re.match(r'^([#\s]*)([^#;=\s]+)\s*=\s*(.*)$', line)
             if m:
                 prefix, key, val = m.groups()
                 key = key.strip()
                 val = val.strip()
-
                 if pending_comments:
                     merged_lines.extend(pending_comments)
                     pending_comments = []
-
                 if key in user_vals:
                     user_entry = user_vals[key]
                     # preserve comment state
@@ -472,25 +436,20 @@ def merge_ini_with_dist(user_file: Path, dist_file: Path):
                     # keep dist line as is
                     merged_lines.append(line)
                 continue
-
             # Other comment lines
             if stripped.startswith("#"):
                 merged_lines.append(line)
                 continue
-
             merged_lines.append(line)
-
         if pending_comments:
             merged_lines.extend(pending_comments)
         merged_lines.append("")
-
     # --- Append user-only sections
     for section in user_sections.keys():
         if section not in dist_sections:
             merged_lines.append(f"[{section}]")
             merged_lines.extend(user_sections[section][1:])
             merged_lines.append("")
-
     # Make a backup
     user = os.getenv("SUDO_USER") or os.getenv("USER") or "pi"
     home = Path("/home") / user
@@ -551,24 +510,6 @@ def sync_user_themes():
             yaml.dump(new_user, f, Dumper=FlowListDumper, sort_keys=False, allow_unicode=True)
         print(SETUP.get("theme_user_updated", {}).get(lang, "🎨 User themes updated"))
     print(SETUP.get("theme_user_ok", {}).get(lang, "🎨 User themes already up to date"))
-
-def save_settings(settings: dict):
-    try:
-        with SETTINGS_FILE.open("w", encoding="utf-8") as fh:
-            json.dump(settings, fh, indent=2)
-        log_line(msg=f"Saved settings: {settings}", context="save_settings")
-    except Exception as e:
-        log_line(error=f"Failed to save settings: {e}", context="save_settings")
-
-def load_settings():
-    if SETTINGS_FILE.exists():
-        try:
-            with SETTINGS_FILE.open("r", encoding="utf-8") as fh:
-                return json.load(fh)
-        except Exception:
-            log_line(msg="Failed to load settings, initializing empty", context="load_settings")
-            return {}
-    return {}
 
 def copytree_safe(src, dst):
     def ignore_special_files(_, names):
@@ -719,7 +660,7 @@ def load_mergeable_files(repo_dir: Path):
         log_line(error=f"Failed to load mergeable files: {e}", context="load_mergeable_files")
     return [], []
 
-def install_repo(repo_name: str, repo_url: str, local_dir: Path, branch: str, settings_keys: dict, mode: str = "install") -> Path:
+def install_repo(repo_name: str, repo_url: str, local_dir: Path, branch: str, mode: str = "install") -> Path:
 
     print(SETUP.get(f"install_{repo_name.lower()}", {}).get(lang, f"Installing {repo_name}..."))
 
@@ -843,15 +784,8 @@ def install_repo(repo_name: str, repo_url: str, local_dir: Path, branch: str, se
                 log_line(msg=f"Merged file {user_file} with {dist_file}", context="install_repo")
             else:
                 print(SETUP["no_dist"][lang].format(user_file.name))
-        
-    # Save/record installation metadata
-    settings = load_settings()
-    settings[settings_keys["branch"]] = branch
-    settings[settings_keys["local_tag"]] = local_tag or effective_remote_tag or "unknown"
-    settings[settings_keys["remote_tag"]] = effective_remote_tag or remote_tag or ""
-    save_settings(settings)
 
-    log_line(msg=f"{repo_name} installed/updated. branch:{branch} tag:{settings[settings_keys['local_tag']]}", context="install_repo")
+    log_line(msg=f"{repo_name} installed/updated. branch:{branch}", context="install_repo")
     return local_dir
 
 # --- thin wrappers for specific repos --------------------------------------
@@ -861,11 +795,6 @@ def install_olipi_core(mode="install"):
         repo_url=OLIPI_CORE_REPO,
         local_dir=Path(OLIPI_CORE_DIR),
         branch=(OLIPI_CORE_DEV_BRANCH if mode == "dev_mode" else "main"),
-        settings_keys={
-            "branch": "branch_olipi_core",
-            "local_tag": "local_tag_core",
-            "remote_tag": "remote_tag_core"
-        },
         mode=mode
     )
 
@@ -875,26 +804,13 @@ def install_olipi_moode(mode="install"):
         repo_url=OLIPI_MOODE_REPO,
         local_dir=Path(OLIPI_MOODE_DIR),
         branch=(OLIPI_MOODE_DEV_BRANCH if mode == "dev_mode" else "main"),
-        settings_keys={
-            "branch": "branch_olipi_moode",
-            "local_tag": "local_tag_moode",
-            "remote_tag": "remote_tag_moode"
-        },
         mode=mode
     )
 
 def check_i2c(core_config):
-    """
-    Detect I2C devices, allow user to choose an address or:
-      - 0 / back  -> return "BACK" (back to screen selection)
-      - s / skip  -> return "SKIP" (skip screen configuration)
-      - x / cancel -> safe_exit(0)
-    On success returns "OK".
-    """
     print(SETUP["i2c_check"][lang])
     lines = safe_read_file_as_lines(CONFIG_TXT, critical=True)
     lines = update_olipi_section(lines, "screen overlay", clear=True)
-
     # Ask raspi-config whether I2C is enabled
     result = run_command("sudo raspi-config nonint get_i2c", log_out=True, show_output=False, check=False)
     if result.returncode != 0 or result.stdout.strip() != "0":
@@ -910,10 +826,8 @@ def check_i2c(core_config):
         else:
             print(SETUP["i2c_enable_failed"][lang])
             return "CANCEL"
-
     lines = update_olipi_section(lines, "screen overlay", ["dtparam=i2c_baudrate=400000"], replace_prefixes=["dtparam=i2c_baudrate"])
     safe_write_file_as_root(CONFIG_TXT, lines, critical=True)
-
     # run i2cdetect (retry a few times)
     res = None
     for _ in range(10):
@@ -921,7 +835,6 @@ def check_i2c(core_config):
         if res and res.stdout.strip():
             break
         time.sleep(1)
-
     detected_addresses = []
     if res and res.stdout:
         for line in res.stdout.splitlines():
@@ -930,7 +843,6 @@ def check_i2c(core_config):
                 for part in parts:
                     if part != "--":
                         detected_addresses.append(part.lower())
-
     if not detected_addresses:
         # no devices found -> offer options
         print(SETUP["i2c_no_devices"][lang])
@@ -949,20 +861,16 @@ def check_i2c(core_config):
             if ans in ("x", "q", "a", "cancel"):
                 return "CANCEL"
             print(SETUP["prompt_invalid"][lang])
-
     # If we have addresses, show them and allow selection with navigation options
     print(SETUP["i2c_addresses_detected"][lang].format(", ".join(["0x" + addr for addr in detected_addresses])))
-
     if "3c" in detected_addresses or "3d" in detected_addresses:
         default_addr = "3c" if "3c" in detected_addresses else "3d"
         print(SETUP["i2c_display_ok"][lang].format("0x" + default_addr))
-
     print()
     print(SETUP.get("i2c_choose_detected", {}).get(lang, "Choose the I2C address from the list above:"))
     for i, addr in enumerate(detected_addresses, start=1):
         print(f"[{i}] 0x{addr}")
     print(SETUP.get("i2c_choose_actions", {}).get(lang, "[0] Back to screens / [s] Skip config / [x] Cancel install")) 
-
     while True:
         choice = input("> ").strip().lower()
         if not choice:
@@ -981,7 +889,6 @@ def check_i2c(core_config):
         except Exception:
             print(SETUP["prompt_invalid"][lang])
             continue
-
         selected_addr = detected_addresses[idx]
         # Save in config.ini
         try:
@@ -1012,7 +919,6 @@ def check_spi(core_config):
         else:
             print(SETUP["spi_enable_failed"][lang])
             return "CANCEL"
-
     fb_active = ""
     res = run_command("dmesg | grep -i 'graphics fb.*spi'", log_out=True, show_output=False, check=False)
     fb_active_lines = res.stdout.strip().splitlines()
@@ -1212,14 +1118,12 @@ def check_ram():
         else:
             print(SETUP.get("zram_failed", {}).get(lang, "❌ Failed to configure ZRAM."))
         return
-
     if not zram_generator_installed:
         print(SETUP.get("zram_installing", {}).get(lang, "Installing systemd-zram-generator..."))
 
         run_command("sudo apt-get update", log_out=True, show_output=False, check=False)
         res = run_command("sudo apt-get install -y systemd-zram-generator",
                           log_out=True, show_output=True, check=False)
-
         if res.returncode == 0:
             print(SETUP.get("zram_done", {}).get(lang, "ZRAM installed, reboot required."))
         else:
@@ -1514,9 +1418,6 @@ def main():
 
     if not reexecuted:
         check_moode_version()
-        install_apt_dependencies()
-
-    settings = load_settings()
 
     # check if repos are present
     moode_present = Path(OLIPI_MOODE_DIR).exists() and (Path(OLIPI_MOODE_DIR) / ".git").exists()
@@ -1600,7 +1501,8 @@ def main():
                 script_path = os.path.abspath(__file__)
                 print(SETUP.get("reexecut_script", {}).get(lang, "\n🔁 Re-executing freshly cloned install_olipi.py to pick up updates..."))
                 print(f"[debug] → relaunching with args: --dev")
-                os.execv(sys.executable, [sys.executable, script_path, "--dev"])
+                os.execv(sys.executable, [sys.executable, script_path, "--dev"])  
+            install_apt_dependencies()
             sync_user_themes()
             configure_screen(OLIPI_MOODE_DIR, OLIPI_CORE_DIR)
             check_ram()
@@ -1610,13 +1512,6 @@ def main():
             user = detect_user()
             run_install_services(DEFAULT_VENV_PATH, user)
             append_to_profile()
-            settings = load_settings()
-            settings.update({
-                "project_dir": str(OLIPI_MOODE_DIR),
-                "core_dir": str(OLIPI_CORE_DIR),
-                "install_date": time.strftime("%Y-%m-%d %H:%M:%S"),
-            })
-            save_settings(settings)
             install_done()
             print(SETUP.get("develop_done", {}).get(lang, "✅ Development mode setup complete."))
 
@@ -1632,6 +1527,7 @@ def main():
                 script_path = os.path.abspath(__file__)
                 print(SETUP.get("reexecut_script", {}).get(lang, "\n🔁 Re-executing freshly cloned install_olipi.py to pick up updates..."))
                 os.execv(sys.executable, [sys.executable, script_path, "--install"])
+            install_apt_dependencies()
             sync_user_themes()
             configure_screen(OLIPI_MOODE_DIR, OLIPI_CORE_DIR)
             check_ram()
@@ -1641,13 +1537,6 @@ def main():
             user = detect_user()
             run_install_services(DEFAULT_VENV_PATH, user)
             append_to_profile()
-            settings = load_settings()
-            settings.update({
-                "project_dir": str(OLIPI_MOODE_DIR),
-                "core_dir": str(OLIPI_CORE_DIR),
-                "install_date": time.strftime("%Y-%m-%d %H:%M:%S"),
-            })
-            save_settings(settings)
             install_done()
 
         elif cmd == "update":
@@ -1662,19 +1551,13 @@ def main():
                 script_path = os.path.abspath(__file__)
                 print(SETUP.get("reexecut_script", {}).get(lang, "\n🔁 Re-executing freshly cloned install_olipi.py to pick up updates..."))
                 os.execv(sys.executable, [sys.executable, script_path, "--update"])
+            install_apt_dependencies()
             sync_user_themes()
             check_ram()
             install_venv = check_virtualenv()
             if install_venv:
                 setup_virtualenv(DEFAULT_VENV_PATH)
             append_to_profile()
-            settings = load_settings()
-            settings.update({
-                "project_dir": str(OLIPI_MOODE_DIR),
-                "core_dir": str(OLIPI_CORE_DIR),
-                "update_date": time.strftime("%Y-%m-%d %H:%M:%S")
-            })
-            save_settings(settings)
             print(SETUP.get("update_done", {}).get(lang, "✅ Update complete."))
             with TMP_LOG_FILE.open("a", encoding="utf-8") as fh:
                 fh.write(f"+++++++++\n[SUCCESS] ✅ Update finished successfully")
