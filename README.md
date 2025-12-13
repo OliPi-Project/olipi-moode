@@ -32,6 +32,14 @@ Release Note:
 
     Latest updates:
 
+    - Now support also Moode 10+ (Trixie)
+    - New screensaver: "Orbital" a dynamic screensaver animated by music (Only for RGB screens) .
+    - Improved audio analysis for spectrometer (need more work) and peak/vu meter to come...
+    - For compatibility Bookworm/Trixie:
+      - Migrating to systemd-zram-generator 
+      - Use --system-site-packages for venv and python3-rpi-lgpio, smbus2 via APT instead of the PIP version
+    ...
+
     - Separate theme_colors so you can use theme_user.yaml to change colors and don't lose your settings during an update
     - Add screensavers (LCD clock, Covers, spectrum) and menu options to select them
     - Files and folders have been reorganized
@@ -88,7 +96,6 @@ Release Note:
 - [GPIO and rotary encoder support](#-gpio-and-rotary-encoder-support)
 - [Key configuration](#-key-configuration)
 - [Configuration via tools menu](#-configuration-via-tools-menu-in-uiplaying)
-- [ZRAM](#-zram-on-low-memory-devices)
 - [Moode configuration reminder](#-moode-configuration-reminder)
 - [Uninstall](#-uninstall)
 - [Troubleshooting](#-troubleshooting-and-faq)
@@ -142,25 +149,14 @@ Release Note:
 - **APT dependencies** (installed automatically if needed):
   
   ```
-  git python3-pil python3-venv python3-pip python3-tk libasound2-dev libopenblas-dev libopenblas-pthread-dev libblas-dev libgfortran5 liblapack-dev swig build-essential i2c-tools libgpiod-dev python3-libgpiod python3-lgpio python3-setuptools
+  git python3-pil python3-venv python3-pip python3-tk libasound2-dev libopenblas-dev libopenblas-pthread-dev libblas-dev liblapack-dev libgfortran5 i2c-tools python3-rpi-lgpio python3-setuptools smbus2
   ```
 
-- **Python dependencies** (installed automatically with the virtual environment):
+- **Python dependencies (PIP)** (installed automatically with the virtual environment):
   
-  ```txt
-  luma.oled>=3.14.0
-  luma_core>=2.5.2
-  Pillow>=12.0.0
-  python_mpd2>=3.1.1
-  pyalsaaudio>=0.11.0
-  numpy>=2.3.4
-  scipy>=1.16.3
-  PyYAML>=6.0.3
-  Requests>=2.32.5
-  smbus2>=0.5.0
-  yt_dlp>=2025.10.22
   ```
-
+  luma.oled luma_core Pillow python_mpd2 pyalsaaudio numpy scipy PyYAML Requests yt_dlp
+  ```
 
 ---
 
@@ -198,7 +194,7 @@ After that you can:
        - Offers to select from supported screens
        - Configures I²C or SPI if disabled.
        - Offers to fill in the pins for SPI or select I2C adress
-       - Offers ZRAM configuration if 512MB RAM and/or swap detected.
+       - Installation/Migration from/to systemd-zram-generator if not present.
        - Creates a virtual environment (`~/.olipi-moode-venv` by default).
        - Install Python dependencies in venv.
        - Installs systemd services.
@@ -344,14 +340,6 @@ A small on-screen menu allows you to change:
         - Screen sleep delay
         - Choose: blank, LCD clock, covers, or spectrum
       - Toggle debug mode  
-
-
-## 🧠 ZRAM on low-memory devices
-
-If your Raspberry Pi has **512MB RAM** (e.g., Zero 2W or 3 A+):
-
-- The installer offers to install `zram-tools` and configure ZRAM (256 MB, lz4).
-- Completely disables swap.
 
 
 ## 🔧 Uninstall
