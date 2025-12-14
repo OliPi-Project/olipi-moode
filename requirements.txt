@@ -7,4 +7,4 @@ numpy>=2.3.5
 scipy>=1.16.1
 pyyaml>=6.0.3
 requests>=2.32.5
-yt_dlp>=2025-12-08
+yt_dlp>=2025.12.08
