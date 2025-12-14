@@ -1115,8 +1115,14 @@ def check_ram():
         res = run_command("sudo apt-get install -y systemd-zram-generator", log_out=True, show_output=True, check=False)
         if res.returncode == 0:
             print(SETUP.get("zram_done", {}).get(lang, "ZRAM configured, reboot required."))
+            reboot = input(SETUP["reboot_prompt"][lang]).strip().lower()
+            if reboot in ["", "o", "y"]:
+                run_command("sudo reboot", log_out=True, show_output=True, check=False)
+            else:
+                print(SETUP["reboot_cancelled"][lang])
         else:
             print(SETUP.get("zram_failed", {}).get(lang, "❌ Failed to configure ZRAM."))
+            safe_exit(1)
         return
     if not zram_generator_installed:
         print(SETUP.get("zram_installing", {}).get(lang, "Installing systemd-zram-generator..."))
@@ -1126,8 +1132,14 @@ def check_ram():
                           log_out=True, show_output=True, check=False)
         if res.returncode == 0:
             print(SETUP.get("zram_done", {}).get(lang, "ZRAM installed, reboot required."))
+            reboot = input(SETUP["reboot_prompt"][lang]).strip().lower()
+            if reboot in ["", "o", "y"]:
+                run_command("sudo reboot", log_out=True, show_output=True, check=False)
+            else:
+                print(SETUP["reboot_cancelled"][lang])
         else:
             print(SETUP.get("zram_failed", {}).get(lang, "❌ Failed to install ZRAM."))
+            safe_exit(1)
 
 def check_virtualenv():
     if os.path.exists(DEFAULT_VENV_PATH):
@@ -1303,39 +1315,25 @@ def run_install_services(venv, user):
     project_path = OLIPI_MOODE_DIR
     log_line(msg=f"install_services started (user={user}, venv={venv})", context="run_install_services")
     print(SETUP["install_services"][lang])
-
+    auto_enable = {
+        "olipi-starting-wait",
+        "olipi-ui-off",
+    }
     for name, template in SERVICES.items():
-        while True:
-            print(SETUP["service_menu"][lang].format(name))
+        while True:         
+            service_content = template.format(venv=venv, project=project_path, user=user)
             try:
-                choice = input(" > ").strip()
-            except EOFError:
-                choice = "3"
-            if choice == "2":
-                print(SETUP["service_view_header"][lang].format(name))
-                print(template.format(venv=venv, project=project_path, user=user))
-                print("--------------------")
-            elif choice == "1":
-                service_content = template.format(venv=venv, project=project_path, user=user)
-                try:
-                    write_service(name, service_content)
-                    if name == "olipi-starting-wait":
-                        run_command(f"sudo systemctl enable {name}", log_out=True, show_output=False, check=True)
-                        print(SETUP["service_enabled"][lang].format(name))
-                    elif name == "olipi-ui-off":
-                        run_command(f"sudo systemctl enable {name}", log_out=True, show_output=False, check=True)
-                        print(SETUP["service_enabled"][lang].format(name))
-
-                except PermissionError:
-                    print(SETUP["permission_denied"][lang])
-                    safe_exit(1, error="Permission denied while writing/enabling service")
-                except Exception as e:
-                    log_line(error=f"Failed to install service {name}: {e}", context="run_install_services")
-                    print(SETUP.get("service_save_failed", {}).get(lang, "❌ Failed to install service."))
-                break
-            else:
-                print(SETUP["service_skipped"][lang].format(name))
-                break
+                write_service(name, service_content)
+                if name in auto_enable:
+                    run_command(f"sudo systemctl enable {name}", log_out=True, show_output=False, check=True)
+                    print(SETUP["service_enabled"][lang].format(name))
+            except PermissionError:
+                print(SETUP["permission_denied"][lang])
+                safe_exit(1, error="Permission denied while writing/enabling service")
+            except Exception as e:
+                log_line(error=f"Failed to install service {name}: {e}", context="run_install_services")
+                print(SETUP.get("service_save_failed", {}).get(lang, "❌ Failed to install service."))
+            break          
     log_line(msg="install_services finished", context="run_install_services")
 
 def append_to_profile():
@@ -1417,6 +1415,7 @@ def main():
             pass
 
     if not reexecuted:
+        check_ram()
         check_moode_version()
 
     # check if repos are present
@@ -1453,17 +1452,19 @@ def main():
 
         if moode_present and core_present:
             if moode_change == "same" and core_change == "same":
-                ans = input(SETUP.get("already_uptodate", {}).get(lang, "✅ Already up-to-date. Do you want to force update (U), perform complete reinstall (I) or abort (A)? [U/I/A] ")).strip().lower()
-                if ans in ("u", ""):
+                ans = input(SETUP.get("already_uptodate", {}).get(lang, "✅ Already up-to-date. Force update [U], configure screen [C], complete install (I), or abort (A)? [U/I/A] ")).strip().lower()
+                if ans == "u":
                     cmd = "update"
                 elif ans == "i":
                     cmd = "install"
+                elif ans == "c":
+                    cmd = "config"
                 else:
                     print(SETUP.get("interactive_abort", {}).get(lang))
                     safe_exit(0)
 
             elif moode_change == "major" or core_change == "major":
-                ans = input(SETUP.get("interactive_major_prompt", {}).get(lang, "⚙️ Major update, A complete reinstallation is required (config.ini will be reset, make a copy).\n  Proceed to installation (I) or abort (A)? [I/A] ")).strip().lower()
+                ans = input(SETUP.get("interactive_major_prompt", {}).get(lang, "⚙️ Major update, A complete installation is required.\n  Proceed to installation [I] or abort [A]? [I/A] ")).strip().lower()
                 if ans in ("i", ""):
                     cmd = "install"
                 else:
@@ -1471,7 +1472,7 @@ def main():
                     safe_exit(0)
 
             else:
-                ans = input(SETUP.get("interactive_update_prompt", {}).get(lang, "⚙️ An update is available.\n  Would you like to perform an update [U], a complete install (Update + Configuration)[I], or cancel [A]? [U/I/A] ")).strip().lower()
+                ans = input(SETUP.get("interactive_update_prompt", {}).get(lang, "⚙️ An update is available.\n  Perform an update [U], complete install (Update + Configuration)[I], or cancel [A]? [U/I/A] ")).strip().lower()
                 if ans in ("u", ""):
                     cmd = "update"
                 elif ans == "i":
@@ -1480,7 +1481,7 @@ def main():
                     print(SETUP.get("interactive_abort", {}).get(lang))
                     safe_exit(0)
         else:
-            ans = input(SETUP.get("first_install_prompt", {}).get(lang, "⚙️ It seems that is a first installation, do you want to install (I) or abort (A)? [I/A] ")).strip().lower()
+            ans = input(SETUP.get("first_install_prompt", {}).get(lang, "⚙️ It seems that is a first installation, do you want to install [I] or abort [A]? [I/A] ")).strip().lower()
             if ans in ("i", ""):
                 cmd = "install"
             else:
@@ -1491,21 +1492,24 @@ def main():
         if cmd == "dev_mode":
             print("install_olipi.py launched on dev mode...")
             if not reexecuted:
-                install_olipi_moode(mode="dev_mode")
-                install_olipi_core(mode="dev_mode")
-                try:
-                    REEXEC_FLAG.parent.mkdir(parents=True, exist_ok=True)
-                    REEXEC_FLAG.touch()
-                except Exception as e:
-                    log_line(error=f"Failed creating reexec flag: {e}", context="main")
-                script_path = os.path.abspath(__file__)
-                print(SETUP.get("reexecut_script", {}).get(lang, "\n🔁 Re-executing freshly cloned install_olipi.py to pick up updates..."))
-                print(f"[debug] → relaunching with args: --dev")
-                os.execv(sys.executable, [sys.executable, script_path, "--dev"])  
+                skip = input("Skip cloning repo? [y/n] ").strip().lower()
+                if skip not in ("o", "y"):
+                    install_olipi_moode(mode="dev_mode")
+                    install_olipi_core(mode="dev_mode")
+                    try:
+                        REEXEC_FLAG.parent.mkdir(parents=True, exist_ok=True)
+                        REEXEC_FLAG.touch()
+                    except Exception as e:
+                        log_line(error=f"Failed creating reexec flag: {e}", context="main")
+                        script_path = os.path.abspath(__file__)
+                        print(SETUP.get("reexecut_script", {}).get(lang, "\n🔁 Re-executing freshly cloned install_olipi.py to pick up updates..."))
+                        print(f"[debug] → relaunching with args: --dev")
+                        os.execv(sys.executable, [sys.executable, script_path, "--dev"])
+                else:
+                    print("[dev] Repo cloning skipped")
             install_apt_dependencies()
             sync_user_themes()
             configure_screen(OLIPI_MOODE_DIR, OLIPI_CORE_DIR)
-            check_ram()
             install_venv = check_virtualenv()
             if install_venv:
                 setup_virtualenv(DEFAULT_VENV_PATH)
@@ -1530,7 +1534,6 @@ def main():
             install_apt_dependencies()
             sync_user_themes()
             configure_screen(OLIPI_MOODE_DIR, OLIPI_CORE_DIR)
-            check_ram()
             install_venv = check_virtualenv()
             if install_venv:
                 setup_virtualenv(DEFAULT_VENV_PATH)
@@ -1553,7 +1556,6 @@ def main():
                 os.execv(sys.executable, [sys.executable, script_path, "--update"])
             install_apt_dependencies()
             sync_user_themes()
-            check_ram()
             install_venv = check_virtualenv()
             if install_venv:
                 setup_virtualenv(DEFAULT_VENV_PATH)
@@ -1561,6 +1563,17 @@ def main():
             print(SETUP.get("update_done", {}).get(lang, "✅ Update complete."))
             with TMP_LOG_FILE.open("a", encoding="utf-8") as fh:
                 fh.write(f"+++++++++\n[SUCCESS] ✅ Update finished successfully")
+            finalize_log(0)
+            reboot = input(SETUP["reboot_prompt"][lang]).strip().lower()
+            if reboot in ["", "o", "y"]:
+                run_command("sudo reboot", log_out=True, show_output=True, check=False)
+            else:
+                print(SETUP["reboot_cancelled"][lang])
+            
+        elif cmd == "config":
+            configure_screen(OLIPI_MOODE_DIR, OLIPI_CORE_DIR)
+            with TMP_LOG_FILE.open("a", encoding="utf-8") as fh:
+                fh.write(f"+++++++++\n[SUCCESS] Screen configured successfully")
             finalize_log(0)
             reboot = input(SETUP["reboot_prompt"][lang]).strip().lower()
             if reboot in ["", "o", "y"]:
