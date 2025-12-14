@@ -47,7 +47,6 @@ DEFAULT_VENV_PATH = os.path.expanduser("~/.olipi-moode-venv")
 INSTALL_LIRC_REMOTE_PATH = os.path.join(INSTALL_DIR, "install_lirc_remote.py")
 SETUP_SCRIPT_PATH = os.path.join(INSTALL_DIR, "install_olipi.py")
 REEXEC_FLAG = Path(tempfile.gettempdir()) / f"olipi_reexec_{os.getuid()}.flag"
-reexecuted = REEXEC_FLAG.exists()
 TMP_LOG_FILE = Path("/tmp/setup.log")
 CONFIG_TXT = "/boot/firmware/config.txt"
 THEME_PATH_MAIN = Path(OLIPI_MOODE_DIR) / "theme_colors.yaml"
@@ -1402,11 +1401,11 @@ def install_done():
         print(SETUP["reboot_cancelled"][lang])
 
 def clean_reex_flag():
-    if reexecuted:
-        try:
+    try:
+        if REEXEC_FLAG.exists():
             REEXEC_FLAG.unlink()
-        except Exception:
-            pass
+    except Exception:
+        pass
 
 def main():
     parser = argparse.ArgumentParser(description="OliPi setup (install / update / develop)")
@@ -1417,6 +1416,7 @@ def main():
 
     choose_language()
 
+    reexecuted = REEXEC_FLAG.exists()
     clean_reex_flag()
 
     if not reexecuted:
