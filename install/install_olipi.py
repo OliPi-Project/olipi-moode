@@ -75,6 +75,7 @@ def safe_exit(code=1, error=None):
     except Exception:
         pass
     finalize_log(exit_code=code)
+    clean_reex_flag()
     sys.exit(code)
 
 def log_line(msg=None, error=None, context=None):
@@ -1392,11 +1393,20 @@ def install_done():
     with TMP_LOG_FILE.open("a", encoding="utf-8") as fh:
             fh.write(f"+++++++++\n[SUCCESS] ✅ install_olipi.py finished successfully")
     finalize_log(0)
+    clean_reex_flag()
     reboot = input(SETUP["reboot_prompt"][lang]).strip().lower()
     if reboot in ["", "o", "y"]:
         run_command("sudo reboot", log_out=True, show_output=True, check=False)
     else:
         print(SETUP["reboot_cancelled"][lang])
+
+def clean_reex_flag():
+    reexecuted = REEXEC_FLAG.exists()
+    if reexecuted:
+        try:
+            REEXEC_FLAG.unlink()
+        except Exception:
+            pass
 
 def main():
     parser = argparse.ArgumentParser(description="OliPi setup (install / update / develop)")
@@ -1407,12 +1417,7 @@ def main():
 
     choose_language()
 
-    reexecuted = REEXEC_FLAG.exists()
-    if reexecuted:
-        try:
-            REEXEC_FLAG.unlink()
-        except Exception:
-            pass
+    clean_reex_flag()
 
     if not reexecuted:
         check_ram()
@@ -1589,21 +1594,13 @@ def main():
         with TMP_LOG_FILE.open("a", encoding="utf-8") as fh:
             fh.write(f"+++++++++\n[ABORTED] ❌ Installation interrupted by user (Ctrl+C).\n")
         print(SETUP["install_abort"][lang])
-        if REEXEC_FLAG.exists():
-            try:
-                REEXEC_FLAG.unlink()
-            except:
-                pass
+        clean_reex_flag()
         safe_exit(130)
 
     except Exception as e:
         print(f"❌ Unexpected error: {e}")
         log_line(error=str(e), context="main")
-        if REEXEC_FLAG.exists():
-            try:
-                REEXEC_FLAG.unlink()
-            except:
-                pass
+        clean_reex_flag()
         safe_exit(1, error=e)
 
 if __name__ == "__main__":
