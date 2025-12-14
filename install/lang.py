@@ -20,7 +20,7 @@ SETUP = {
                            "fr": "⚠️ Le dossier {} n'existe pas ou n’est pas un dépôt Git. Première installation?"},
     "install_abort": {"en": "❌ Installation aborted (Ctrl+C).",
                       "fr": "❌ Installation interrompue (Ctrl+C)."},
-    "already_uptodate": {"en": "✅ Already up-to-date. Force update [U], configure screen [C], complete install (I), or abort (A)? [U/I/A] ",
+    "already_uptodate": {"en": "✅ Already up-to-date. Force update [U], configure screen [C], complete install (I), or abort (A)? [U/C/I/A] ",
                          "fr": "✅ Déjà à jour. Forcer la mise à jour [U], configurer l'écran [C], installation complète [I], ou annuler [A] ? [U/I/A] "},
     "interactive_major_prompt": {"en": "⚙️ Major update, A complete installation is required.\n  Proceed to installation [I], or abort [A]? [I/A] ",
                                    "fr": "⚙️ Mise à jour majeure, une installation complète est nécessaire.\n  Procéder à l'installation [I], ou annuler [A] ? [I/A] "},

@@ -1457,7 +1457,7 @@ def main():
 
         if moode_present and core_present:
             if moode_change == "same" and core_change == "same":
-                ans = input(SETUP.get("already_uptodate", {}).get(lang, "✅ Already up-to-date. Force update [U], configure screen [C], complete install (I), or abort (A)? [U/I/A] ")).strip().lower()
+                ans = input(SETUP.get("already_uptodate", {}).get(lang, "✅ Already up-to-date. Force update [U], configure screen [C], complete install (I), or abort (A)? [U/C/I/A] ")).strip().lower()
                 if ans == "u":
                     cmd = "update"
                 elif ans == "i":
