@@ -1509,10 +1509,10 @@ def main():
                     print("[dev] Repo cloning skipped")
             install_apt_dependencies()
             sync_user_themes()
-            configure_screen(OLIPI_MOODE_DIR, OLIPI_CORE_DIR)
             install_venv = check_virtualenv()
             if install_venv:
                 setup_virtualenv(DEFAULT_VENV_PATH)
+            configure_screen(OLIPI_MOODE_DIR, OLIPI_CORE_DIR)
             user = detect_user()
             run_install_services(DEFAULT_VENV_PATH, user)
             append_to_profile()
@@ -1533,10 +1533,10 @@ def main():
                 os.execv(sys.executable, [sys.executable, script_path, "--install"])
             install_apt_dependencies()
             sync_user_themes()
-            configure_screen(OLIPI_MOODE_DIR, OLIPI_CORE_DIR)
             install_venv = check_virtualenv()
             if install_venv:
                 setup_virtualenv(DEFAULT_VENV_PATH)
+            configure_screen(OLIPI_MOODE_DIR, OLIPI_CORE_DIR)
             user = detect_user()
             run_install_services(DEFAULT_VENV_PATH, user)
             append_to_profile()
