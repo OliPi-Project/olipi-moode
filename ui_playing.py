@@ -439,7 +439,7 @@ def run_sleep_loop():
                 y_peak_top = 2
                 y_peak_bottom = y_peak_top + peak_bar_h + peak_gap
 
-                draw_peak_meters(y_peak_top, y_peak_bottom, core.width - 4, peaks)
+                #draw_peak_meters(y_peak_top, y_peak_bottom, core.width - 4, peaks)
                 
                 draw_spectrum(y_top=y_spectrum_top, height=spectrum_h, levels=levels)
 
