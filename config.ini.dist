@@ -17,6 +17,10 @@ current_screen =
 #display_format = BGR
 #diag = 2.0
 #invert = True
+### For OLED SPI/I2C MONO:
+#type =
+#gpio_dc = 24
+#gpio_rst = 25
 
 [nowplaying]
 show_icons = True
