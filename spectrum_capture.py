@@ -406,6 +406,7 @@ class SpectrumCapture(threading.Thread):
                 ratio = band_energy / (self.baseline + EPS)
                 # clamp upper ratio to avoid huge log1p results on weird inputs
                 ratio = np.minimum(ratio, 1e3)   # tune 1e3 -> 1e4 if you want more headroom
+                
                 gate = 0.06 + 0.02 * (np.arange(self.n_bars) / self.n_bars)
                 ratio = np.maximum(0.0, ratio - gate)
 

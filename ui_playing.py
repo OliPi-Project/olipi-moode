@@ -2632,11 +2632,9 @@ def draw_spectrum(y_top, height, levels, attack=0.90, release=0.90):
     # initialize persistent visual array (kept on function object)
     if not hasattr(draw_spectrum, "vis_levels") or len(draw_spectrum.vis_levels) != num_bars:
         draw_spectrum.vis_levels = [0.0] * num_bars
-
     # persistent visual peak (AGC visuel lent)
     if not hasattr(draw_spectrum, "vis_peak"):
         draw_spectrum.vis_peak = 1e-6
-
     vis = draw_spectrum.vis_levels
     # layout: keep 1px spacing (pitch - 1)
     total_width = core.width - 4
@@ -2651,16 +2649,14 @@ def draw_spectrum(y_top, height, levels, attack=0.90, release=0.90):
             interpolate_palette(1.0 - (yy / (height - 1)), palette)
             for yy in range(height)
         ]
-    # Convert levels to a simple list of floats and optionally compress perceptually
-    # We normalize by the current maximum so that bars scale reasonably without forced clipping.
+    # Convert levels to a simple list of floats
     lv = [float(x) for x in levels]
     current_peak = max(lv)
     vp = draw_spectrum.vis_peak
-
     if current_peak > vp:
-        vp = 0.6 * vp + 0.4 * current_peak   # montée rapide
+        vp = 0.6 * vp + 0.4 * current_peak
     else:
-        vp = 0.995 * vp                      # descente lente (silence visible)
+        vp = 0.995 * vp
     draw_spectrum.vis_peak = max(vp, 1e-6)
     peak = draw_spectrum.vis_peak
     norm_levels = [l / peak for l in lv]
@@ -2673,7 +2669,7 @@ def draw_spectrum(y_top, height, levels, attack=0.90, release=0.90):
         else:
             r = release
             new = prev * (1.0 - r) + tgt * r
-        vis[i] = min(max(new, 0.0), 1.0)   # <<< clamp ici
+        vis[i] = min(max(new, 0.0), 1.0)
     # draw bars
     for i, v in enumerate(vis):
         bar_h = int(v * height)
