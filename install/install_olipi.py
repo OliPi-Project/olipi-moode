@@ -901,7 +901,7 @@ def check_i2c(core_config):
             safe_exit(1, error=f"❌ Failed to save to config.ini {e}")
         return "OK"
 
-def check_spi(core_config):
+def check_spi(core_config, TYPE):
     print(SETUP["spi_check"][lang])
     lines = safe_read_file_as_lines(CONFIG_TXT, critical=True)
     lines = update_olipi_section(lines, "screen overlay", clear=True)
@@ -920,29 +920,30 @@ def check_spi(core_config):
         else:
             print(SETUP["spi_enable_failed"][lang])
             return "CANCEL"
-    fb_active = ""
-    res = run_command("dmesg | grep -i 'graphics fb.*spi'", log_out=True, show_output=False, check=False)
-    fb_active_lines = res.stdout.strip().splitlines()
-    if fb_active_lines:
-        clean_lines = []
-        for line in fb_active_lines:
-            # retirer le timestamp initial entre crochets si présent
-            clean_line = line
-            if line.startswith("["):
-                try:
-                    clean_line = line.split("]", 1)[1].strip()
-                except IndexError:
-                    pass
-            clean_lines.append(clean_line)
-        display = "\n    ".join(clean_lines)
-        print(SETUP["spi_fb_detected"][lang].format(display))
-        log_line(msg=f"SPI framebuffer active:\n{display}", context="check_spi")
-    devices = []
-    for entry in Path("/sys/bus/spi/devices").iterdir():
-        devices.append(entry.name)
-    if devices:
-        print(SETUP["spi_devices_detected"][lang].format(", ".join(devices)))
-        log_line(msg=f"SPI devices found: {', '.join(devices)}", context="check_spi")
+    if TYPE == "spi":
+        fb_active = ""
+        res = run_command("dmesg | grep -i 'graphics fb.*spi'", log_out=True, show_output=False, check=False)
+        fb_active_lines = res.stdout.strip().splitlines()
+        if fb_active_lines:
+            clean_lines = []
+            for line in fb_active_lines:
+                # retirer le timestamp initial entre crochets si présent
+                clean_line = line
+                if line.startswith("["):
+                    try:
+                        clean_line = line.split("]", 1)[1].strip()
+                    except IndexError:
+                        pass
+                clean_lines.append(clean_line)
+            display = "\n    ".join(clean_lines)
+            print(SETUP["spi_fb_detected"][lang].format(display))
+            log_line(msg=f"SPI framebuffer active:\n{display}", context="check_spi")
+        devices = []
+        for entry in Path("/sys/bus/spi/devices").iterdir():
+            devices.append(entry.name)
+        if devices:
+            print(SETUP["spi_devices_detected"][lang].format(", ".join(devices)))
+            log_line(msg=f"SPI devices found: {', '.join(devices)}", context="check_spi")
     return "OK"
 
 def discover_screens_from_olipicore(olipi_core_dir):
@@ -988,7 +989,7 @@ def configure_screen(olipi_moode_dir, olipi_core_dir):
         print(SETUP.get("screen_choose_list", {}).get(lang, "\nAvailable screens:"))
         for i, key in enumerate(keys, start=1):
             info = screens[key]
-            print(f"  [{i}] {key} — {info.get('resolution')} — {info.get('type').upper()} — {info.get('color')}")
+            print(f"  [{i}] {key} — {info.get('resolution')}")
         
         print(SETUP.get("screen_skip_option", {}).get(lang, "\n  [0] Skip screen configuration"))
         print(SETUP.get("screen_cancel_option", {}).get(lang, "  [x] Cancel installation"))
@@ -1046,19 +1047,37 @@ def configure_screen(olipi_moode_dir, olipi_core_dir):
                 safe_exit(130)
             # res == "OK" -> continue
 
-        elif meta["type"] == "spi":
-            res = check_spi(core_config)
+        elif meta["type"] in ("spi", "spi2c"):
+            res = check_spi(core_config, meta.get("type"))
             if res == "CANCEL":
                 safe_exit(130)
             # res == "OK" -> continue
 
         try:
+            core_config.save_config("type", meta.get("type"), section="screen", preserve_case=True)
             core_config.save_config("current_screen", selected_id.upper(), section="screen", preserve_case=True)
             log_line(msg=f"Saved current_screen = {selected_id} to config.ini", context="configure_screen")
         except Exception as e:
             print(SETUP.get("screen_save_fail", {}).get(lang, "❌ Failed to save screen to config.ini"))
             safe_exit(1, error=f"❌ Failed to save screen to config.ini. {e}")
             return False
+        
+        if meta.get("type") == "spi2c":
+            print(SETUP.get("screen_spi_info", {}).get(lang, "SPI screen selected — Enter the GPIO pin number (BCM)."))
+            dc = input(SETUP.get("screen_dc_prompt", {}).get(lang, "DC pin (data/command) > "))
+            rst = input(SETUP.get("screen_reset_prompt", {}).get(lang, "RESET pin > "))
+            try:
+                core_config.save_config("gpio_dc", int(dc), section="screen", preserve_case=True)
+                core_config.save_config("gpio_rst", int(rst), section="screen", preserve_case=True)
+                log_line(msg=f"Saved GPIO: gpio_dc={dc} gpio_rst={rst} to config.ini", context="configure_screen")
+            except Exception as e:
+                print(SETUP.get("screen_save_fail", {}).get(lang, "❌ Failed to save GPIO screen to config.ini"))
+                safe_exit(1, error=f"❌ Failed to save GPIO screen to config.ini. {e}")
+                return False
+            core_config.reload_config()
+            print(SETUP.get("screen_saved_ok", {}).get(lang, "Screen configuration saved."))
+            return True
+
 
         # If SPI -> ask pins and save them
         if meta.get("type") == "spi":
