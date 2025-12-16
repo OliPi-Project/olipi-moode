@@ -31,11 +31,11 @@ def build_mel_filterbank(n_fft, sr, n_mels, fmin=20.0, fmax=None, bias=None):
         elif n_mels <= 36:
             bias = 1.83
         elif n_mels <= 38:
-            bias = 1.80
+            bias = 1.79
         elif n_mels <= 41:
-            bias = 1.76
+            bias = 1.75
         else:
-            bias = 1.6
+            bias = 1.7
     def hz_to_mel(f):
         return 2595.0 * np.log10(1.0 + f / 700.0)
     def mel_to_hz(m):
@@ -85,7 +85,7 @@ class SpectrumCapture(threading.Thread):
         self.n_bars=int(n_bars)
         self.win_s=4096
         self.hop_s=1024
-        self.fmin=10
+        self.fmin=20
         self.fmax=None
         self.debug=True
 
@@ -136,8 +136,7 @@ class SpectrumCapture(threading.Thread):
         init_level = 3.0     # <-- arbitrary log-unit target (bars ~ medium)
         init_rel = np.expm1(init_level)  # inverse log1p
 
-        noise_ref = (self.effective_sr * 1e-6)  # proportional ref floor (tunable)
-        self.baseline = np.ones(self.n_bars, dtype=np.float32) * noise_ref
+        self.baseline = np.ones(self.n_bars, dtype=np.float32)
         self.levels = np.zeros(self.n_bars, dtype=np.float32)
         self.stream_buf = np.zeros(self.win_s, dtype=np.float32)
 
@@ -407,6 +406,8 @@ class SpectrumCapture(threading.Thread):
                 ratio = band_energy / (self.baseline + EPS)
                 # clamp upper ratio to avoid huge log1p results on weird inputs
                 ratio = np.minimum(ratio, 1e3)   # tune 1e3 -> 1e4 if you want more headroom
+                gate = 0.06 + 0.02 * (np.arange(self.n_bars) / self.n_bars)
+                ratio = np.maximum(0.0, ratio - gate)
 
                 rel = np.log1p(ratio).astype(np.float32)
 
