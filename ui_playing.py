@@ -2622,19 +2622,21 @@ def interpolate_palette(value, palette):
             return (r, g, b)
     return palette[-1][1]
 
-def draw_spectrum(y_top, height, levels,
-                  attack=0.86,    # rapid rise (0..1): larger = more reactive to rise
-                  release=0.87,   # slow descent (0..1): smaller = slower to lower
-                  max_drop=0.30,  # optional: max fraction of height a bar can drop per frame (e.g. 0.25), or None to disable
-                  gamma=1.00):     # perceptual compression (<=1 compress), 1=no effect
+def draw_spectrum(y_top, height, levels, attack=0.90, release=0.90):
 
     palette = PALETTE_SPECTRUM
     num_bars = len(levels)
     if num_bars <= 0:
         return
+
     # initialize persistent visual array (kept on function object)
     if not hasattr(draw_spectrum, "vis_levels") or len(draw_spectrum.vis_levels) != num_bars:
         draw_spectrum.vis_levels = [0.0] * num_bars
+
+    # persistent visual peak (AGC visuel lent)
+    if not hasattr(draw_spectrum, "vis_peak"):
+        draw_spectrum.vis_peak = 1e-6
+
     vis = draw_spectrum.vis_levels
     # layout: keep 1px spacing (pitch - 1)
     total_width = core.width - 4
@@ -2652,11 +2654,16 @@ def draw_spectrum(y_top, height, levels,
     # Convert levels to a simple list of floats and optionally compress perceptually
     # We normalize by the current maximum so that bars scale reasonably without forced clipping.
     lv = [float(x) for x in levels]
-    peak = max(max(lv), 1e-6)
-    if gamma is not None and gamma > 0 and gamma != 1.0:
-        norm_levels = [(l / peak) ** gamma for l in lv]
+    current_peak = max(lv)
+    vp = draw_spectrum.vis_peak
+
+    if current_peak > vp:
+        vp = 0.6 * vp + 0.4 * current_peak   # montée rapide
     else:
-        norm_levels = [l / peak for l in lv]
+        vp = 0.995 * vp                      # descente lente (silence visible)
+    draw_spectrum.vis_peak = max(vp, 1e-6)
+    peak = draw_spectrum.vis_peak
+    norm_levels = [l / peak for l in lv]
     # Per-bar asymmetric smoothing
     for i, tgt in enumerate(norm_levels):
         prev = vis[i]
@@ -2666,12 +2673,7 @@ def draw_spectrum(y_top, height, levels,
         else:
             r = release
             new = prev * (1.0 - r) + tgt * r
-            # optional max_drop: prevent very large immediate drops in one frame
-            if max_drop is not None and max_drop > 0:
-                max_allowed = max_drop  # fraction of full scale per frame
-                if prev - new > max_allowed:
-                    new = prev - max_allowed
-        vis[i] = new
+        vis[i] = min(max(new, 0.0), 1.0)   # <<< clamp ici
     # draw bars
     for i, v in enumerate(vis):
         bar_h = int(v * height)
