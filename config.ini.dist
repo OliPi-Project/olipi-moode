@@ -11,16 +11,17 @@ color_theme = autumn
 
 [screen]
 current_screen =
-#i2c_address = 0x3c
+i2c_address =
+### For OLED SPI/I2C MONO:
+type =
+gpio_dc =
+gpio_rst =
+### Overide default settings:
 #refresh_interval = 0.05
 #rotation = 90
 #display_format = BGR
 #diag = 2.0
 #invert = True
-### For OLED SPI/I2C MONO:
-#type =
-#gpio_dc = 24
-#gpio_rst = 25
 
 [nowplaying]
 show_icons = True

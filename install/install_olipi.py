@@ -1054,8 +1054,8 @@ def configure_screen(olipi_moode_dir, olipi_core_dir):
             # res == "OK" -> continue
 
         try:
-            core_config.save_config("type", meta.get("type"), section="screen", preserve_case=True)
             core_config.save_config("current_screen", selected_id.upper(), section="screen", preserve_case=True)
+            core_config.save_config("type", meta.get("type"), section="screen", preserve_case=True)
             log_line(msg=f"Saved current_screen = {selected_id} to config.ini", context="configure_screen")
         except Exception as e:
             print(SETUP.get("screen_save_fail", {}).get(lang, "❌ Failed to save screen to config.ini"))
