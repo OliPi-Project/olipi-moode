@@ -32,6 +32,8 @@ Release Note:
 
     Latest updates:
 
+    - SSD1306, SSD1315 and SSD1309 SPI are now supported
+
     - Now support also Moode 10+ (Trixie)
     - New screensaver: "Orbital" a dynamic screensaver animated by music (Only for RGB screens) .
     - Improved audio analysis for spectrometer (need more work) and peak/vu meter to come...
@@ -128,20 +130,17 @@ Release Note:
   
   **Screens supported**:
   
-  | Screen      | Resolution | Diag (") | PPI | Color      | Script                       |
-  | ----------- | ---------- | -------- | --- | ---------- | ---------------------------- |
-  | SSD1309     | 128×64     | 2.49     | 58  | Monochrome | SSD1306.py                   |
-  | SSD1306     | 128×64     | 0.96     | 149 | Monochrome | SSD1306.py                   |
-  | SSD1306 SPI (Not Tested) | 128×64 | 0.96 | 149 | Monochrome | SSD1306SPI.py           |
-  | SSD1315     | 128×64     | 0.96     | 149 | Monochrome | SSD1306.py                   |
-  | SSD1351     | 128×128    | 1.5      | 120 | RGB        | SSD1351.py                   |
-  | ST7735R     | 128×160    | 1.77     | 116 | RGB        | ST7735R.py                   |
-  | ST7789 1.9" | 170×320    | 1.9      | 191 | RGB        | ST7789W.py                   |
-  | ST7789 2" 2.4" 2.8" | 240×320 | 2.0   | 200 | RGB      | ST7789V.py                   |
-  
-  Below 150 PPI font size are fixed.
-  Above 150 PPI font size are scaled by (ppi / 150) x 1.2 caped at x1.6
-  
+  | Screen      | Resolution | Diag (") | Color      | 
+  | ----------- | ---------- | -------- | ---------- |
+  | SSD1306 I2C | 128×64     | 0.96     | Monochrome |
+  | SSD1315 I2C | 128×64     | 0.96     | Monochrome |
+  | SSD1309 I2C | 128×64     | 2.49     | Monochrome |
+  | SSD1306/09/15 SPI | 128×64 | 0.96 - 2.49  | Monochrome |
+  | SSD1351     | 128×128    | 1.5      | RGB        |
+  | ST7735R     | 128×160    | 1.77     | RGB        |
+  | ST7789 1.9" | 170×320    | 1.9      | RGB        |
+  | ST7789 2" 2.4" 2.8" | 240×320 | 2.0   | RGB      |
+    
   For SPI screen Plan your wiring carefully: OliPi-Moode uses several GPIOs for buttons, IR and audio control if you use I2s DAC and/or GPIOs buttons/rotary. 
   
   For more information about wiring, check the [FAQ & Troubleshooting guide](./TROUBLESHOOTING.md).
@@ -188,20 +187,19 @@ After that you can:
    
        This script performs the following actions:
        
-       - Detects Moode version.
-       - Installs APT dependencies.
+       - Detects Moode & OliPi version.
+       - Installation/Migration from/to systemd-zram-generator if not present.
        - Clone latest release from olipi-core
+       - Installs APT dependencies.
+       - Creates a virtual environment at `~/.olipi-moode-venv`.
+       - Install Python dependencies in venv.
        - Offers to select from supported screens
        - Configures I²C or SPI if disabled.
        - Offers to fill in the pins for SPI or select I2C adress
-       - Installation/Migration from/to systemd-zram-generator if not present.
-       - Creates a virtual environment (`~/.olipi-moode-venv` by default).
-       - Install Python dependencies in venv.
        - Installs systemd services.
        - Append some lines with useful commands to .profile
-       - Create file with versions and paths in install dir.
        
-       It can be reused for update OliPi Moode or force reinstall  
+       It can be reused for update OliPi Moode, force reinstall or reconfigure screen. 
 
 4. ❗ <u>Moode configuration reminder</u>
 
@@ -218,10 +216,11 @@ The following systemd services are created during installation:
 | `olipi-ui-queue`      | Playback queue display (ui_queue.py)             |
 | `olipi-starting-wait` | Launch ui_wait.py at startup for waiting Moode   |
 | `olipi-ui-off`        | Turns off (clear) screen at shutdown (ui_off.py) |
-
-Switch between the 3 main display scripts using the `KEY_BACK` button.  
+ 
 Service `olipi-ui-off` is enabled and execute ui_off.py for clearing display at shutdown. (Need better handling for turning off LCD backlight)
 Service `olipi-starting-wait` is enabled and launch ui_wait.py who play animation for waiting Moode to be ready.
+
+Switch between the 3 main display scripts using the `KEY_BACK` button. 
 
 ## 📡 IR remote configuration
 
