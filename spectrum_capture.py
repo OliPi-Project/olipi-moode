@@ -165,12 +165,7 @@ class SpectrumCapture(threading.Thread):
         try: self.rec.close()
         except: pass
 
-    def get_channel_peaks(self, volume_state=None, mixer_type=None, volume_mpd_max=100.0, debug_peak=False):
-        # --- init accumulators ---
-        if not hasattr(self, "_rms_accum"):
-            self._rms_accum = []
-            self._peak_max = 0.0
-
+    def get_channel_peaks(self, volume_state=None, mixer_type=None):
         # --- linear -> dB ---
         def lin2db(x): return -999.0 if x<=0 else 20*np.log10(x)
 
@@ -202,50 +197,138 @@ class SpectrumCapture(threading.Thread):
         lr_norm = lr_sample / nominal_full_scale
         rr_norm = rr_sample / nominal_full_scale
 
+
         # --- parse volume ---
-        vol_lin = None
+        vol_step = None
         try:
             if isinstance(volume_state, str):
-                vol_lin = 0.0 if volume_state.lower()=="mute" else float(volume_state)/volume_mpd_max
+                vol_step = 0.0 if volume_state.lower()=="mute" else int(float(volume_state))
             elif volume_state is not None:
-                vol_lin = float(volume_state)/volume_mpd_max
+                vol_step = int(float(volume_state))
         except Exception:
-            vol_lin = None
+            vol_step = None
 
-        # --- reconstruct pre-volume for software ---
-        EPS_GAIN = 1e-9
-        if mixer_type and str(mixer_type).lower()=="software" and vol_lin not in (None,0.0):
-            gain = 1.0 / max(vol_lin, EPS_GAIN)
-            CORRECTION_FACTOR = 10.0
-            lp_norm = min(lp_norm * gain * CORRECTION_FACTOR, 1.0)
-            rp_norm = min(rp_norm * gain * CORRECTION_FACTOR, 1.0)
-            lr_norm = min(lr_norm * gain * CORRECTION_FACTOR, 1.0)
-            rr_norm = min(rr_norm * gain * CORRECTION_FACTOR, 1.0)
+        SOFTVOL_CORRECTION = [
+            (1, 1, 999.909799),
+            (2, 2, 558.219624),
+            (3, 3, 511.914522),
+            (4, 4, 355.414138),
+            (5, 5, 265.354404),
+            (6, 6, 208.250714),
+            (7, 7, 173.800711),
+            (8, 8, 149.124380),
+            (9, 9, 129.286090),
+            (10, 10, 115.121330),
+            (11, 11, 95.458883),
+            (12, 12, 85.705590),
+            (13, 13, 79.242250),
+            (14, 14, 73.687233),
+            (15, 15, 65.076015),
+            (16, 16, 60.506955),
+            (17, 17, 54.496762),
+            (18, 18, 51.528156),
+            (19, 19, 47.102732),
+            (20, 20, 44.670586),
+            (21, 21, 41.301498),
+            (22, 22, 38.219333),
+            (23, 23, 35.563328),
+            (24, 24, 33.143819),
+            (25, 25, 31.175925),
+            (26, 26, 29.429196),
+            (27, 27, 27.829631),
+            (28, 28, 26.394838),
+            (29, 29, 24.561416),
+            (30, 30, 23.381531),
+            (31, 31, 21.967000),
+            (32, 32, 20.544366),
+            (33, 33, 19.750346),
+            (34, 34, 18.696665),
+            (35, 35, 17.749156),
+            (36, 36, 16.626118),
+            (37, 37, 15.828345),
+            (38, 38, 15.126329),
+            (39, 39, 14.323843),
+            (40, 40, 13.565392),
+            (41, 41, 13.025002),
+            (42, 42, 12.382804),
+            (43, 43, 11.687966),
+            (44, 44, 11.155196),
+            (45, 45, 10.700838),
+            (46, 46, 10.177031),
+            (47, 47, 9.695480),
+            (48, 48, 9.257221),
+            (49, 49, 8.786778),
+            (50, 50, 8.428378),
+            (51, 51, 8.028800),
+            (52, 52, 7.668093),
+            (53, 53, 7.338640),
+            (54, 54, 7.000161),
+            (55, 55, 6.719589),
+            (56, 56, 6.428450),
+            (57, 57, 6.124998),
+            (58, 58, 5.875261),
+            (59, 59, 5.614328),
+            (60, 60, 5.384208),
+            (61, 61, 5.137784),
+            (62, 62, 4.915911),
+            (63, 63, 4.722107),
+            (64, 64, 4.516482),
+            (65, 65, 4.321119),
+            (66, 66, 4.131190),
+            (67, 67, 3.955420),
+            (68, 68, 3.794251),
+            (69, 69, 3.634073),
+            (70, 70, 3.485519),
+            (71, 71, 3.335419),
+            (72, 72, 3.199926),
+            (73, 73, 3.073037),
+            (74, 74, 2.938745),
+            (75, 75, 2.817323),
+            (76, 76, 2.705647),
+            (77, 77, 2.590654),
+            (78, 78, 2.481311),
+            (79, 79, 2.383054),
+            (80, 80, 2.287859),
+            (81, 81, 2.192396),
+            (82, 82, 2.102845),
+            (83, 83, 2.017906),
+            (84, 84, 1.932556),
+            (85, 85, 1.859233),
+            (86, 86, 1.780365),
+            (87, 87, 1.709011),
+            (88, 88, 1.642460),
+            (89, 89, 1.574732),
+            (90, 90, 1.510430),
+            (91, 91, 1.451799),
+            (92, 92, 1.393113),
+            (93, 93, 1.335759),
+            (94, 94, 1.282317),
+            (95, 95, 1.231484),
+            (96, 96, 1.181872),
+            (97, 97, 1.133704),
+            (98, 98, 1.090321),
+            (99, 99, 1.044869),
+            (100, 100, 1.003091),
+        ]
 
-        # --- update accumulators ---
-        if self._warmup_count >= self._warmup_frames:
-            rms_avg = (lr_norm + rr_norm) / 2.0
-            peak_avg = max(lp_norm, rp_norm)
-            self._rms_accum.append(rms_avg)
-            self._peak_max = max(self._peak_max, peak_avg)
+        SOFTVOL_MAP = {vmin: factor for vmin, _, factor in SOFTVOL_CORRECTION}
 
-        avg_db = lin2db(np.mean(self._rms_accum)) if self._rms_accum else None
-        peak_max_db = lin2db(self._peak_max) if self._peak_max else None
+        def get_softvol_factor(volume):
+            return SOFTVOL_MAP.get(volume, 1.0)
+
+        if mixer_type == "software" and vol_step and vol_step > 0:
+            factor = get_softvol_factor(vol_step)
+            lp_norm = min(lp_norm * factor, 1.0)
+            rp_norm = min(rp_norm * factor, 1.0)
+            lr_norm = min(lr_norm * factor, 1.0)
+            rr_norm = min(rr_norm * factor, 1.0)
 
         out = {
             "left_peak":lp_norm, "right_peak":rp_norm,
             "left_rms":lr_norm, "right_rms":rr_norm,
             "left_peak_db":lin2db(lp_norm), "right_peak_db":lin2db(rp_norm),
             "left_rms_db":lin2db(lr_norm), "right_rms_db":lin2db(rr_norm),
-            "avg_db":avg_db, "peak_max_db":peak_max_db,
         }
-
-        # --- debug prints ---
-        if getattr(self, "debug", False) and debug_peak:
-            print(f"[PEAK] mixer={mixer_type!s} vol_state={volume_state!s} used_full_scale={used_full_scale!s}")
-            print(f"raw: lp={lp_norm:.6f} rp={rp_norm:.6f}")
-            print(f"display lp_db={out.get('left_peak_db'):.1f} rp_db={out.get('right_peak_db'):.1f}")
-            print(f"Avg RMS: {avg_db:.2f} dB, Max Peak: {peak_max_db:.2f} dB")
 
         return out
 
