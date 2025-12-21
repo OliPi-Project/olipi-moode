@@ -2171,7 +2171,7 @@ def perform_bluetooth_scan():
     time.sleep(0.05)
     render_screen()
 
-    run_bluetooth_action("-S")
+    run_bluetooth_action("-s")
     update_trusted_devices_menu()
 
     time.sleep(0.5)
