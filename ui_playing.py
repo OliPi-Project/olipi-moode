@@ -428,19 +428,17 @@ def run_sleep_loop():
                 core.draw.rectangle((0, 0, core.width, core.height), fill=core.COLOR_BG)
 
                 levels = spectrum.get_levels()
-                peaks = spectrum.get_channel_peaks(
-                    volume_state=global_state.get("volume"),
-                    mixer_type=global_state.get("mpdmixer"),
-                    volume_mpd_max=float(global_state.get("volume_mpd_max", 100))
-                )
-                
-                peak_bar_h = max(3, min(12, core.height // 12))
-                peak_gap = 4
-                y_peak_top = 2
-                y_peak_bottom = y_peak_top + peak_bar_h + peak_gap
+                peaks = spectrum.get_channel_peaks( volume_state=global_state.get("volume"), mixer_type=global_state.get("mpdmixer"),)
 
-                draw_peak_meters(y_peak_top, y_peak_bottom, core.width - 4, peaks)
-                
+                bar_h = max(3, min(12, core.height // 20))
+                pad_x = 2
+                pad_y = 4
+                y_top = 2
+                width = core.width
+                y_bottom = y_top + bar_h + pad_y
+
+                draw_peak_meters(y_top, y_bottom, pad_x, pad_y, bar_h, width, peaks)
+
                 draw_spectrum(y_top=y_spectrum_top, height=spectrum_h, levels=levels)
 
                 core.refresh()
@@ -538,8 +536,7 @@ global_state = {
     "deezactive": "0",
     "upnpsvc": "0",
     "audioout": "Local",
-    "mpdmixer": "software",
-    "volume_mpd_max": "100"
+    "mpdmixer": "software"
 }
 
 def is_renderer_active():
@@ -558,7 +555,7 @@ def is_renderer_active():
 RENDERER_PARAMS = [
     "btsvc", "btactive", "airplaysvc", "aplactive", "spotifysvc", "spotactive",
     "slsvc", "slactive", "rbsvc", "rbactive", "pasvc", "paactive","deezersvc", "deezactive",
-    "inpactive", "rxactive", "upnpsvc", "audioout", "mpdmixer", "volume_mpd_max"
+    "inpactive", "rxactive", "upnpsvc", "audioout", "mpdmixer"
 ]
 
 def load_renderer_states_from_db():
@@ -2683,7 +2680,8 @@ def draw_spectrum(y_top, height, levels, attack=0.90, release=0.90):
             color = global_gradient[idx]
             core.draw.rectangle((x0, y_start + y, x1, y_start + y), fill=color)
 
-def draw_peak_meters(y_top, y_bottom, width, peak_info, attack=0.9, release=0.9, peak_hold_time=0.5):
+def draw_peak_meters(y_top, y_bottom, pad_x, pad_y, bar_h, width, peak_info,
+                     attack=0.9, release=0.9, peak_hold_time=0.5):
     default_state = {
         "left_vis": 0.0,
         "right_vis": 0.0,
@@ -2695,16 +2693,16 @@ def draw_peak_meters(y_top, y_bottom, width, peak_info, attack=0.9, release=0.9,
     if not hasattr(draw_peak_meters, "state"):
         draw_peak_meters.state = default_state.copy()
     else:
-        # ensure all expected keys exist (for robustness across reloads)
         for k, v in default_state.items():
             if k not in draw_peak_meters.state:
                 draw_peak_meters.state[k] = v
 
     s = draw_peak_meters.state
+    palette = PALETTE_SPECTRUM
 
     left_lin = peak_info.get("left_peak", 0.0)
     right_lin = peak_info.get("right_peak", 0.0)
-    # make a small power curve for visibility
+    # small power curve for better visibility
     left_vis_target = left_lin ** 0.8
     right_vis_target = right_lin ** 0.8
 
@@ -2720,7 +2718,7 @@ def draw_peak_meters(y_top, y_bottom, width, peak_info, attack=0.9, release=0.9,
     s["left_vis"] = smooth(s.get("left_vis", 0.0), left_vis_target)
     s["right_vis"] = smooth(s.get("right_vis", 0.0), right_vis_target)
 
-    # peak hold updates (timestamp-based)
+    # peak hold updates
     now_ts = time.time()
     if s["left_vis"] > s.get("left_peak", 0.0):
         s["left_peak"] = s["left_vis"]
@@ -2737,29 +2735,49 @@ def draw_peak_meters(y_top, y_bottom, width, peak_info, attack=0.9, release=0.9,
             s["right_peak"] = max(0.0, s.get("right_peak", 0.0) * 0.96)
 
     # Visual params
-    pad_x = 2
-    x0 = pad_x; x1 = core.width - pad_x
-    bar_w = x1 - x0
-    bar_h = max(3, min(14, core.height // 12))
+    x0 = int(pad_x)
+    x1 = int(width) - int(pad_x)
+    bar_w = max(0, x1 - x0)
 
-    # Top (left channel) bar
-    y0 = y_top
-    core.draw.rectangle((x0, y0, x1, y0 + bar_h - 1), fill=core.COLOR_PROGRESS_BG)
-    filled = int(s["left_vis"] * bar_w)
-    if filled > 0:
-        core.draw.rectangle((x0, y0, x0 + filled, y0 + bar_h - 1), fill=core.COLOR_PROGRESS)
-    # peak marker (visual)
-    pkx = x0 + int(s.get("left_peak", 0.0) * bar_w)
-    core.draw.rectangle((pkx, y0, min(pkx+1, x1), y0 + bar_h - 1), fill=core.COLOR_ARTIST)
+    # build gradient of exactly bar_w colors (left->right)
+    if bar_w <= 1:
+        global_gradient = [interpolate_palette(1.0, palette)]
+    else:
+        global_gradient = [interpolate_palette(xx / (bar_w - 1), palette) for xx in range(bar_w)]
 
-    # Bottom (right channel) bar
-    y1 = y_bottom
-    core.draw.rectangle((x0, y1, x1, y1 + bar_h - 1), fill=core.COLOR_PROGRESS_BG)
-    filled_r = int(s["right_vis"] * bar_w)
-    if filled_r > 0:
-        core.draw.rectangle((x0, y1, x0 + filled_r, y1 + bar_h - 1), fill=core.COLOR_PROGRESS)
-    pkx_r = x0 + int(s.get("right_peak", 0.0) * bar_w)
-    core.draw.rectangle((pkx_r, y1, min(pkx_r+1, x1), y1 + bar_h - 1), fill=core.COLOR_ARTIST)
+    # --- LEFT BAR ---
+    y0 = int(y_top)
+    # background
+    core.draw.rectangle((x0, y0, x1 - 1, y0 + bar_h - 1), fill=core.COLOR_PROGRESS_BG)
+
+    # compute how many pixels to fill (0..bar_w)
+    filled = int(round(s["left_vis"] * bar_w))
+    filled = max(0, min(filled, bar_w))
+
+    # draw per-column gradient so gradient maps to full width
+    for ix in range(filled):
+        color = global_gradient[ix]
+        # draw single-pixel wide vertical strip
+        core.draw.rectangle((x0 + ix, y0, x0 + ix, y0 + bar_h - 1), fill=color)
+
+    # peak marker (cap to last pixel)
+    if bar_w > 0:
+        pkx = x0 + min(bar_w - 1, int(round(s.get("left_peak", 0.0) * (bar_w - 1))))
+        core.draw.rectangle((pkx, y0, pkx, y0 + bar_h - 1), fill=core.COLOR_ARTIST)
+
+    # --- RIGHT BAR ---
+    y1 = int(y_bottom)
+    core.draw.rectangle((x0, y1, x1 - 1, y1 + bar_h - 1), fill=core.COLOR_PROGRESS_BG)
+
+    filled_r = int(round(s["right_vis"] * bar_w))
+    filled_r = max(0, min(filled_r, bar_w))
+    for ix in range(filled_r):
+        color = global_gradient[ix]
+        core.draw.rectangle((x0 + ix, y1, x0 + ix, y1 + bar_h - 1), fill=color)
+
+    if bar_w > 0:
+        pkx_r = x0 + min(bar_w - 1, int(round(s.get("right_peak", 0.0) * (bar_w - 1))))
+        core.draw.rectangle((pkx_r, y1, pkx_r, y1 + bar_h - 1), fill=core.COLOR_ARTIST)
 
 def draw_nowplaying():
     now = time.time()
