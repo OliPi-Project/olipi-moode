@@ -3,7 +3,7 @@
 language = en
 debug = false
 screen_timeout = 0
-screensaver_mode = blank
+screensaver_mode = clock
 random_track_count = 20
 random_radio_count = 1
 random_recent_album_custom_days = 30
@@ -24,12 +24,13 @@ gpio_rst =
 #invert = True
 
 [nowplaying]
-show_icons = True
-show_extra_infos = True
-show_progress_barre = True
-show_clock = True
+show_icons = true
+show_extra_infos = true
+show_progress_barre = true
+show_clock = true
 ### Spectrum need Loopback actived in Moode > configure > audio > alsa options
-show_spectrum = False
+show_spectrum = false
+show_peak = false
 
 [spectrum]
 num_bars = 21

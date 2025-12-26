@@ -33,7 +33,7 @@ error_audioout_invalid: "Invalid audio output (Local or Bluetooth)"
 error_audioout_usage: "Usage: assets/audioout-toggle.php [Local|Bluetooth]"
 error_audioout_bt_missing: "No connected Bluetooth device found"
 error_audioout: "Error audioout"
-error_spectrum: "Error Spectrum: You must activate Alsa Loopback."
+error_spectrum: "Error: You must activate Alsa Loopback."
 
 # === Informational messages ===
 info_working: "Please Wait..."
@@ -180,6 +180,7 @@ menu_icons: "Display icons bar"
 menu_extra_infos: "Display audio infos"
 menu_progress_bare: "Display progress bar"
 menu_spectrum: "Display spectrum"
+menu_peak: "Display peak-meter"
 menu_clock: "Display clock (Else, time elapsed)"
 menu_apply: "=> Apply settings"
 
