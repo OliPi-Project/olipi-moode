@@ -33,7 +33,7 @@ error_audioout_bt_missing: "Aucun périphérique Bluetooth connecté"
 error_audioout_invalid: "Sortie audio invalide (Local ou Bluetooth)"
 error_audioout_usage: "Usage: assets/audioout-toggle.php [Local|Bluetooth]"
 error_audioout: "Erreur audioout"
-error_spectrum: "Error Spectro: Vous devez activer Alsa Loopback."
+error_spectrum: "Erreur: Vous devez activer Alsa Loopback."
 
 # === Informational messages ===
 info_working: "Veuillez Patienter..."
@@ -179,7 +179,8 @@ menu_ui: "Configurer UI"
 menu_icons: "Afficher la barre icons"
 menu_extra_infos: "Afficher infos audio"
 menu_progress_bare: "afficher barre de progression"
-menu_spectrum: "Afficher Spectromètre"
+menu_spectrum: "Afficher spectromètre"
+menu_peak: "Afficher peak-mètre"
 menu_clock: "Afficher l'heure (Sinon, durée de piste)"
 menu_apply: "=> Appliquer les changements"
 
