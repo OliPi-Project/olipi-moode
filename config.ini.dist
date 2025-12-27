@@ -1,7 +1,7 @@
 [settings]
 ### Configuration via menu interface
 language = en
-debug = false
+debug = False
 screen_timeout = 0
 screensaver_mode = clock
 random_track_count = 20
@@ -11,6 +11,8 @@ color_theme = autumn
 
 [screen]
 current_screen =
+width =
+height =
 i2c_address =
 ### For OLED SPI/I2C MONO:
 type =
@@ -24,13 +26,13 @@ gpio_rst =
 #invert = True
 
 [nowplaying]
-show_icons = true
-show_extra_infos = true
-show_progress_barre = true
-show_clock = true
+show_icons = True
+show_extra_infos = True
+show_progress_barre = True
+show_clock = True
 ### Spectrum need Loopback actived in Moode > configure > audio > alsa options
-show_spectrum = false
-show_peak = false
+show_spectrum = False
+show_peak = False
 
 [spectrum]
 num_bars = 21
@@ -43,15 +45,15 @@ genres = Varied, Relax, Rhythmic, Nocturne, Instru
 
 [input]
 ### use_lirc is configured during install_lirc_remote.py. You'll can activate it manually if you've installed LIRC yourself.
-use_lirc = false
-use_mpr121 = false
-use_buttons = false
-use_rotary = false
+use_lirc = False
+use_mpr121 = False
+use_buttons = False
+use_rotary = False
 
 [mpr121]
 i2c_address = 0x5A
 int_pin = 4
-use_gesture = false
+use_gesture = False
 ### Default values for all pads:
 touch_threshold = 30
 release_threshold = 20
@@ -99,7 +101,7 @@ rotary_bouncetime_ms = 5
 ### rotary_min_tick_ms: minimum time between valid ticks (helps reject jitter or contact bounce)
 rotary_min_tick_ms = 2
 ### rotary_invert: If your pin are reverted change to true
-rotary_invert = false
+rotary_invert = False
 ### KEY_UP/DOWN (volume in now-playing screen) need to be commented in [buttons] section if you use:
 #pin_a = 17
 #pin_b = 16

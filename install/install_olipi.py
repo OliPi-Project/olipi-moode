@@ -1002,7 +1002,6 @@ def configure_screen(olipi_moode_dir, olipi_core_dir):
 
         if choice in ("0", "s", "skip"):
             # return True to continue install
-            #core_config.save_config("current_screen", "NONE", section="screen", preserve_case=True)
             log_line(msg="User skipped screen configuration", context="configure_screen")
             print(SETUP.get("screen_skipped", {}).get(lang, "⏭ Screen configuration skipped."))
             return True
@@ -1055,12 +1054,20 @@ def configure_screen(olipi_moode_dir, olipi_core_dir):
 
         try:
             core_config.save_config("current_screen", selected_id.upper(), section="screen", preserve_case=True)
+            core_config.save_config("width", meta.get("width"), section="screen", preserve_case=True)
+            core_config.save_config("height", meta.get("height"), section="screen", preserve_case=True)
             core_config.save_config("type", meta.get("type"), section="screen", preserve_case=True)
             log_line(msg=f"Saved current_screen = {selected_id} to config.ini", context="configure_screen")
+            core_config.reload_config()
         except Exception as e:
             print(SETUP.get("screen_save_fail", {}).get(lang, "❌ Failed to save screen to config.ini"))
             safe_exit(1, error=f"❌ Failed to save screen to config.ini. {e}")
             return False
+        
+        if meta.get("height") == 64:
+            core_config.save_config("show_extra_infos", False, section="nowplaying", preserve_case=True)
+            core_config.save_config("show_progress_barre", False, section="nowplaying", preserve_case=True)
+            core_config.reload_config()
         
         if meta.get("type") == "spi2c":
             print(SETUP.get("screen_spi_info", {}).get(lang, "SPI screen selected — Enter the GPIO pin number (BCM)."))

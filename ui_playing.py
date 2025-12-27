@@ -3,8 +3,6 @@
 # Copyright 2025 OliPi Project
 # Copyright Sizenko Alexander for Digital-7 Font
 
-import faulthandler
-faulthandler.enable()
 import os
 import sys
 import subprocess
@@ -2860,8 +2858,8 @@ def draw_nowplaying():
         core.draw.text((x, y), clock_text, font=font_stop_clock, fill=core.COLOR_STOP_CLOCK)
 
         # Volume barre
-        vol_bar_h = font_vol_clock.getbbox("Vol: 100")[3] + (padding_y if core.height > 64 else 0)
-        y_vol_bar = core.height - vol_bar_h - (padding_y if core.height > 64 else 0)
+        vol_bar_h = font_vol_clock.getbbox("Vol: 100")[3]
+        y_vol_bar = core.height - vol_bar_h - padding_y
 
         core.draw.text((3, y_vol_bar), f"Vol: {volume}", font=font_vol_clock, fill=core.COLOR_VOL_CLOCK)
     else:
@@ -2947,7 +2945,7 @@ def draw_nowplaying():
 
         if core.height <= 96:
             spacing = 2 if show_spectrum or show_peak else 4
-            top_bar_h = icon_width + 5
+            top_bar_h = icon_width + 3 if show_spectrum or show_peak else icon_width + 4
         elif core.height <= 128:
             spacing = 4 if show_spectrum or show_peak else 10
             top_bar_h = icon_width + 4 if show_spectrum or show_peak else icon_width + 10
@@ -3853,6 +3851,10 @@ def finish_press(key):
                     core.save_config("show_extra_infos", False, section="nowplaying")
                     show_progress_barre = False
                     core.save_config("show_progress_barre", False, section="nowplaying")
+                    show_spectrum = False
+                    core.save_config("show_spectrum", False, section="nowplaying")
+                    show_peak = False
+                    core.save_config("show_peak", False, section="nowplaying")
             elif option_id == "extra":
                 new_extra = not show_extra_infos
                 core.save_config("show_extra_infos", new_extra, section="nowplaying")
@@ -3860,6 +3862,10 @@ def finish_press(key):
                 if core.height == 64 and show_extra_infos:
                     show_icons = False
                     core.save_config("show_icons", False, section="nowplaying")
+                    show_spectrum = False
+                    core.save_config("show_spectrum", False, section="nowplaying")
+                    show_peak = False
+                    core.save_config("show_peak", False, section="nowplaying")
             elif option_id == "progress":
                 new_progress = not show_progress_barre
                 core.save_config("show_progress_barre", new_progress, section="nowplaying")
@@ -3867,6 +3873,9 @@ def finish_press(key):
                 if core.height == 64 and show_progress_barre:
                     show_icons = False
                     core.save_config("show_icons", False, section="nowplaying")
+                if core.height == 64 and show_progress_barre and show_spectrum and show_peak:
+                    show_peak = False
+                    core.save_config("show_peak", False, section="nowplaying")
             elif option_id == "spectrum":
                 if not is_spectrum_available():
                     core.show_message(core.t("error_spectrum"))
@@ -3875,6 +3884,14 @@ def finish_press(key):
                 new_spectrum = not show_spectrum
                 core.save_config("show_spectrum", new_spectrum, section="nowplaying")
                 show_spectrum = new_spectrum
+                if core.height == 64 and show_spectrum:
+                    show_icons = False
+                    core.save_config("show_icons", False, section="nowplaying")
+                    show_extra_infos = False
+                    core.save_config("show_extra_infos", False, section="nowplaying")
+                if core.height == 64 and show_spectrum and show_peak:
+                    show_progress_barre = False
+                    core.save_config("show_progress_barre", False, section="nowplaying")
             elif option_id == "peak":
                 if not is_spectrum_available():
                     core.show_message(core.t("error_spectrum"))
@@ -3883,6 +3900,14 @@ def finish_press(key):
                 new_peak = not show_peak
                 core.save_config("show_peak", new_peak, section="nowplaying")
                 show_peak = new_peak
+                if core.height == 64 and show_peak:
+                    show_icons = False
+                    core.save_config("show_icons", False, section="nowplaying")
+                    show_extra_infos = False
+                    core.save_config("show_extra_infos", False, section="nowplaying")
+                if core.height == 64 and show_spectrum and show_peak:
+                    show_progress_barre = False
+                    core.save_config("show_progress_barre", False, section="nowplaying")
             elif option_id == "clock_elapse":
                 new_clock = not show_clock
                 core.save_config("show_clock", new_clock, section="nowplaying")
