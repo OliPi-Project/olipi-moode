@@ -3178,14 +3178,14 @@ def nav_info_long():
 
 def nav_back():
     core.show_message(core.t("info_go_library_screen"))
-    time.sleep(1)
+    time.sleep(0.3)
     subprocess.call(["sudo", "systemctl", "start", "olipi-ui-browser.service"])
     subprocess.call(["sudo", "systemctl", "stop", "olipi-ui-playing.service"])
     sys.exit(0)
 
 def nav_back_long():
     core.show_message(core.t("info_go_playlist_screen"))
-    time.sleep(1)
+    time.sleep(0.3)
     subprocess.call(["sudo", "systemctl", "start", "olipi-ui-queue.service"])
     subprocess.call(["sudo", "systemctl", "stop", "olipi-ui-playing.service"])
     sys.exit(0)

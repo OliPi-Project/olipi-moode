@@ -57,7 +57,7 @@ def wait_for_moode(timeout=TIMEOUT_MOODE):
 
         if time.time() - start > timeout:
             show_message_centered("MoOde Not Ready", "Restarting Wait Service")
-            time.sleep(2)
+            time.sleep(1)
             return False
 
 if not wait_for_moode():
