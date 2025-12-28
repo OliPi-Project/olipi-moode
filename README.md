@@ -17,66 +17,35 @@ OliPi MoOde is an user interface for OLED/LCD screens >= 128x64 for [Moode Audio
   <img src="https://github.com/OliPi-Project/olipi-moode/blob/main/docs/screenshots/v0-3-4.JPEG" width="400" alt="v0.3.4 Demo">
 </p>
 
-Video presentation:
 [https://youtu.be/9Y13UeyyT7k?si=hkOkiP9gk0rjxlB8](https://youtu.be/9Y13UeyyT7k?si=hkOkiP9gk0rjxlB8)
 
 ---
 
 ## ❔ What's new?
 
-**<u>V0.3.0-pre</u> +** 
+**<u>V0.4.0-pre</u> +** 
 
-If you're upgrading from a version prior to v0.3.0, a fresh install is required. You can uninstall all with: `sudo bash ~/olipi-moode/install/uninstall-olipi-moode.sh` And perform a fresh [installation](#-installation). Remember to make a backup of your config.ini if necessary. (Remote control settings are not deleted)
+If you're updating from a version higher than v0.3 a full update are required (don't skip screen configuration and update or reinstall venv). No need to force a config.ini reset when prompt.
+
+If you're updating from a version prior to v0.3, a fresh install is required. You can uninstall all with: `sudo bash ~/olipi-moode/install/uninstall-olipi-moode.sh` And perform a fresh [installation](#-installation). Remember to make a backup of your config.ini if necessary. (Remote control .conf files are not deleted)
 
 Release Note:
 
     Latest updates:
 
+    - Resolution are saved in config.ini when configure screen
+    - Add peak-meter and improvement of audio analysis for spectrum and peak-meter
+    - Oled 64px height can now show spectrum and/or peak-meter (by deactivating icons, progress-bar and audio-infos)
     - SSD1306, SSD1315 and SSD1309 SPI are now supported
 
-    - Now support also Moode 10+ (Trixie)
-    - New screensaver: "Orbital" a dynamic screensaver animated by music (Only for RGB screens) .
-    - Improved audio analysis for spectrometer (need more work) and peak/vu meter to come...
-    - For compatibility Bookworm/Trixie:
-      - Migrating to systemd-zram-generator 
-      - Use --system-site-packages for venv and python3-rpi-lgpio, smbus2 via APT instead of the PIP version
-    ...
-
+    - Now support Moode 10+ (Trixie)
+    - New screensaver: "Orbital" a dynamic screensaver animated by music (Only for RGB screens)
+    - Improved audio analysis for spectrometer (need more work)
+    - Migrating to systemd-zram-generator for compatibility Bookworm/Trixie:
     - Separate theme_colors so you can use theme_user.yaml to change colors and don't lose your settings during an update
     - Add screensavers (LCD clock, Covers, spectrum) and menu options to select them
     - Files and folders have been reorganized
     ...
-
-    - Improved search/rename input box & relative info. 
-    - In queue ui Key_OK now play track & OK long open menu
-    - Add search_history.txt to PRESERVE_FILES
-    - Config.ini is now saved in the user /home folder before a merge or reset
-    - Optimisation: cpu % divided by 2 on zero2w in queue and library displays
-    ...
-
-    V0.3.0-pre:
-    - Add support for MPR121 capacitive touch with a beginnings of gesture support
-    - Add independent debounce settings depending on input
-    - Add support for ST7789 2.4" & 2.8"
-    - Add support for SSD1306 SPI with FBTFT "not tested"
-    - Add invert options & diag", can be configured in ini
-    - Better rotary management with GPIO interup
-    - Try to fix for crash with "corrupted double-linked list"
-    - Start spectro after ui for faster loading
-    - Add option for clock or elapsed in config.ini & long press KEY_INFO switch Clock/Elapsed
-    - Add option to on/off spectrum in config menu
-    - Fix for add/remove to Favorites playlist
-    - Fix for save to new playlist & cover creation
-    - Modification of the installation script:
-      - Script restart after cloning to pick up & re-run with install script updated
-      - File merge for .ini (if necessary) should now work correctly
-      - Now can skip/install/update venv
-      - Now can back, skip, cancel screen config
-      - Stop olipi-ui-playing service & free memory before runing pip
-    - Some improvements to the YT stream
-    - Remove stream quality menu/choice, now use bestaudio and ABR 160k
-    - README and TROUBLESHOOTING update
-    - And other odds and ends...
     
     Still lots of things to perform/correct before going to V1...
 
@@ -203,7 +172,7 @@ After that you can:
 
 4. ❗ <u>Moode configuration reminder</u>
 
-    To display the spectrometer or screensaver "Orbital" you need to enable loopback in Moode UI: `configure > Audio > ALSA Options`.
+    To display the spectrometer or screensaver "Orbital" or peak-meter you need to enable loopback in Moode UI: `configure > Audio > ALSA Options`.
 
 ## 🖥 Services
 
@@ -281,9 +250,9 @@ These keys are **required** to navigate and control all interfaces:
 | **KEY_RIGHT**       | Move right                                          | Next / Seek +10s (long press) if outside menu      |
 | **KEY_OK**          | Open menu / Tools menu (long press) / Confirm       |                                                    |
 | **KEY_BACK**        | Switch to `ui_browser`/`ui_queue`/`ui_playing`      | Switch to `ui_browser` (short) / `ui_queue` (long) |
-| **KEY_INFO**        | Show contextual help                                | Toggle display clock/elapsed times (long press)    |
+| **KEY_INFO**        | Show contextual help                                |                                                    |
 | **KEY_CHANNELUP**   | Context action                                      | Add/Remove favorites, if radio: add to songlog     |
-| **KEY_CHANNELDOWN** | Context action                                      | Remove from queue                                  |
+| **KEY_CHANNELDOWN** | Context action                                      | Remove playing track from queue                    |
 | **KEY_PLAY**        | Only on Now Playing UI                              | Play/Pause / Shutdown (long press)                 |
 
 **For more info, press `KEY_INFO` in each context.**
@@ -333,11 +302,11 @@ A small on-screen menu allows you to change:
       - Language (currently English and French)
       - Change color theme
       - Configure UI:
-        - Show/hide: icons barre, audio infos, progress bare, spectrum
+        - Show/hide: icons barre, audio infos, progress bare, spectrum, peak-meter
         - Display clock or elapsed time
       - Configure screensaver:
         - Screen sleep delay
-        - Choose: blank, LCD clock, covers, or spectrum
+        - Choose: blank, LCD clock, covers, spectrum, orbital
       - Toggle debug mode  
 
 
