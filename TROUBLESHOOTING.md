@@ -14,7 +14,7 @@ This guide covers common problems and their solutions when using OliPi MoOde.
     - SDA => MOSI (GPIO 10)
     - CS  => CE0  (GPIO 8)
     - RST and DC can use any free GPIO (take care if your dac use pin for mute or if it has a built-in ir receiver)
-    - BLK (backlight) can use any free GPIO (Screen saver turns off LED) or can be connected to **3.3V** (Screen saver don't turns off LED). 
+    - BLK (backlight) can use any free GPIO (Blank screensaver turns off LED) or can be connected to **3.3V** (Blank screensaver don't turns off LED). 
           
   - For I2C screens:
     - GND => GND
