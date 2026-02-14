@@ -1370,12 +1370,11 @@ def append_to_profile():
     lines_to_add = [
         'echo ""',
         'echo "Moode debug => moodeutl -l"',
-        'echo "Force Moode update => sudo /var/www/util/system-updater.sh moode9"',
         f'echo "Update or Reinstall OliPi Moode => python3 {SETUP_SCRIPT_PATH}"',
         f'echo "Configure IR remote => python3 {INSTALL_LIRC_REMOTE_PATH}"',
         'echo ""'
     ]
-    prefixes = [line.split()[0] for line in lines_to_add]  # ici "echo"
+    prefixes = [line.split()[0] for line in lines_to_add]
     print(SETUP["profile_update"][lang])
     log_line(msg="Appending to ~/.profile", context="append_to_profile")
     try:
