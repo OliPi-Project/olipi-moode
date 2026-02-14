@@ -97,9 +97,9 @@ buttons_bouncetime_ms = 5
 ### rotary_divider: number of transitions per detent (use 1 or 2 for standard encoders, 4 for high-resolution types)
 rotary_divider = 2
 ### rotary_bouncetime_ms: hardware debounce time for GPIO interrupts
-rotary_bouncetime_ms = 5
+rotary_bouncetime_ms = 1
 ### rotary_min_tick_ms: minimum time between valid ticks (helps reject jitter or contact bounce)
-rotary_min_tick_ms = 2
+rotary_min_tick_ms = 1
 ### rotary_invert: If your pin are reverted change to true
 rotary_invert = False
 ### KEY_UP/DOWN (volume in now-playing screen) need to be commented in [buttons] section if you use:
