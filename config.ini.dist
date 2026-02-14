@@ -78,7 +78,7 @@ pad11 = KEY_POWER
 
 [buttons]
 ### buttons_bouncetime_ms: hardware debounce time for GPIO interrupts
-buttons_bouncetime_ms = 5
+buttons_bouncetime_ms = 2
 ### If you use buttons, uncomment and Modify the gpio pins to suit your configuration.
 ### Required keys (essential for OliPi MoOde navigation):
 #KEY_UP = 17
