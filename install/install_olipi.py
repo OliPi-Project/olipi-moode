@@ -1531,10 +1531,10 @@ def main():
                         REEXEC_FLAG.touch()
                     except Exception as e:
                         log_line(error=f"Failed creating reexec flag: {e}", context="main")
-                        script_path = os.path.abspath(__file__)
-                        print(SETUP.get("reexecut_script", {}).get(lang, "\n🔁 Re-executing freshly cloned install_olipi.py to pick up updates..."))
-                        print(f"[debug] → relaunching with args: --dev")
-                        os.execv(sys.executable, [sys.executable, script_path, "--dev"])
+                    script_path = os.path.abspath(__file__)
+                    print(SETUP.get("reexecut_script", {}).get(lang, "\n🔁 Re-executing freshly cloned install_olipi.py to pick up updates..."))
+                    print(f"[debug] → relaunching with args: --dev")
+                    os.execv(sys.executable, [sys.executable, script_path, "--dev"])
                 else:
                     print("[dev] Repo cloning skipped")
             install_apt_dependencies()
