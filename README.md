@@ -71,7 +71,6 @@ Release Note:
 - [Troubleshooting](#-troubleshooting-and-faq)
 - [Contributing](#-contributing)
 - [License](#-license)
-- [Disclaimer](#-disclaimer)
 
 ---
 
