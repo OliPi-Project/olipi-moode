@@ -66,8 +66,7 @@ Release Note:
 - [IR remote configuration](#-ir-remote-configuration)
 - [GPIO and rotary encoder support](#-gpio-and-rotary-encoder-support)
 - [Key configuration](#-key-configuration)
-- [Configuration via tools menu](#-configuration-via-tools-menu-in-uiplaying)
-- [Moode configuration reminder](#-moode-configuration-reminder)
+- [Configuration via display menu](#-configuration-via-menu-in-now-playing-screen)
 - [Uninstall](#-uninstall)
 - [Troubleshooting](#-troubleshooting-and-faq)
 - [Contributing](#-contributing)
@@ -360,7 +359,7 @@ See the [LICENSE](./LICENSE) file for details.
 This project requires the [Moode audio player](https://moodeaudio.org/) and reuses some php code logic to update certain configurations. (currently in assets/audioout-toggle.php and assets/update_local_stream.php )
 Moode is licensed under GPLv3: https://moodeaudio.org/LICENSE.txt
 
-## ⚠️ **Disclaimer**
+## ⚠️ Disclaimer
 
 This project is neither affiliated with nor endorsed by the official Moode Audio team.
 
