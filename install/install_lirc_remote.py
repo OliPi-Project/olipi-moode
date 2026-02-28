@@ -646,6 +646,7 @@ def update_lirc_options(lang):
     safe_write_file_as_root(LIRC_OPTIONS, updated_lines, critical=True)
     print(MESSAGES["lirc_conf_update"][lang])
     log_line(msg=f"Updated {LIRC_OPTIONS} (driver, device, socket sync)", context="update_lirc_options")
+    run_command("systemctl daemon-reload", sudo=True, interactive=False, show_output=True, log_out=True, check=False)
 
 def enable_use_lirc_in_config(lang):
     if not os.path.exists(CONFIG_INI):
