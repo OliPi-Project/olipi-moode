@@ -50,6 +50,10 @@ use_mpr121 = False
 use_buttons = False
 use_rotary = False
 
+[lirc]
+### Change this value if your remote control has a problem with key repetition.
+lirc_bouncetime_s = 0.20
+
 [mpr121]
 i2c_address = 0x5A
 int_pin = 4
