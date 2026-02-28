@@ -635,13 +635,17 @@ def update_lirc_options(lang):
                 updated_lines.append("driver          = default\n")
             elif stripped.startswith("device"):
                 updated_lines.append("device          = /dev/lirc0\n")
+            elif stripped.startswith("output"):
+                updated_lines.append("output          = /run/lirc/lircd\n")
+            elif stripped.startswith("pidfile"):
+                updated_lines.append("pidfile         = /run/lirc/lircd.pid\n")
             else:
                 updated_lines.append(line if line.endswith("\n") else line + "\n")
         else:
             updated_lines.append(line if line.endswith("\n") else line + "\n")
     safe_write_file_as_root(LIRC_OPTIONS, updated_lines, critical=True)
     print(MESSAGES["lirc_conf_update"][lang])
-    log_line(msg=f"Updated {LIRC_OPTIONS}", context="update_lirc_options")
+    log_line(msg=f"Updated {LIRC_OPTIONS} (driver, device, socket sync)", context="update_lirc_options")
 
 def enable_use_lirc_in_config(lang):
     if not os.path.exists(CONFIG_INI):
