@@ -646,7 +646,6 @@ def update_lirc_options(lang):
     safe_write_file_as_root(LIRC_OPTIONS, updated_lines, critical=True)
     print(MESSAGES["lirc_conf_update"][lang])
     log_line(msg=f"Updated {LIRC_OPTIONS} (driver, device, socket sync)", context="update_lirc_options")
-    run_command("systemctl daemon-reload", sudo=True, interactive=False, show_output=True, log_out=True, check=False)
 
 def enable_use_lirc_in_config(lang):
     if not os.path.exists(CONFIG_INI):
@@ -681,15 +680,29 @@ def enable_use_lirc_in_config(lang):
 # ---------- Remote manager functions ----------
 def restart_lirc_and_ui_playing(lang, sudo=True):
     try:
-        run_command("systemctl restart lircd", sudo=sudo, interactive=False, show_output=True, log_out=True, check=False)
+        # Stop UI first (important: it uses irw)
+        run_command("systemctl stop olipi-ui-playing", sudo=sudo, interactive=False, show_output=True, log_out=True, check=False)
+        #print(MESSAGES["ui_playing_stop"][lang])
+        time.sleep(0.3)
+
+        # Fully reset LIRC (service + socket)
+        run_command("systemctl stop lircd.service lircd.socket", sudo=sudo, interactive=False, show_output=True, log_out=True, check=False)
+        time.sleep(0.3)
+
+        run_command("systemctl start lircd.socket", sudo=sudo, interactive=False, show_output=True, log_out=True, check=False)
+        time.sleep(0.3)
+
+        run_command("systemctl start lircd.service", sudo=sudo, interactive=False, show_output=True, log_out=True, check=False)
         print(MESSAGES["lirc_restart"][lang])
         time.sleep(0.5)
-        run_command("systemctl restart olipi-ui-playing", sudo=sudo, interactive=False, show_output=True, log_out=True, check=False)
+
+        # Restart UI last
+        run_command("systemctl start olipi-ui-playing",sudo=sudo, interactive=False, show_output=True, log_out=True, check=False)
         print(MESSAGES["ui_playing_restart"][lang])
+
     except Exception as e:
         log_line(error=f"⚠ Error restart service: {e}", context="restart_lirc_and_ui_playing")
-        print(f"⚠️ Error restart service: {e}, continuing anyway or ctrl+c to quit and check what wrong.")
-        pass
+        print(f"⚠️ Error restart service: {e}")
 
 def stop_ui_playing(lang, sudo=True):
     try:
