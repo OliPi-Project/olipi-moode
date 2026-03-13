@@ -19,7 +19,7 @@ It allows to design audio boxes with built-in displays and controls.
 </p>
 <p align="center">
   <img src="https://github.com/OliPi-Project/olipi-moode/blob/main/docs/screenshots/v0-3-4.JPEG" width="400" alt="v0.3.4 Demo">
-  <img src="https://github.com/OliPi-Project/olipi-moode/blob/main/docs/screenshots/Proto-V2_c.JPG" width="400" alt="Under the w(h)ood">
+  <img src="https://github.com/OliPi-Project/olipi-moode/blob/main/docs/screenshots/Proto-V2_c.jpg" width="400" alt="Under the w(h)ood">
 </p>
 
 [https://youtu.be/9Y13UeyyT7k?si=hkOkiP9gk0rjxlB8](https://youtu.be/9Y13UeyyT7k?si=hkOkiP9gk0rjxlB8)
