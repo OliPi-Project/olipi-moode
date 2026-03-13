@@ -11,7 +11,7 @@ OliPi MoOde is an user interface for OLED/LCD screens >= 128x64 for [Moode Audio
 It allows to design audio boxes with built-in displays and controls.
 
 <p align="center">
-  <img src="https://github.com/OliPi-Project/olipi-moode/blob/main/docs/screenshots/Proto-V2.jpg" width="802" alt="v0.3.4 Demo">
+  <img src="https://github.com/OliPi-Project/olipi-moode/blob/main/docs/screenshots/Proto-V2.jpg" width="802" alt="Proto V2">
 </p>
 <p align="center">
   <img src="https://github.com/OliPi-Project/olipi-moode/blob/main/docs/screenshots/TFT_demo.gif" width="400" alt="All Screens Demo">
@@ -19,6 +19,7 @@ It allows to design audio boxes with built-in displays and controls.
 </p>
 <p align="center">
   <img src="https://github.com/OliPi-Project/olipi-moode/blob/main/docs/screenshots/v0-3-4.JPEG" width="400" alt="v0.3.4 Demo">
+  <img src="https://github.com/OliPi-Project/olipi-moode/blob/main/docs/screenshots/Proto-V2_c.JPG" width="400" alt="Under the w(h)ood">
 </p>
 
 [https://youtu.be/9Y13UeyyT7k?si=hkOkiP9gk0rjxlB8](https://youtu.be/9Y13UeyyT7k?si=hkOkiP9gk0rjxlB8)
@@ -110,7 +111,7 @@ Release Note:
   | SSD1351     | 128×128    | 1.5      | RGB        |
   | ST7735R     | 128×160    | 1.77     | RGB        |
   | ST7789 1.9" | 170×320    | 1.9      | RGB        |
-  | ST7789 2" 2.4" 2.8" | 240×320 | 2.0   | RGB      |
+  | ST7789 2" 2.4" 2.8" | 240×320 | 2.0 to 2.8   | RGB      |
     
   For SPI screen Plan your wiring carefully: OliPi-Moode uses several GPIOs for buttons, IR and audio control if you use I2s DAC and/or GPIOs buttons/rotary. 
   
