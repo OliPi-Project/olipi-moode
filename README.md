@@ -8,7 +8,9 @@
 # OliPi MoOde
 
 OliPi MoOde is an user interface for OLED/LCD screens >= 128x64 for [Moode Audio](https://moodeaudio.org/) with control via IR remote control and/or GPIO buttons/rotary encoder. And now also with MPR121 capacitive touch.
-
+<p align="center">
+<img src="https://github.com/OliPi-Project/olipi-moode/blob/main/docs/screenshots/Proto-V2.JPG" width="400" alt="v0.3.4 Demo">
+</p>
 <p align="center">
   <img src="https://github.com/OliPi-Project/olipi-moode/blob/main/docs/screenshots/TFT_demo.gif" width="400" alt="All Screens Demo">
   <img src="https://github.com/OliPi-Project/olipi-moode/blob/main/docs/screenshots/SSD1306_demo.gif" width="400" alt="Menus Demo">
