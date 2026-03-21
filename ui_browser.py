@@ -1263,7 +1263,7 @@ def assign_shortcut_to_selected():
         if is_key_already_used(key):
             core.show_message("Key already used")
             return
-        core.save_config(key, action , section="shortcut")
+        core.save_config(key, action , section="shortcut", preserve_case=True)
         core.show_message(f"{key} assigned")
     learning_mode = True
     learning_callback = on_key
