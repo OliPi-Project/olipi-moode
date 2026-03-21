@@ -1238,10 +1238,10 @@ def draw_library():
         core.draw.text((x_text, text_y), full_text, font=font_item, fill=core.COLOR_MENU_SELECTED_TEXT)
 
 def build_shortcut_action(typ, val):
-    if typ == "P":
-        return f"playlist:{val}"
-    elif typ == "R":
+    if typ == "R":
         return f"radio:{val}"
+    elif typ == "P":
+        return f"playlist:{val}"
     elif typ == "D":
         return f"folder:{val}"
     elif typ == "F":
@@ -1250,28 +1250,21 @@ def build_shortcut_action(typ, val):
 
 def assign_shortcut_to_selected():
     global learning_mode, learning_callback
-
     typ, val = library_items[library_selection]
     action = build_shortcut_action(typ, val)
-
     if not action:
         core.show_message("Invalid item")
         return
-
     core.show_message("Press a key...")
-
     def on_key(key):
         if is_key_reserved(key):
             core.show_message("Key reserved")
             return
-
         if is_key_already_used(key):
             core.show_message("Key already used")
             return
-
         core.save_config(key, action , section="shortcut")
         core.show_message(f"{key} assigned")
-
     learning_mode = True
     learning_callback = on_key
 
@@ -1710,7 +1703,7 @@ def finish_press(key):
     global help_active, help_selection, copy_mode_active, copy_source_items
     global confirm_Box_active, confirm_Box_active_selection, confirm_Box_callback
     global copy_action_menu_active, copy_action_menu_selection, copy_confirm_target
-    global screen_on, idle_timer, is_sleeping, last_wake_time
+    global screen_on, idle_timer, is_sleeping, last_wake_time, learning_mode, learning_callback
 
     data = debounce_data.get(key)
     if data is None:

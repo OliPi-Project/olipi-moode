@@ -23,6 +23,33 @@ def set_hooks(show_fn, next_fn=None, prev_fn=None, stop_flag_fn=None):
     previous_stream = prev_fn
     set_stream_manual_stop = stop_flag_fn
 
+shortcuts = {}
+def load_shortcuts(config):
+    global shortcuts
+    if config.has_section("shortcut"):
+        shortcuts = dict(config["shortcut"])
+    else:
+        shortcuts = {}
+
+def execute_shortcut(action, menu_context_flag=""):
+    try:
+        typ, value = action.split(":", 1)
+    except ValueError:
+        return False
+    # sécurité stream local
+    if menu_context_flag == "local_stream" and set_stream_manual_stop:
+        set_stream_manual_stop(manual_stop=True)
+    if typ == "playlist":
+        subprocess.run(f"mpc clear; mpc load '{value}'; mpc play", shell=True)
+    elif typ == "folder":
+        subprocess.run(f"mpc clear; mpc add '{value}'; mpc play", shell=True)
+    elif typ == "file":
+        subprocess.run(f"mpc clear; mpc add '{value}'; mpc play", shell=True)
+    else:
+        return False
+    if show_message:
+        show_message(f"▶ {value.split('/')[-1]}")
+    return True
 
 def handle_audio_keys(key, final_code, menu_context_flag=""):
     if key in ("KEY_PLAY", "KEY_PAUSE"):
@@ -92,6 +119,10 @@ def handle_audio_keys(key, final_code, menu_context_flag=""):
 
 
 def handle_custom_key(key, final_code, menu_context_flag=""):
+
+    action = shortcuts.get(key)
+    if action:
+        return execute_shortcut(action, menu_context_flag)
 
     if final_code >= 4: #long press
         if key == "KEY_YOURKEYLONG1":
