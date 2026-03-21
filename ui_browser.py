@@ -1249,25 +1249,45 @@ def build_shortcut_action(typ, val):
     return None
 
 def assign_shortcut_to_selected():
-    global learning_mode, learning_callback
+    global learning_mode, learning_callback, blocking_render
+
     typ, val = library_items[library_selection]
     action = build_shortcut_action(typ, val)
+
     if not action:
-        core.show_message("Invalid item")
+        core.show_message(core.t("info_invalid_item"))
         return
-    core.show_message("Press a key...")
+
+    core.message_permanent = True
+    blocking_render = True
+    core.message_text = core.t("info_press_key")
+    render_screen()
+
     def on_key(key):
+        global learning_mode, learning_callback, blocking_render
+
+        core.message_permanent = False
+        core.message_text = None
+        blocking_render = False
+        learning_mode = False
+        learning_callback = None
+
         if is_key_reserved(key):
-            core.show_message("Key reserved")
+            core.show_message(core.t("info_key_reserved", key=key))
             return
-        if is_key_already_used(key):
-            core.show_message("Key already used")
-            return
-        core.save_config(key, action , section="library_shortcut", preserve_case=True)
-        core.show_message(f"{key} assigned")
+
+        already_used = is_key_already_used(key)
+
+        core.save_config(key, action, section="library_shortcuts", preserve_case=True)
+
+        if already_used:
+            core.show_message(core.t("info_key_replaced", key=key))
+        else:
+            core.show_message(core.t("info_key_assigned", key=key))
+
     learning_mode = True
     learning_callback = on_key
-    
+
 def handle_virtual_folder_action(index, val, client):
     if val == "Radios" and current_path.startswith("Search:"):
         for typ_r, val_r in radio_virtual_folder:

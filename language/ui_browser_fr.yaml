@@ -40,6 +40,11 @@ info_search_saved: "Recherche enregistré"
 info_search_removed: "Recherche supprimée"
 info_no_match_found: "Aucun résultat"
 info_search_failed: "Erreur de recherche"
+info_invalid_item: "Élément non valide"
+info_press_key: "Appuyez sur la touche que vous souhaitez attribuer"
+info_key_assigned: "{key} attribuée"
+info_key_replaced: "{key} remplacée"
+info_key_reserved: "Erreur: {key} est réservée"
 
 # Messages function navigation
 info_added_to_queue: "Ajouté à la fin de la file"

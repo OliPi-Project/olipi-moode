@@ -40,6 +40,11 @@ info_search_saved: "Search saved"
 info_search_removed: "Search removed"
 info_no_match_found: "No match found"
 info_search_failed: "Search failed"
+info_invalid_item: "Invalid item"
+info_press_key: "Press the key you want to assign"
+info_key_assigned: "{key} assigned"
+info_key_replaced: "{key} replaced"
+info_key_reserved: "Error: {key} is reserved"
 
 # Messages function navigation
 info_added_to_queue: "Added to End of Queue"

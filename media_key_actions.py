@@ -61,7 +61,6 @@ def execute_shortcut(action, menu_context_flag=""):
         return False
 
     if show_message:
-        # affiche juste le nom du fichier ou dossier sans le chemin complet
         show_message(f"▶ {value.split('/')[-1]}")
     return True
 
