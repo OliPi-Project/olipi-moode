@@ -1238,9 +1238,7 @@ def draw_library():
         core.draw.text((x_text, text_y), full_text, font=font_item, fill=core.COLOR_MENU_SELECTED_TEXT)
 
 def build_shortcut_action(typ, val):
-    if typ == "R":
-        return f"radio:{val}"
-    elif typ == "P":
+    if typ == "P":
         return f"playlist:{val}"
     elif typ == "D":
         return f"folder:{val}"
@@ -1249,22 +1247,54 @@ def build_shortcut_action(typ, val):
     return None
 
 def assign_shortcut_to_selected():
-    global learning_mode, learning_callback
+    global learning_mode, learning_callback, confirm_Box_callback
+    global blocking_render
+
     typ, val = library_items[library_selection]
     action = build_shortcut_action(typ, val)
+
     if not action:
         core.show_message("Invalid item")
         return
-    core.show_message("Press a key...")
+
+    blocking_render = True
+    core.message_permanent = True
+    core.message_text = core.t("info_press_key")
+    render_screen()
+
+    def exit_learning():
+        nonlocal learning_mode, learning_callback, blocking_render
+        learning_mode = False
+        learning_callback = None
+        core.message_permanent = False
+        blocking_render = False
+
     def on_key(key):
+
+        # ❌ touche réservée
         if is_key_reserved(key):
-            core.show_message("Key reserved")
+            core.message_text = core.t("key_reserved_try_again")
             return
+
+        # ⚠️ touche déjà utilisée → confirmation
         if is_key_already_used(key):
-            core.show_message("Key already used")
+
+            def confirm_override():
+                core.save_config(key, action, section="library_shortcuts", preserve_case=True)
+                exit_learning()
+                core.show_message(f"{key} reassigned")
+
+            core.open_confirm_box(
+                core.t("key_already_used_confirm"),
+                confirm_override
+            )
             return
-        core.save_config(key, action , section="library_shortcut", preserve_case=True)
+
+        # ✅ cas normal
+        core.save_config(key, action, section="library_shortcuts", preserve_case=True)
+        exit_learning()
         core.show_message(f"{key} assigned")
+
     learning_mode = True
     learning_callback = on_key
 

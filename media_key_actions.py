@@ -37,8 +37,8 @@ def set_hooks(cfg, show_fn, next_fn=None, prev_fn=None, stop_flag_fn=None):
 def load_shortcuts():
     global shortcuts
     shortcuts = {}
-    if config and config.has_section("library_shortcut"):
-        shortcuts = dict(config["library_shortcut"])
+    if config and config.has_section("library_shortcuts"):
+        shortcuts = dict(config["library_shortcuts"])
 
 def execute_shortcut(action, menu_context_flag=""):
     try:
@@ -157,8 +157,8 @@ def handle_custom_key(key, final_code, menu_context_flag=""):
 # ------------------------
 def get_used_keys():
     keys = set()
-    if config and config.has_section("library_shortcut"):
-        keys.update(config["library_shortcut"].keys())
+    if config and config.has_section("library_shortcuts"):
+        keys.update(config["library_shortcuts"].keys())
     return keys
 
 USED_MEDIA_KEYS = get_used_keys()
