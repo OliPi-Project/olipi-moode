@@ -1250,62 +1250,24 @@ def build_shortcut_action(typ, val):
 
 def assign_shortcut_to_selected():
     global learning_mode, learning_callback
-    global blocking_render
-    global confirm_Box_active, confirm_Box_callback, confirm_Box_active_selection, confirm_Box_title
-
     typ, val = library_items[library_selection]
     action = build_shortcut_action(typ, val)
-
     if not action:
-        core.show_message(core.t("info_invalid_item"))
+        core.show_message("Invalid item")
         return
-
-    blocking_render = True
-    core.message_permanent = True
-    core.message_text = core.t("info_press_key")
-    render_screen()
-
-    def exit_learning():
-        global learning_mode, learning_callback, blocking_render
-        learning_mode = False
-        learning_callback = None
-        core.message_permanent = False
-        blocking_render = False
-
+    core.show_message("Press a key...")
     def on_key(key):
-        global confirm_Box_active, confirm_Box_callback, confirm_Box_active_selection, confirm_Box_title
-
-        # ❌ touche réservée
         if is_key_reserved(key):
-            core.message_text = core.t("info_key_reserved")
-            render_screen()
+            core.show_message("Key reserved")
             return
-
-        # ⚠️ touche déjà utilisée → confirm box
         if is_key_already_used(key):
-            print("already used")
-            core.message_permanent = False
-            blocking_render = False
-
-            def confirm_override():
-                core.save_config(key, action, section="library_shortcuts", preserve_case=True)
-                exit_learning()
-                core.show_message(f"{key} reassigned")
-
-            confirm_Box_title = core.t("key_already_used_confirm")
-            confirm_Box_callback = confirm_override
-            confirm_Box_active = True
-            confirm_Box_active_selection = 0
+            core.show_message("Key already used")
             return
-
-        # ✅ cas normal
-        core.save_config(key, action, section="library_shortcuts", preserve_case=True)
-        exit_learning()
+        core.save_config(key, action , section="library_shortcut", preserve_case=True)
         core.show_message(f"{key} assigned")
-
     learning_mode = True
     learning_callback = on_key
-
+    
 def handle_virtual_folder_action(index, val, client):
     if val == "Radios" and current_path.startswith("Search:"):
         for typ_r, val_r in radio_virtual_folder:
