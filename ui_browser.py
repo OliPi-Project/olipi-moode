@@ -208,9 +208,9 @@ def is_key_reserved(key):
     return key in RESERVED_KEYS
 
 def is_key_already_used(key):
-    if not core.config.has_section("shortcuts"):
+    if not core.config.has_section("library_shortcuts"):
         return False
-    return key in core.config["shortcuts"]
+    return key in core.config["library_shortcuts"]
 
 def build_radio_url_to_title1_map(pls_directory="/var/lib/mpd/music/RADIO"):
     url_to_title = {}
@@ -1238,7 +1238,9 @@ def draw_library():
         core.draw.text((x_text, text_y), full_text, font=font_item, fill=core.COLOR_MENU_SELECTED_TEXT)
 
 def build_shortcut_action(typ, val):
-    if typ == "P":
+    if typ == "R":
+        return f"radio:{val}"
+    elif typ == "P":
         return f"playlist:{val}"
     elif typ == "D":
         return f"folder:{val}"
@@ -1247,14 +1249,15 @@ def build_shortcut_action(typ, val):
     return None
 
 def assign_shortcut_to_selected():
-    global learning_mode, learning_callback, confirm_Box_callback
+    global learning_mode, learning_callback
     global blocking_render
+    global confirm_Box_active, confirm_Box_callback, confirm_Box_active_selection, confirm_Box_title
 
     typ, val = library_items[library_selection]
     action = build_shortcut_action(typ, val)
 
     if not action:
-        core.show_message("Invalid item")
+        core.show_message(core.t("info_invalid_item"))
         return
 
     blocking_render = True
@@ -1263,31 +1266,36 @@ def assign_shortcut_to_selected():
     render_screen()
 
     def exit_learning():
-        nonlocal learning_mode, learning_callback, blocking_render
+        global learning_mode, learning_callback, blocking_render
         learning_mode = False
         learning_callback = None
         core.message_permanent = False
         blocking_render = False
 
     def on_key(key):
+        global confirm_Box_active, confirm_Box_callback, confirm_Box_active_selection, confirm_Box_title
 
         # ❌ touche réservée
         if is_key_reserved(key):
-            core.message_text = core.t("key_reserved_try_again")
+            core.message_text = core.t("info_key_reserved")
+            render_screen()
             return
 
-        # ⚠️ touche déjà utilisée → confirmation
+        # ⚠️ touche déjà utilisée → confirm box
         if is_key_already_used(key):
+            print("already used")
+            core.message_permanent = False
+            blocking_render = False
 
             def confirm_override():
                 core.save_config(key, action, section="library_shortcuts", preserve_case=True)
                 exit_learning()
                 core.show_message(f"{key} reassigned")
 
-            core.open_confirm_box(
-                core.t("key_already_used_confirm"),
-                confirm_override
-            )
+            confirm_Box_title = core.t("key_already_used_confirm")
+            confirm_Box_callback = confirm_override
+            confirm_Box_active = True
+            confirm_Box_active_selection = 0
             return
 
         # ✅ cas normal
