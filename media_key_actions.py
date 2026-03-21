@@ -46,19 +46,22 @@ def execute_shortcut(action, menu_context_flag=""):
     except ValueError:
         return False
 
-    # --- Safety for local streams ---
     if menu_context_flag == "local_stream" and set_stream_manual_stop:
         set_stream_manual_stop(manual_stop=True)
 
-    # --- Execute action ---
     if typ == "playlist":
-        subprocess.run(f"mpc clear; mpc load '{value}'; mpc play", shell=True)
+        subprocess.run(["mpc", "clear"], check=False)
+        subprocess.run(["mpc", "load", value], check=False)
+        subprocess.run(["mpc", "play"], check=False)
     elif typ in ("folder", "file"):
-        subprocess.run(f"mpc clear; mpc add '{value}'; mpc play", shell=True)
+        subprocess.run(["mpc", "clear"], check=False)
+        subprocess.run(["mpc", "add", value], check=False)
+        subprocess.run(["mpc", "play"], check=False)
     else:
         return False
 
     if show_message:
+        # affiche juste le nom du fichier ou dossier sans le chemin complet
         show_message(f"▶ {value.split('/')[-1]}")
     return True
 
