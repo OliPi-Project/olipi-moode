@@ -135,3 +135,7 @@ KEY_VOLUMEUP = —
 KEY_VOLUMEDOWN = —
 KEY_MUTE = —
 KEY_POWER = —
+
+[shortcut]
+### This is where is configured the shortcuts from the UI browser library menu.
+### You can add shortcut manually if you know what you're doing.

@@ -54,6 +54,7 @@ menu_options = [
     {"id": "add_queue", "label": core.t("menu_add_queue")},
     {"id": "add_play", "label": core.t("menu_add_play")},
     {"id": "clear_play", "label": core.t("menu_clear_play")},
+    {"id": "set_shortcut", "label": core.t("menu_set_shortcut")},
     {"id": "copy_to", "label": core.t("menu_copy_to")},
     {"id": "delete", "label": core.t("menu_delete")}
 ]
@@ -176,6 +177,7 @@ help_active = False
 help_lines = []
 help_selection = 0
 
+
 def run_active_loop():
     if not blocking_render and not is_sleeping:
         render_screen()
@@ -189,6 +191,26 @@ def run_sleep_loop():
     core.poweroff_safe()
     screen_on = False
     is_sleeping = True
+
+learning_mode = False
+learning_callback = None
+
+RESERVED_KEYS = {
+    "KEY_UP", "KEY_DOWN", "KEY_LEFT", "KEY_RIGHT",
+    "KEY_OK", "KEY_BACK", "KEY_INFO",
+    "KEY_CHANNELUP", "KEY_CHANNELDOWN", "KEY_PLAY",
+    "KEY_STOP", "KEY_NEXT", "KEY_PREVIOUS",
+    "KEY_FORWARD", "KEY_REWIND", "KEY_VOLUMEUP",
+    "KEY_VOLUMEDOWN", "KEY_MUTE", "KEY_POWER"
+}
+
+def is_key_reserved(key):
+    return key in RESERVED_KEYS
+
+def is_key_already_used(key):
+    if not core.config.has_section("shortcuts"):
+        return False
+    return key in core.config["shortcuts"]
 
 def build_radio_url_to_title1_map(pls_directory="/var/lib/mpd/music/RADIO"):
     url_to_title = {}
@@ -1215,6 +1237,44 @@ def draw_library():
 
         core.draw.text((x_text, text_y), full_text, font=font_item, fill=core.COLOR_MENU_SELECTED_TEXT)
 
+def build_shortcut_action(typ, val):
+    if typ == "P":
+        return f"playlist:{val}"
+    elif typ == "R":
+        return f"radio:{val}"
+    elif typ == "D":
+        return f"folder:{val}"
+    elif typ == "F":
+        return f"file:{val}"
+    return None
+
+def assign_shortcut_to_selected():
+    global learning_mode, learning_callback
+
+    typ, val = library_items[library_selection]
+    action = build_shortcut_action(typ, val)
+
+    if not action:
+        core.show_message("Invalid item")
+        return
+
+    core.show_message("Press a key...")
+
+    def on_key(key):
+        if is_key_reserved(key):
+            core.show_message("Key reserved")
+            return
+
+        if is_key_already_used(key):
+            core.show_message("Key already used")
+            return
+
+        core.save_config(key, action , section="shortcut")
+        core.show_message(f"{key} assigned")
+
+    learning_mode = True
+    learning_callback = on_key
+
 def handle_virtual_folder_action(index, val, client):
     if val == "Radios" and current_path.startswith("Search:"):
         for typ_r, val_r in radio_virtual_folder:
@@ -1297,6 +1357,9 @@ def trigger_menu(index):
                     client.add(val)
             client.play()
             core.show_message(core.t("info_cleared_and_played"))
+
+        elif selected_id == "set_shortcut":
+            assign_shortcut_to_selected()
 
         elif selected_id == "deselect_all" and multi_selection:
             selected_items.clear()
@@ -1658,6 +1721,12 @@ def finish_press(key):
         print(f"End pressure {key} with final code {final_code}.")
 
     idle_timer = time.time()
+
+    if learning_mode:
+        learning_mode = False
+        if learning_callback:
+            learning_callback(key)
+        return
 
     if is_sleeping:
         screen_on = True
