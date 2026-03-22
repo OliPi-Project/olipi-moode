@@ -228,6 +228,7 @@ Features:
     KEY_FORWARD = KEY_FASTFORWARD
     KEY_NEXT = KEY_NEXTSONG
     ```
+    
 If you need to change the button names or add new button in your remote control's .conf file, it's best to use names included in the namespace. You can list the valid names using the following command: `irrecord --list-namespace`
 
 ## 🎛 GPIO and rotary encoder support
