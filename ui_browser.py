@@ -1280,6 +1280,8 @@ def assign_shortcut_to_selected():
         already_used = is_key_already_used(key)
 
         core.save_config(key, action, section="library_shortcuts", preserve_case=True)
+        core.reload_config()
+        load_shortcuts()
 
         if already_used:
             core.show_message(core.t("info_key_replaced", key=key))
@@ -1288,7 +1290,6 @@ def assign_shortcut_to_selected():
 
     learning_mode = True
     learning_callback = on_key
-    core.reload_config()
 
 def handle_virtual_folder_action(index, val, client):
     if val == "Radios" and current_path.startswith("Search:"):

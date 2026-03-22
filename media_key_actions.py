@@ -167,7 +167,7 @@ def handle_audio_keys(key, final_code, menu_context_flag=""):
 # Handle custom keys (shortcuts)
 # ------------------------
 def handle_custom_key(key, final_code, menu_context_flag=""):
-    # --- Dynamic shortcuts first ---
+    # --- Dynamic shortcuts ---
     if key in shortcuts:
         return execute_shortcut(shortcuts[key], menu_context_flag)
 
