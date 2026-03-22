@@ -1525,7 +1525,7 @@ def finish_press(key):
 
 core.start_message_updater()
 start_inputs(core.config, finish_press, msg_hook=core.show_message)
-set_custom_hooks(core.t, core.config, core.show_message, next_stream, previous_stream, set_stream_manual_stop)
+set_custom_hooks(core.t, core.config, core.show_message)
 
 def main():
     global previous_blocking_render, idle_timer

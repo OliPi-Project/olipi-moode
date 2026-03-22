@@ -5,7 +5,7 @@ CH +: Add Favorites / SongLog if radio
 CH -: Remove current track from Queue
 ↑ ↓: Increase/Decrease Volume
 ← →: Previous/Next Track
-← → long: Rewind/forward 10s & more: 30s
+← → long: Rewind/forward 10s
 ↵: Playlist screen
 ↵ long: Library navigation screen
 power: Shutdown
