@@ -97,9 +97,9 @@ def handle_audio_keys(key, final_code, menu_context_flag=""):
             next_stream(manual_skip=True)
             return True
         if final_code >= 8:
-            subprocess.run(["mpc", "seek", "+00:00:10"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        elif final_code >= 4:
             subprocess.run(["mpc", "seek", "+00:00:30"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        elif final_code >= 4:
+            subprocess.run(["mpc", "seek", "+00:00:10"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         else:
             subprocess.run(["mpc", "next"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         return True
@@ -109,27 +109,27 @@ def handle_audio_keys(key, final_code, menu_context_flag=""):
             previous_stream(manual_skip=True)
             return True
         elif final_code >= 8:
-            subprocess.run(["mpc", "seek", "-00:00:10"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        elif final_code >= 4:
             subprocess.run(["mpc", "seek", "-00:00:30"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        elif final_code >= 4:
+            subprocess.run(["mpc", "seek", "-00:00:10"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         else:
             subprocess.run(["mpc", "prev"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         return True
     
     elif key == "KEY_FORWARD":
         if final_code >= 8:
-            subprocess.run(["mpc", "seek", "+00:00:30"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        elif final_code >= 4:
             subprocess.run(["mpc", "seek", "+00:01:00"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        elif final_code >= 4:
+            subprocess.run(["mpc", "seek", "+00:00:30"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         else:
             subprocess.run(["mpc", "seek", "+00:00:10"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         return True
     
     elif key == "KEY_REWIND":
         if final_code >= 8:
-            subprocess.run(["mpc", "seek", "-00:00:30"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        elif final_code >= 4:
             subprocess.run(["mpc", "seek", "-00:01:00"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        elif final_code >= 4:
+            subprocess.run(["mpc", "seek", "-00:00:30"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         else:
             subprocess.run(["mpc", "seek", "-00:00:10"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         return True
