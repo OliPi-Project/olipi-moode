@@ -196,7 +196,7 @@ Switch between the 3 main display scripts using the `KEY_BACK` button.
 
 ## 📡 IR remote configuration
 
-OliPi MoOde includes an interactive script to configure LIRC:
+OliPi MoOde includes an interactive script to install and configure LIRC:
 
 ```bash
 python3 ~/olipi-moode/install/install_lirc_remote.py
@@ -204,30 +204,30 @@ python3 ~/olipi-moode/install/install_lirc_remote.py
 
 Features:
 
-- Install and configure LIRC.
+- Install and configure LIRC for use with recever type TSOP*.
 - Hardware test (`mode2`, `irw`).
 - Download a configuration from `irdb-get`.
 - Learn a remote control (`irrecord`).
-- Move *.lircd.conf to /etc/lirc/lircd.conf.d
+- When finish learning or download it move *.lircd.conf files to /etc/lirc/lircd.conf.d/
 - Manage/edit *.lircd.conf stored in /etc/lirc/lircd.conf.d
-- Mapping editor:
+- Mapping editor (Useful if the names of your remote control buttons don't match the names expected by Olipy):
   - Reassign all keys or individually.
   - Conflict detection (confirmation if a key is already mapped).
   - Warning if mapping a system key (e.g., `KEY_UP`).
 
-Mappings are stored in `config.ini`:
+   Mappings are stored in `config.ini`:
 
-```ini
-[remote_mapping]
-#KEY_OLIPIMOODE = YOUR_REMOTE_KEY
-# Required keys
-KEY_PLAY = KEY_PLAYPAUSE
-KEY_BACK = KEY_ESC
-...
-# Optional keys
-KEY_FORWARD = KEY_FASTFORWARD
-KEY_NEXT = KEY_NEXTSONG
-```
+    ```ini
+    [remote_mapping]
+    #KEY_OLIPIMOODE = YOUR_REMOTE_KEY
+    # Required keys
+    KEY_PLAY = KEY_PLAYPAUSE
+    KEY_BACK = KEY_ESC
+    ...
+    # Optional keys
+    KEY_FORWARD = KEY_FASTFORWARD
+    KEY_NEXT = KEY_NEXTSONG
+    ```
 
 ## 🎛 GPIO and rotary encoder support
 
@@ -256,7 +256,7 @@ These keys are **required** to navigate and control all interfaces:
 | **KEY_INFO**        | Show contextual help                                |                                                    |
 | **KEY_CHANNELUP**   | Context action                                      | Add/Remove favorites, if radio: add to songlog     |
 | **KEY_CHANNELDOWN** | Context action                                      | Remove playing track from queue                    |
-| **KEY_PLAY**        | Only on Now Playing UI                              | Play/Pause / Shutdown (long press)                 |
+| **KEY_PLAY**        | Play/Pause / Reboot (long press)                    |                                                    |
 
 **For more info, press `KEY_INFO` in each context.**
 
@@ -267,22 +267,83 @@ These keys must be configured either via LIRC (`python3 ~/olipi-moode/install/in
 
 Recommended if available on your remote, but **not mandatory**:
 
-| Key                | Action                            |
-| ------------------ | --------------------------------- |
-| **KEY_STOP**       | Stop playback                     |
-| **KEY_NEXT**       | Next / Seek +10s (long press)     |
-| **KEY_PREVIOUS**   | Previous / Seek -10s (long press) |
-| **KEY_FORWARD**    | Seek +10s                         |
-| **KEY_REWIND**     | Seek -10s                         |
-| **KEY_VOLUMEUP**   | Volume +                          |
-| **KEY_VOLUMEDOWN** | Volume -                          |
-| **KEY_MUTE**       | Mute                              |
-| **KEY_POWER**      | Restart / Shutdown (long press)   |
+| Key                | Action                                          |
+| ------------------ | ----------------------------------------------- |
+| **KEY_STOP**       | Stop playback / Shutdown (longpress)            |
+| **KEY_NEXT**       | Next / Seek +10s (long press)                   |
+| **KEY_PREVIOUS**   | Previous / Seek -10s (long press)               |
+| **KEY_FORWARD**    | Seek +10s / +30 & +60 (long press & more)       |
+| **KEY_REWIND**     | Seek -10s / -30 & -60 (long press & more)       |
+| **KEY_VOLUMEUP**   | Volume +1 / +5 (long press)                     |
+| **KEY_VOLUMEDOWN** | Volume -1 / -5 (long press)                     |
+| **KEY_MUTE**       | Mute                                            |
+| **KEY_POWER**      | Shutdown / Restart (long press)                 |
 
 > **Note:** In `ui_playing`, navigation keys (`UP`, `DOWN`, `LEFT`, `RIGHT`) can be used for volume +/- and previous/next (rewind/forward on long press).
 
+### 🆓 User Keys
 
-## 🔧 Configuration via menu in Now Playing Screen
+You can assign additional buttons on your remote control to a radio station, playlist, album, or song.  
+
+The easiest way is to use the "**Set shortcut**" option from the menu (**OK** button in the UI library browser) on the item you want to create a shortcut for, then press the button of your choice (excluding the essential and optional Olipy buttons), and that’s it.  
+
+It is also possible to assign shortcuts to the GPIO buttons and the MPR121 pads by using custom button names in config.ini and proceeding in the same way as for remote control buttons via the "Set shortcut" menu entry.
+
+For example, if you have a few unused MPR121 pads or GPIO pins, you can assign them unused names:
+
+  ```ini
+  [mpr121_pads]
+  pad0 = KEY_CHANNELDOWN
+  pad1 = KEY_CHANNELUP
+  pad2 = KEY_RIGHT
+  pad3 = KEY_PLAY
+  pad4 = KEY_LEFT
+  pad5 = KEY_STOP
+  pad6 = KEY_BACK
+  pad7 = KEY_INFO
+  pad8 = KEY_MYRADIO1
+  pad9 = KEY_MYRADIO2
+  pad10 = KEY_MYPLAYLIST
+  pad11 = KEY_MYOTHERKEY
+  ```
+
+And/or with GPIO button (If you use MPR121 et GPIO You can comment out all unused keys to add custom keys like bellow):
+
+  ```ini
+  [buttons]
+  KEY_UP = 12
+  KEY_DOWN = 13
+  KEY_LEFT = 27
+  KEY_RIGHT = 17
+  KEY_OK = 16
+  KEY_BACK = 5
+  KEY_PLAY = 4
+  KEY_CHANNELUP = 26
+  KEY_CHANNELDOWN = 22
+  #KEY_INFO = 25
+  ### Can add and replace your own KEY bellow (uncommented) with any free GPIO. Need to start with KEY_ like:
+  KEY_SHORTCUT = 25
+  KEY_MYKEY = 23
+  ```
+
+Custom shortcuts are stored in the config.ini file under the **[library_shortcuts]** section. They can also be configured manually if you know the path (relative to the MPD library) or the name of the item you want to configure. Special characters and spaces are allowed.  
+
+  - playlist:name of your playlist or path of radio.pls
+  - file:path to your file.mp3 or path to your stream link
+  - folder:path to your album folder
+
+Here is an example but the easiest way is to go through the menu:
+
+  ```ini
+  [library_shortcuts]
+  KEY_MYPLAYLIST = playlist:Default Playlist
+  KEY_MYOTHERKEY = folder:USB/EA9AF9F99AF9C1DD/Scylla/Scylla & Furax Barbarossa - Portes du desert
+  KEY_MYKEY = file:USB/EA9AF9F99AF9C1DD/Audio Book/Alexandre Soljénitsyne/01 Une journée de Ivan Denissovitch.mp3
+  KEY_SHORTCUT = file:https://channels.fluxfm.de/chillhop/stream.mp3
+  KEY_MYRADIO1 = playlist:RADIO/4ZZZ FM 102.1 - Alternative.pls
+  ```
+
+## 🔧 Configuration via menu in Now Playing UI
 
 A small on-screen menu allows you to change:
 

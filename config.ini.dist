@@ -95,7 +95,7 @@ buttons_bouncetime_ms = 2
 #KEY_CHANNELUP = 26
 #KEY_CHANNELDOWN = 27
 #KEY_INFO = 25
-### Can add and replace your own KEY bellow (uncommented) with any free GPIO. Need to start with KEY_ like:
+### Can add and replace your own KEY bellow (not commented) with any free GPIO. Need to start with KEY_ like:
 #KEY_MYKEY1 = 22
 #KEY_ANOTHERKEY = 4
 
