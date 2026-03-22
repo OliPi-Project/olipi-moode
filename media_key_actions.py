@@ -74,7 +74,7 @@ def handle_audio_keys(key, final_code, menu_context_flag=""):
 
     if key in ("KEY_PLAY", "KEY_PAUSE"):
         if final_code >= 10:
-            show_message(core.t("info_reboot"))
+            show_message(t("info_reboot"))
             if menu_context_flag == "local_stream" and set_stream_manual_stop:
                 set_stream_manual_stop(manual_stop=True)
             subprocess.run("sudo moodeutl --reboot", shell=True, check=True)
@@ -86,7 +86,7 @@ def handle_audio_keys(key, final_code, menu_context_flag=""):
         if menu_context_flag == "local_stream" and set_stream_manual_stop:
             set_stream_manual_stop(manual_stop=True)
         if final_code >= 10:
-            show_message(core.t("info_poweroff"))
+            show_message(t("info_poweroff"))
             subprocess.run("sudo moodeutl --shutdown", shell=True, check=True)
         else:
             subprocess.run(["mpc", "stop"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -154,10 +154,10 @@ def handle_audio_keys(key, final_code, menu_context_flag=""):
     
     elif key == "KEY_POWER":
         if final_code >= 10:
-            show_message(core.t("info_reboot"))
+            show_message(t("info_reboot"))
             subprocess.run(["sudo", "moodeutl", "--reboot"])
         else:
-            show_message(core.t("info_poweroff"))
+            show_message(t("info_poweroff"))
             subprocess.run(["sudo", "moodeutl", "--shutdown"])
         return
 
