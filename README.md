@@ -307,7 +307,7 @@ For example, if you have a few unused MPR121 pads or GPIO pins, you can assign t
   pad11 = KEY_MYOTHERKEY
   ```
 
-And/or with GPIO button (If you use MPR121 et GPIO You can comment out all unused keys to add custom keys like bellow):
+And/or with GPIO button (If you use MPR121 and GPIO You can comment out all unused keys to add custom keys like bellow):
 
   ```ini
   [buttons]
