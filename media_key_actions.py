@@ -7,6 +7,7 @@ import time
 import re
 
 # --- Globals / injectable hooks ---
+t = None
 config = None
 show_message = None
 next_stream = None
@@ -22,8 +23,9 @@ shortcuts = {}
 # ------------------------
 # Hooks injection
 # ------------------------
-def set_hooks(cfg, show_fn, next_fn=None, prev_fn=None, stop_flag_fn=None):
-    global config, show_message, next_stream, previous_stream, set_stream_manual_stop
+def set_hooks(trsl, cfg, show_fn, next_fn=None, prev_fn=None, stop_flag_fn=None):
+    global t, config, show_message, next_stream, previous_stream, set_stream_manual_stop
+    t = trsl
     config = cfg
     show_message = show_fn
     next_stream = next_fn
@@ -71,11 +73,11 @@ def handle_audio_keys(key, final_code, menu_context_flag=""):
     global _last_volume
 
     if key in ("KEY_PLAY", "KEY_PAUSE"):
-        if final_code >= 8:
-            if show_message: show_message("Shutting down...")
+        if final_code >= 10:
+            show_message(core.t("info_reboot"))
             if menu_context_flag == "local_stream" and set_stream_manual_stop:
                 set_stream_manual_stop(manual_stop=True)
-            subprocess.run("mpc stop && sudo systemctl stop nginx && sudo poweroff", shell=True, check=True)
+            subprocess.run("sudo moodeutl --reboot", shell=True, check=True)
         else:
             subprocess.run(["mpc", "toggle"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         return True
@@ -83,7 +85,11 @@ def handle_audio_keys(key, final_code, menu_context_flag=""):
     elif key == "KEY_STOP":
         if menu_context_flag == "local_stream" and set_stream_manual_stop:
             set_stream_manual_stop(manual_stop=True)
-        subprocess.run(["mpc", "stop"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        if final_code >= 10:
+            show_message(core.t("info_poweroff"))
+            subprocess.run("sudo moodeutl --shutdown", shell=True, check=True)
+        else:
+            subprocess.run(["mpc", "stop"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         return True
 
     elif key == "KEY_NEXT":
@@ -92,6 +98,8 @@ def handle_audio_keys(key, final_code, menu_context_flag=""):
             return True
         if final_code >= 4:
             subprocess.run(["mpc", "seek", "+00:00:10"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        if final_code >= 8:
+            subprocess.run(["mpc", "seek", "+00:00:30"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         else:
             subprocess.run(["mpc", "next"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         return True
@@ -102,32 +110,56 @@ def handle_audio_keys(key, final_code, menu_context_flag=""):
             return True
         if final_code >= 4:
             subprocess.run(["mpc", "seek", "-00:00:10"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        if final_code >= 8:
+            subprocess.run(["mpc", "seek", "-00:00:30"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         else:
             subprocess.run(["mpc", "prev"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         return True
+    
+    elif key == "KEY_FORWARD":
+        if final_code >= 4:
+            subprocess.run(["mpc", "seek", "+00:00:30"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        if final_code >= 8:
+            subprocess.run(["mpc", "seek", "+00:01:00"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        else:
+            subprocess.run(["mpc", "seek", "+00:00:10"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return True
+    
+    elif key == "KEY_REWIND":
+        if final_code >= 4:
+            subprocess.run(["mpc", "seek", "-00:00:30"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        if final_code >= 8:
+            subprocess.run(["mpc", "seek", "-00:01:00"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        else:
+            subprocess.run(["mpc", "seek", "-00:00:10"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return True
 
     elif key == "KEY_VOLUMEUP":
-        subprocess.run(["mpc", "volume", "+1"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        if final_code >= 6:
+            subprocess.run(["/var/www/util/vol.sh", "-up", "5"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        else:
+            subprocess.run(["/var/www/util/vol.sh", "-up", "1"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         return True
 
     elif key == "KEY_VOLUMEDOWN":
-        subprocess.run(["mpc", "volume", "-1"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        if final_code >= 6:
+            subprocess.run(["/var/www/util/vol.sh", "-dn", "5"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        else:
+            subprocess.run(["/var/www/util/vol.sh", "-dn", "1"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         return True
 
     elif key == "KEY_MUTE":
-        result = subprocess.run(["mpc", "status"], capture_output=True, text=True)
-        m = re.search(r"volume:\s*(\d+)%", result.stdout)
-        if m:
-            current_vol = int(m.group(1))
-            if current_vol > 0:
-                _last_volume = current_vol
-                subprocess.run(["mpc", "volume", "0"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            else:
-                restore_vol = _last_volume if _last_volume is not None else 3
-                subprocess.run(["mpc", "volume", str(restore_vol)])
+        subprocess.run(["/var/www/util/vol.sh", "-mute"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return 
+    
+    elif key == "KEY_POWER":
+        if final_code >= 10:
+            show_message(core.t("info_reboot"))
+            subprocess.run(["sudo", "moodeutl", "--reboot"])
         else:
-            subprocess.run(["mpc", "volume", "1"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        return True
+            show_message(core.t("info_poweroff"))
+            subprocess.run(["sudo", "moodeutl", "--shutdown"])
+        return
 
     return False
 
@@ -146,7 +178,7 @@ def handle_custom_key(key, final_code, menu_context_flag=""):
         subprocess.run("mpc stop; mpc clear", shell=True)
         time.sleep(1)
         subprocess.run("mpc load Favorites; mpc play", shell=True)
-        if show_message: show_message("Reading Favorites")
+        show_message("Reading Favorites")
         return True
 
     return False

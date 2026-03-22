@@ -3286,24 +3286,14 @@ def finish_press(key):
         return
 
     if final_code >= 4:
-        if key == "KEY_LEFT":
-            nav_left_long()
-        elif key == "KEY_OK":
-            nav_ok_long()
-        elif key == "KEY_BACK":
-            nav_back_long()
-        elif key == "KEY_RIGHT":
-            nav_right_long()
-        elif key == "KEY_INFO":
-            nav_info_long()
-        elif key == "KEY_POWER":
-            core.show_message(core.t("info_poweroff"))
-            subprocess.run(["mpc", "stop"])
-            subprocess.run(["sudo", "systemctl", "stop", "nginx"])
-            subprocess.run(["sudo", "poweroff"])
-        elif handle_audio_keys(key, final_code):
+        if key == "KEY_LEFT": nav_left_long()
+        elif key == "KEY_OK": nav_ok_long()
+        elif key == "KEY_BACK": nav_back_long()
+        elif key == "KEY_RIGHT": nav_right_long()
+        elif key == "KEY_INFO": nav_info_long()
+        elif handle_audio_keys(key, final_code, menu_context_flag):
             return
-        elif handle_custom_key(key, final_code):
+        elif handle_custom_key(key, final_code, menu_context_flag):
             return
         return
 
@@ -3406,14 +3396,10 @@ def finish_press(key):
             power_menu_active = False
             if option_id == "poweroff":
                 core.show_message(core.t("info_poweroff"))
-                subprocess.call(["mpc", "stop"])
-                subprocess.call(["sudo", "systemctl", "stop", "nginx"])
-                subprocess.call(["sudo", "poweroff"])
+                subprocess.run(["sudo", "moodeutl", "--shutdown"])
             elif option_id == "reboot":
                 core.show_message(core.t("info_reboot"))
-                subprocess.call(["mpc", "stop"])
-                subprocess.call(["sudo", "systemctl", "stop", "nginx"])
-                subprocess.call(["sudo", "reboot"])
+                subprocess.run(["sudo", "moodeutl", "--reboot"])
             elif option_id == "reload_screen":
                 core.show_message(core.t("info_reload_screen"))
                 subprocess.call(["sudo", "systemctl", "restart", "olipi-ui-playing.service"])
@@ -3984,11 +3970,6 @@ def finish_press(key):
             nav_channelup()
         elif key == "KEY_CHANNELDOWN":
             nav_channeldown()
-        elif key == "KEY_POWER":
-            core.show_message(core.t("info_reboot"))
-            subprocess.run(["mpc", "stop"])
-            subprocess.run(["sudo", "systemctl", "stop", "nginx"])
-            subprocess.run(["sudo", "reboot"])
         elif handle_audio_keys(key, final_code, menu_context_flag):
             return
         elif handle_custom_key(key, final_code, menu_context_flag):
@@ -4002,7 +3983,7 @@ def finish_press(key):
 core.start_message_updater()
 
 start_inputs(core.config, finish_press, msg_hook=core.show_message)
-set_custom_hooks(core.config, core.show_message, next_stream, previous_stream, set_stream_manual_stop)
+set_custom_hooks(core.t, core.config, core.show_message, next_stream, previous_stream, set_stream_manual_stop)
 
 def main():
     global previous_blocking_render, idle_timer

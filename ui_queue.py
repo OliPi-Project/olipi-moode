@@ -20,6 +20,7 @@ os.environ.setdefault("OLIPI_DIR", str(OLIPIMOODE_DIR))
 
 from olipi_core import core_common as core
 from olipi_core.input_manager import start_inputs, debounce_data, process_key
+from media_key_actions import handle_audio_keys, handle_custom_key, USED_MEDIA_KEYS, set_hooks as set_custom_hooks
 
 font_title = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 10)
 font_item = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 11)
@@ -1249,17 +1250,16 @@ def finish_press(key):
         if key in ("KEY_LEFT", "KEY_OK"):
             core.message_text = None
         return
-
+    
     if final_code >= 4:
         if key == "KEY_LEFT": nav_left_long()
         elif key == "KEY_BACK": nav_back_long()
         elif key == "KEY_RIGHT": nav_right_long()
         elif key == "KEY_OK": nav_ok_long()
-        elif key == "KEY_POWER":
-            core.show_message(core.t("info_poweroff"))
-            subprocess.run(["mpc", "stop"])
-            subprocess.run(["sudo", "systemctl", "stop", "nginx"])
-            subprocess.run(["sudo", "poweroff"])
+        elif handle_audio_keys(key, final_code):
+            return
+        elif handle_custom_key(key, final_code):
+            return
         return
 
     if key == "KEY_INFO":
@@ -1513,11 +1513,10 @@ def finish_press(key):
         elif key == "KEY_DOWN":
             nav_down()
             core.reset_scroll("queue_item", "menu_item")
-        elif key == "KEY_POWER":
-            core.show_message(core.t("info_reboot"))
-            subprocess.run(["mpc", "stop"])
-            subprocess.run(["sudo", "systemctl", "stop", "nginx"])
-            subprocess.run(["sudo", "reboot"])
+        elif handle_audio_keys(key, final_code):
+            return
+        elif handle_custom_key(key, final_code):
+            return
         else:
             if core.DEBUG:
                 print(f"key {key} not used in this script")
@@ -1526,6 +1525,7 @@ def finish_press(key):
 
 core.start_message_updater()
 start_inputs(core.config, finish_press, msg_hook=core.show_message)
+set_custom_hooks(core.t, core.config, core.show_message, next_stream, previous_stream, set_stream_manual_stop)
 
 def main():
     global previous_blocking_render, idle_timer
