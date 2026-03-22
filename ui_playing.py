@@ -3071,11 +3071,11 @@ def nav_right_short():
 
 def nav_up():
     if now_playing_mode:
-        subprocess.run(["mpc", "volume", "+1"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+        subprocess.run(["/var/www/util/vol.sh", "-up", "1"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
 
 def nav_down():
     if now_playing_mode:
-        subprocess.run(["mpc", "volume", "-1"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+        subprocess.run(["/var/www/util/vol.sh", "-dn", "1"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
 
 def nav_right_long():
     if now_playing_mode:

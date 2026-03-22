@@ -178,7 +178,6 @@ def handle_custom_key(key, final_code, menu_context_flag=""):
         subprocess.run("mpc stop; mpc clear", shell=True)
         time.sleep(1)
         subprocess.run("mpc load Favorites; mpc play", shell=True)
-        show_message("Reading Favorites")
         return True
 
     return False

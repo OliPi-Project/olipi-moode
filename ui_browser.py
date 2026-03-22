@@ -1288,6 +1288,7 @@ def assign_shortcut_to_selected():
 
     learning_mode = True
     learning_callback = on_key
+    core.reload_config()
 
 def handle_virtual_folder_action(index, val, client):
     if val == "Radios" and current_path.startswith("Search:"):
@@ -2107,7 +2108,7 @@ if os.path.exists(override_path):
 
 core.start_message_updater()
 start_inputs(core.config, finish_press, msg_hook=core.show_message)
-set_custom_hooks(core.t, core.config, core.show_message, next_stream, previous_stream, set_stream_manual_stop)
+set_custom_hooks(core.t, core.config, core.show_message)
 
 def main():
     global previous_blocking_render, idle_timer
