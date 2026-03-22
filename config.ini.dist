@@ -63,7 +63,7 @@ touch_threshold = 30
 release_threshold = 20
 
 [mpr121_pads]
-### Set KEY and thresholds for each pad if needed:
+### Set KEY and thresholds for each pad if needed. Can use any Key name (required, optional or your own) but need to start with KEY_
 ### "pad3 = KEY_YOURKEY" without threshold if you want to use default thresold or "pad3 = KEY_YOURKEY, 80, 75" if individual configuration is required.
 pad0 = KEY_UP
 pad1 = KEY_DOWN
@@ -95,6 +95,9 @@ buttons_bouncetime_ms = 2
 #KEY_CHANNELUP = 26
 #KEY_CHANNELDOWN = 27
 #KEY_INFO = 25
+### Can add and replace your own KEY bellow (uncommented) with any free GPIO. Need to start with KEY_ like:
+#KEY_MYKEY1 = 22
+#KEY_ANOTHERKEY = 4
 
 [rotary]
 ### if you use rotary encoder, uncomment and modify to suit your configuration.
