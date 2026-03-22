@@ -228,6 +228,7 @@ Features:
     KEY_FORWARD = KEY_FASTFORWARD
     KEY_NEXT = KEY_NEXTSONG
     ```
+If you need to change the button names or add new button in your remote control's .conf file, it's best to use names included in the namespace. You can list the valid names using the following command: `irrecord --list-namespace`
 
 ## 🎛 GPIO and rotary encoder support
 
@@ -285,7 +286,7 @@ Recommended if available on your remote, but **not mandatory**:
 
 You can assign additional buttons on your remote control to a radio station, playlist, album, or song.  
 
-The easiest way is to use the "**Set shortcut**" option from the menu (**OK** button in the UI library browser) on the item you want to create a shortcut for, then press the button of your choice (excluding the essential and optional Olipy buttons), and that’s it.  
+The easiest way is to use the "**Set shortcut**" option from the menu (**OK** button in the UI library browser) on the item you want to create a shortcut for, then press the button of your choice (excluding the essential and optional Olipy buttons), and that’s it (But make sure your remote control is set up correctly; see [IR remote configuration](#-ir-remote-configuration) if necessary). 
 
 It is also possible to assign shortcuts to the GPIO buttons and the MPR121 pads by using custom button names in config.ini and proceeding in the same way as for remote control buttons via the "Set shortcut" menu entry.
 
