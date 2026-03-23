@@ -152,7 +152,7 @@ def handle_audio_keys(key, final_code, menu_context_flag=""):
 
     elif key == "KEY_MUTE":
         subprocess.run(["/var/www/util/vol.sh", "-mute"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        return 
+        return True
     
     elif key == "KEY_POWER":
         if final_code >= 10:
@@ -161,7 +161,7 @@ def handle_audio_keys(key, final_code, menu_context_flag=""):
         else:
             show_message(t("info_poweroff"))
             subprocess.run(["sudo", "moodeutl", "--shutdown"])
-        return
+        return True
 
     return False
 
