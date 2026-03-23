@@ -1030,7 +1030,7 @@ def draw_search_screen():
     visible_width = core.width - 2 * input_padding_x
     scroll_offset = 0
     if text_width_before_cursor > visible_width:
-        scroll_offset = text_width_before_cursor - visible_width + 10  # petit padding
+        scroll_offset = text_width_before_cursor - visible_width + 10
 
     display_text = search_input
     core.draw.text((input_padding_x - scroll_offset, input_y + input_padding_y), display_text, font=font_search_input, fill=core.COLOR_INPUT_TEXT)
@@ -2055,7 +2055,7 @@ def finish_press(key):
                     if os.path.exists(dst_final):
                         print(f"Warning: destination already contains folder {dst_final}")
                         core.show_message(core.t("info_already_exists_in_dest", name=src_name))
-                        break  # or continue all if you prefer multiple notices
+                        break
                 copy_action_menu_active = True
                 copy_action_menu_selection = 0
                 copy_confirm_target = val
@@ -2085,7 +2085,9 @@ def finish_press(key):
         elif handle_custom_key(key, final_code):
             return
         else:
-            print(f"key {key} not used in this script")
+            core.show_message(f"{key} unassigned")
+            if core.DEBUG:
+                print(f"key {key} not used in this script")
 
     debounce_data.pop(key, None)
 

@@ -1518,6 +1518,7 @@ def finish_press(key):
         elif handle_custom_key(key, final_code):
             return
         else:
+            core.show_message(f"{key} unassigned")
             if core.DEBUG:
                 print(f"key {key} not used in this script")
 
