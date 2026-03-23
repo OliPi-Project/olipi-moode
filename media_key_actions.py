@@ -54,10 +54,12 @@ def execute_shortcut(action, menu_context_flag=""):
     if typ == "playlist":
         subprocess.run(["mpc", "clear"], check=False)
         subprocess.run(["mpc", "load", value], check=False)
+        time.sleep(0.5)
         subprocess.run(["mpc", "play"], check=False)
     elif typ in ("folder", "file"):
         subprocess.run(["mpc", "clear"], check=False)
         subprocess.run(["mpc", "add", value], check=False)
+        time.sleep(0.5)
         subprocess.run(["mpc", "play"], check=False)
     else:
         return False
