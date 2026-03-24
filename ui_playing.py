@@ -3533,7 +3533,7 @@ def finish_press(key):
             else:
                 action = "off" if global_state.get(renderer + "svc") == "1" else "on"
                 core.show_message(core.t("info_renderer_switched", name=renderer.capitalize(), status=action))
-                subprocess.call(["sudo", "php", str(OLIPIMOODE_DIR / f"assets/renderer-toggle.php"), renderer, action])
+                subprocess.call(["moodeutl", "-Ro", str(f"--{renderer}"), action])
                 load_renderer_states_from_db()
             core.reset_scroll("menu_item", "menu_title")
         return
@@ -3557,7 +3557,7 @@ def finish_press(key):
             if item == "bt_toggle":
                 action = "off" if global_state.get("btsvc") == "1" else "on"
                 core.show_message(core.t("info_renderer_switched", name="Bluetooth", status=action))
-                subprocess.call(["sudo", "php", str(OLIPIMOODE_DIR / "assets/renderer-toggle.php"), "bluetooth", action])
+                subprocess.call(["moodeutl", "-Ro", "--bluetooth", action])
                 load_renderer_states_from_db()
             elif item == "bt_scan":
                 bluetooth_menu_active = False
