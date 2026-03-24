@@ -187,10 +187,25 @@ def handle_custom_key(key, final_code, menu_context_flag=""):
 # ------------------------
 # Gather all recognized keys
 # ------------------------
+def extract_hardcoded_keys():
+    keys = set()
+    for func in (handle_audio_keys, handle_custom_key):
+        for instr in dis.get_instructions(func):
+            if instr.opname == "LOAD_CONST":
+                val = instr.argval
+                if isinstance(val, str) and re.match(r"^KEY_[A-Z0-9_]+$", val):
+                    keys.add(val)
+                elif isinstance(val, tuple):
+                    for item in val:
+                        if isinstance(item, str) and re.match(r"^KEY_[A-Z0-9_]+$", item):
+                            keys.add(item)
+    return keys
+
 def get_used_keys():
     keys = set()
+    keys.update(extract_hardcoded_keys())  # hardcoded keys
     if config and config.has_section("library_shortcuts"):
-        keys.update(config["library_shortcuts"].keys())
+        keys.update(config["library_shortcuts"].keys())  # dynamiques
     return keys
 
 USED_MEDIA_KEYS = get_used_keys()
