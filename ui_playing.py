@@ -2175,64 +2175,86 @@ def perform_bluetooth_scan():
     blocking_render = False
     bluetooth_scan_menu_active = True
 
-def update_trusted_devices_menu():
-    global bluetooth_scan_menu_options
-    output = run_bluetooth_action("-l")
-    paired = run_bluetooth_action("-p").splitlines()
-    paired_set = set(
-        line[3:].strip().split(" ", 1)[0]
-        for i, line in enumerate(paired)
-        if i >= 2 and line.startswith("** ")
-    )
-    connected = run_bluetooth_action("-c").splitlines()
-    connected_set = set(
-        line[3:].strip().split(" ", 1)[0]
-        for i, line in enumerate(connected)
-        if i >= 2 and line.startswith("** ")
-    )
-    bluetooth_scan_menu_options = []
-    for i, line in enumerate(output.splitlines()):
+def get_bt_devices(flag):
+    lines = run_bluetooth_action(flag).splitlines()
+    devices = []
+
+    for i, line in enumerate(lines):
         if i < 2:
             continue
         if not line.startswith("** "):
             continue
+
         line = line[3:].strip()
         parts = line.split(" ", 1)
         if len(parts) == 2:
             mac, name = parts
-            is_paired = mac in paired_set
-            is_connected = mac in connected_set
-            if is_connected:
-                icon = "✓⚪ "
-            elif is_paired and not is_connected:
-                icon = "⚪ "
-            else:
-                icon = ""
-            bluetooth_scan_menu_options.append({"id": f"bt_trusted_{mac}", "label": f"{icon}{name}", "mac": mac, "paired": is_paired, "connected": is_connected})
+            devices.append({
+                "mac": mac,
+                "name": name
+            })
+
+    return devices
+
+def get_bt_macs(flag):
+    return {d["mac"] for d in get_bt_devices(flag)}
+
+def get_connected_bt_mac():
+    devices = get_bt_devices("-c")
+    return devices[0]["mac"] if devices else None
+
+def update_trusted_devices_menu():
+    global bluetooth_scan_menu_options
+
+    scanned = get_bt_devices("-l")
+    paired_set = get_bt_macs("-p")
+    connected_set = get_bt_macs("-c")
+
+    bluetooth_scan_menu_options = []
+
+    for d in scanned:
+        mac = d["mac"]
+        name = d["name"]
+
+        is_paired = mac in paired_set
+        is_connected = mac in connected_set
+
+        if is_connected:
+            icon = "✓⚪ "
+        elif is_paired:
+            icon = "⚪ "
+        else:
+            icon = ""
+
+        bluetooth_scan_menu_options.append({
+            "id": f"bt_trusted_{mac}",
+            "label": f"{icon}{name}",
+            "mac": mac,
+            "paired": is_paired,
+            "connected": is_connected
+        })
 
 def update_paired_devices_menu():
     global bluetooth_paired_menu_options
-    paired = run_bluetooth_action("-p").splitlines()
-    connected = run_bluetooth_action("-c").splitlines()
-    connected_set = set(
-        line[3:].strip().split(" ", 1)[0]
-        for i, line in enumerate(connected)
-        if i >= 2 and line.startswith("** ")
-    )
+
+    paired_devices = get_bt_devices("-p")
+    connected_set = get_bt_macs("-c")
 
     bluetooth_paired_menu_options = []
-    for i, line in enumerate(paired):
-        if i < 2:
-            continue
-        if not line.startswith("** "):
-            continue
-        line = line[3:].strip()
-        parts = line.split(" ", 1)
-        if len(parts) == 2:
-            mac, name = parts
-            is_connected = mac in connected_set
-            icon = "✓ " if is_connected else ""
-            bluetooth_paired_menu_options.append({"id": f"bt_dev_{mac}", "label": f"{icon} {name}", "mac": mac, "connected": is_connected})
+
+    for d in paired_devices:
+        mac = d["mac"]
+        name = d["name"]
+
+        is_connected = mac in connected_set
+        icon = "✓ " if is_connected else ""
+
+        bluetooth_paired_menu_options.append({
+            "id": f"bt_dev_{mac}",
+            "label": f"{icon}{name}",
+            "mac": mac,
+            "connected": is_connected
+        })
 
 def open_device_actions_menu(mac, paired=False, connected=False):
     name = next((d['label'] for d in bluetooth_scan_menu_options + bluetooth_paired_menu_options if d['mac'] == mac), mac)
@@ -2269,7 +2291,7 @@ def run_bt_action_and_msg(flag, mac, msg_key):
     blocking_render = False
     bluetooth_menu_active = True
 
-def toggle_audio_output(mode):
+def toggle_audio_output(mode, mac=None):
     global blocking_render, bluetooth_menu_active
 
     core.message_text = core.t("info_working")
@@ -2282,15 +2304,22 @@ def toggle_audio_output(mode):
 
     def act_bluaudiout():
         try:
-            result = subprocess.run(
-                ["sudo", "php", str(OLIPIMOODE_DIR / "assets/audioout-toggle.php"), mode],
-                capture_output=True, text=True, check=False
-            )
-            output.append(result.stdout.strip())
+            if mode == "Local":
+                cmd = ["sudo", "/var/www/util/set-btaudio.php", "--local"]
+            else:
+                cmd = ["sudo", "/var/www/util/set-btaudio.php", "--btspeaker"]
+                if mac:
+                    cmd.append(mac)
+
+            result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+            stdout = (result.stdout or "").strip()
+            stderr = (result.stderr or "").strip()
+            output.append(stdout if stdout else stderr)
+
         except Exception as e:
             core.show_message(core.t("error_audioout", error=e))
             if core.DEBUG:
-                print("error audioout: ", e)
+                print("error audioout:", e)
             output.append("[ERROR]")
 
     thread = threading.Thread(target=act_bluaudiout)
@@ -2304,18 +2333,13 @@ def toggle_audio_output(mode):
 
     result_line = output[0] if output else "[ERROR]"
 
-    if result_line.startswith("[AUDIOOUT_CHANGED]"):
-        core.show_message(core.t("info_audioout_changed", mode=mode))
-    elif result_line.startswith("[AUDIOOUT_ALREADY_SET]"):
-        core.show_message(core.t("info_audioout_already", mode=mode))
-    elif result_line.startswith("[AUDIOOUT_NO_BT]"):
+    if "Missing MAC address" in result_line:
         core.show_message(core.t("error_audioout_bt_missing"))
-    elif result_line.startswith("[AUDIOOUT_INVALID]"):
-        core.show_message(core.t("error_audioout_invalid"))
-    elif result_line.startswith("[AUDIOOUT_USAGE]"):
-        core.show_message(core.t("error_audioout_usage"))
+    elif result_line.startswith("Output is already"):
+        core.show_message(core.t("info_audioout_already", mode=mode))
     else:
-        core.show_message(result_line)
+        core.show_message(core.t("info_audioout_changed", mode=mode))
+
     blocking_render = False
     bluetooth_menu_active = True
 
@@ -3661,7 +3685,8 @@ def finish_press(key):
             if selected == "audioout_local":
                 toggle_audio_output("Local")
             elif selected == "audioout_bt":
-                toggle_audio_output("Bluetooth")
+                mac = get_connected_bt_mac()
+                toggle_audio_output("Bluetooth", mac)
             core.reset_scroll("menu_item", "menu_title")
         return
 
