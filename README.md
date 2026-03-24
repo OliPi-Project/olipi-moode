@@ -423,8 +423,7 @@ License and attribution
 This project is licensed under the GNU General Public License v3.0 (GPLv3).  
 See the [LICENSE](./LICENSE) file for details.
 
-This project requires the [Moode audio player](https://moodeaudio.org/) and reuses some php code logic to update certain configurations. (currently in assets/audioout-toggle.php and assets/update_local_stream.php )
-Moode is licensed under GPLv3: https://moodeaudio.org/LICENSE.txt
+This project requires the [Moode audio player](https://moodeaudio.org/). Moode is licensed under GPLv3: https://moodeaudio.org/LICENSE.txt
 
 ## ⚠️ Disclaimer
 
