@@ -28,29 +28,22 @@ It allows to design audio boxes with built-in displays and controls.
 
 ## ❔ What's new?
 
-**<u>V0.4.0-pre</u> +** 
+**<u>V0.5.0-pre</u> +** 
 
-If you're updating from a version higher than v0.3 a full update are required (don't skip screen configuration and update or reinstall venv). No need to force a config.ini reset when prompt.
+If you're updating from a version prior to v0.4.0 a full update are required (don't skip screen configuration and update or reinstall venv). No need to force a config.ini reset when prompt.
 
-If you're updating from a version prior to v0.3, a fresh install is required. You can uninstall all with: `sudo bash ~/olipi-moode/install/uninstall-olipi-moode.sh` And perform a fresh [installation](#-installation). Remember to make a backup of your config.ini if necessary. (Remote control .conf files are not deleted)
+If you're updating from a version prior to v0.3.0, a fresh install is required. You can uninstall all with: `sudo bash ~/olipi-moode/install/uninstall-olipi-moode.sh` And perform a fresh [installation](#-installation). Remember to make a backup of your config.ini if necessary. (Remote control .conf files are not deleted)
 
-Release Note:
+To update Olipy-Moode, simply run the following command: `python3 ~/olipi-moode/install/install_olipi.py`  
+And follow instructions.
 
-    Latest updates:
+Latest updates:
 
-    - Resolution are saved in config.ini when configure screen
-    - Add peak-meter and improvement of audio analysis for spectrum and peak-meter
-    - Oled 64px height can now show spectrum and/or peak-meter (by deactivating icons, progress-bar and audio-infos)
-    - SSD1306, SSD1315 and SSD1309 SPI are now supported
-
-    - Now support Moode 10+ (Trixie)
-    - New screensaver: "Orbital" a dynamic screensaver animated by music (Only for RGB screens)
-    - Improved audio analysis for spectrometer (need more work)
-    - Migrating to systemd-zram-generator for compatibility Bookworm/Trixie:
-    - Separate theme_colors so you can use theme_user.yaml to change colors and don't lose your settings during an update
-    - Add screensavers (LCD clock, Covers, spectrum) and menu options to select them
-    - Files and folders have been reorganized
-    ...
+  - Add menu option "Set shortcut" in library browser UI to configure not used remote keys, MPR121 pads and GPIO buttons for loading radio, album folder or track.
+  - Rework for some action/key ( See [Key configuration](#-key-configuration) ).
+  - Update & cleaning for Bluetooth to use set-btaudio.php and vol.sh to set volume.
+  - Now use moodeutl to toggle renderers.  
+  ...
     
     Still lots of things to perform/correct before going to V1...
 
@@ -90,7 +83,7 @@ Release Note:
 
 ## 📦 System requirements
 
-- **Operating system**: Moode Audio Player ≥ 9.3.7 required.
+- **Operating system**: Moode Audio Player ≥ 10.1.1 required.
 
 - **Hardware**: 
   
@@ -321,11 +314,11 @@ And/or with GPIO button (If you use MPR121 and GPIO You can comment out all unus
   KEY_BACK = 5
   KEY_PLAY = 4
   KEY_CHANNELUP = 26
-  KEY_CHANNELDOWN = 22
+  #KEY_CHANNELDOWN = 22
   #KEY_INFO = 25
-  ### Can add and replace your own KEY bellow (uncommented) with any free GPIO. Need to start with KEY_ like:
+  ### Can add and replace your own KEY bellow (uncommented) with any free GPIO. Need to start with KEY_ 
   KEY_SHORTCUT = 25
-  KEY_MYKEY = 23
+  KEY_MYKEY = 22
   ```
 
 Custom shortcuts are stored in the config.ini file under the **[library_shortcuts]** section. They can also be configured manually if you know the path (relative to the MPD library) or the name of the item you want to configure. Special characters and spaces are allowed.  
@@ -334,7 +327,7 @@ Custom shortcuts are stored in the config.ini file under the **[library_shortcut
   - file:path to your file.mp3 or path to your stream link
   - folder:path to your album folder
 
-Here is an example but the easiest way is to go through the menu:
+Here is an example (but the easiest way is to go through the menu):
 
   ```ini
   [library_shortcuts]
