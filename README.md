@@ -67,7 +67,7 @@ Latest updates:
 - [IR remote configuration](#-ir-remote-configuration)
 - [GPIO and rotary encoder support](#-gpio-and-rotary-encoder-support)
 - [Key configuration](#-key-configuration)
-- [Configuration via display menu](#-configuration-via-menu-in-now-playing-screen)
+- [Configuration via display menu](#-configuration-via-menu-in-now-playing-ui)
 - [Uninstall](#-uninstall)
 - [Troubleshooting](#-troubleshooting-and-faq)
 - [Contributing](#-contributing)
@@ -77,11 +77,12 @@ Latest updates:
 
 ## ✨ Features
 
-- **Now Playing UI**: Displays the current track, metadata, playback status, hardware info, etc. Media controls, add/remove favorites (follows the playlist configured in Moode), playback modes, renderers (Bluetooth, Airplay, and UPNP), search for the currently playing artist in the music library… And a little extra: Logs radio track titles (via the "favorites" button) into a text file to list them in the menu, and lets you search them via yt-dlp and replay them via a local stream/radio (no download).
+- **Now Playing UI**: Displays the current track, metadata, playback status, hardware info, etc. Media controls, add/remove favorites (follows the playlist configured in Moode), playback modes, renderers (Bluetooth, Airplay, and UPNP), search for the currently playing artist in the music library… And a little extra: Logs radio track titles (via the "favorites" button) into a text file to list them in the menu, and lets you search them via Youtube and replay them via a local stream/radio (without download).
 - **Browser UI**: Browse the mpd music library, search, move, copy, delete to/from local or USB storage.
 - **Playlist/Queue UI**: Display and manage the playback queue. Can create or replace Playlist from queue.
-- **Configuration help and IR remote mapping**: Assisted and fully customizable LIRC configuration with conflict detection. Ability to add custom actions to unused keys in OliPi MoOde (see the `handle_custom_key` function in `media_key_actions.py`... *to be made more user-friendly*).
-- **GPIO button and rotary encoder support** using `rpi-lgpio` . Enable and configure pins in `config.ini`.
+- **LIRC Installation and Configuration Script.**
+- **GPIO button, rotary encoder and MPR121 capcitive touch sensor support.** (configuration via config.ini)
+- **Ability to add custom actions to unused keys directly from the Library Browser screen.**
 
 
 ## 📦 System requirements
