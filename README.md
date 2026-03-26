@@ -22,7 +22,10 @@ It allows to design audio boxes with built-in displays and controls.
   <img src="https://github.com/OliPi-Project/olipi-moode/blob/main/docs/screenshots/Proto-V2_c.jpg" width="400" alt="Under the w(h)ood">
 </p>
 
-[https://youtu.be/9Y13UeyyT7k?si=hkOkiP9gk0rjxlB8](https://youtu.be/9Y13UeyyT7k?si=hkOkiP9gk0rjxlB8)
+The project's beginnings: [https://youtu.be/xNCn582SS6E](https://youtu.be/xNCn582SS6E)  
+With GPIO buttons: [https://youtu.be/9Y13UeyyT7k](https://youtu.be/9Y13UeyyT7k)  
+With MPR121 capacitive touch sensor and rotary encoder: [https://youtu.be/f89gbglK8oc](https://youtu.be/f89gbglK8oc)  
+Setting up custom shortcuts: [https://youtu.be/xP5Zl5nR0Qw](https://youtu.be/xP5Zl5nR0Qw)  
 
 ---
 
