@@ -5,6 +5,7 @@
 import subprocess
 import time
 import re
+import dis
 
 # --- Globals / injectable hooks ---
 t = None
