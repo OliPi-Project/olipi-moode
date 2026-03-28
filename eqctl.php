@@ -1,9 +1,16 @@
-#!/usr/bin/env php
+#!/usr/bin/php
 <?php
 /*
  * SPDX-License-Identifier: GPL-3.0-or-later
  * CLI helper for moOde EQ control
+ * Copyright 2026 The moOde audio player project / Tim Curtis
+ * Copyright 2026 OliPi Project
  */
+
+if (posix_getuid() != 0) {
+    fwrite(STDERR, "This command requires sudo\n");
+    exit(1);
+}
 
 require_once '/var/www/inc/common.php';
 require_once '/var/www/inc/alsa.php';
@@ -15,16 +22,9 @@ require_once '/var/www/inc/sql.php';
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
-
 // --- Session ---
-$sessionId = phpSession('get_sessionid');
-if (!$sessionId) {
-    echo "No active session ID found in cfg_system.\n";
-    exit(1);
-}
-session_id($sessionId);
+session_id(phpSession('get_sessionid'));
 phpSession('open');
-phpSession('load_system');
 
 $dbh = sqlConnect();
 
@@ -34,8 +34,8 @@ function out($msg = '') {
 
 function usage() {
     out("Usage:");
-    out("  eqctl eqp12 list|status|set <id|name|off>");
-    out("  eqctl alsaequal list|status|set <id|name|off>");
+    out("  sudo eqctl eqp12 list|status|set <id|name|off>");
+    out("  sudo eqctl alsaequal list|status|set <id|name|off>");
     exit(1);
 }
 
