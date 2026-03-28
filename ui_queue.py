@@ -1065,29 +1065,32 @@ def nav_down():
 
 def nav_ok():
     global current_playing, queue_selection
-    try:
-        client = MPDClient()
-        client.timeout = 10
-        client.connect("localhost", 6600)
-        client.play(queue_selection)
-        client.close()
-        client.disconnect()
-        current_playing = queue_selection
-    except Exception as e:
-        core.show_message(core.t("error_play_song"))
-        if core.DEBUG:
-            print(f"Reading error: {e}")
-
-def nav_ok_long():
-    global menu_active, menu_selection
     global empty_queue_menu_active, empty_queue_menu_selection
     if len(queue_items) == 0:
         empty_queue_menu_active = True
         empty_queue_menu_selection = 0
     else:
+        try:
+            client = MPDClient()
+            client.timeout = 10
+            client.connect("localhost", 6600)
+            client.play(queue_selection)
+            client.close()
+            client.disconnect()
+            current_playing = queue_selection
+        except Exception as e:
+            core.show_message(core.t("error_play_song"))
+            if core.DEBUG:
+                print(f"Reading error: {e}")
+
+def nav_ok_long():
+    global menu_active, menu_selection
+    if len(queue_items) == 0:
+        return
+    else:
         menu_active = True
         menu_selection = 0
-
+        
 def nav_left_short():
     global queue_selection, current_playing
     queue_selection = current_playing

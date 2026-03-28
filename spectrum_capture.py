@@ -87,7 +87,7 @@ class SpectrumCapture(threading.Thread):
         self.hop_s=1024
         self.fmin=20
         self.fmax=None
-        self.debug=True
+        self.debug=False
 
         self._warmup_frames = 16
         self._warmup_count = 0
