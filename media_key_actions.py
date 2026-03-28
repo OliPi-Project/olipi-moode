@@ -15,9 +15,6 @@ next_stream = None
 previous_stream = None
 set_stream_manual_stop = None
 
-# --- Volume memory ---
-_last_volume = None
-
 # --- Shortcuts loaded from .ini ---
 shortcuts = {}
 
@@ -73,8 +70,7 @@ def execute_shortcut(action, menu_context_flag=""):
 # Handle standard audio keys
 # ------------------------
 def handle_audio_keys(key, final_code, menu_context_flag=""):
-    global _last_volume
-
+    
     if key in ("KEY_PLAY", "KEY_PAUSE"):
         if final_code >= 10:
             show_message(t("info_reboot"))
