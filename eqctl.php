@@ -57,33 +57,34 @@ function dsp_blocked_reason($type) {
     if (($_SESSION['multiroom_tx'] ?? 'Off') !== 'Off' ||
         ($_SESSION['multiroom_rx'] ?? 'Off') === 'On') {
         return "DSP not allowed when multiroom is active";
-        }
-
-        // --- ALSA chain ---
-        if (allowDspInAlsaChain() == false) {
-            return "DSP not allowed in current ALSA chain";
-        }
-
-        // --- Other DSP active ---
-        if (($_SESSION['invert_polarity'] ?? '0') != '0') {
-            return "Disable invert polarity first";
-        }
-        if (($_SESSION['crossfeed'] ?? 'Off') != 'Off') {
-            return "Disable crossfeed first";
-        }
-        if (($_SESSION['camilladsp'] ?? 'off') != 'off') {
-            return "Disable CamillaDSP first";
-        }
-
-        // --- EQ conflict ---
-        if ($type === 'eqp12' && ($_SESSION['alsaequal'] ?? 'Off') !== 'Off') {
-            return "Graphic EQ must be off first";
-        }
-        if ($type === 'alsaequal' && ($_SESSION['eqfa12p'] ?? 'Off') !== 'Off') {
-            return "Parametric EQ must be off first";
-        }
-
-        return null;
+    }
+    // --- ALSA chain ---
+    if (function_exists('allowDspInAlsaChain') && allowDspInAlsaChain() == false) {
+        return "DSP not allowed in current ALSA chain";
+    }
+    // --- Peppy display ---
+    if (($_SESSION['peppy_display'] ?? '0') === '1' &&
+        ($_SESSION['alsa_output_mode'] ?? '') === 'plughw') {
+        return 'When Peppy is on, ALSA output mode cannot be "Default"';
+    }
+    // --- Other DSP active ---
+    if (($_SESSION['invert_polarity'] ?? '0') != '0') {
+        return "Disable invert polarity first";
+    }
+    if (($_SESSION['crossfeed'] ?? 'Off') != 'Off') {
+        return "Disable crossfeed first";
+    }
+    if (($_SESSION['camilladsp'] ?? 'off') != 'off') {
+        return "Disable CamillaDSP first";
+    }
+    // --- EQ conflict ---
+    if ($type === 'eqp12' && ($_SESSION['alsaequal'] ?? 'Off') !== 'Off') {
+        return "Graphic EQ must be off first";
+    }
+    if ($type === 'alsaequal' && ($_SESSION['eqfa12p'] ?? 'Off') !== 'Off') {
+        return "Parametric EQ must be off first";
+    }
+    return null;
 }
 
 // --- EQP12 (Parametric EQ) ---
@@ -118,11 +119,6 @@ function set_eqp12($dbh, $target) {
     if ($new != 0 && $reason !== null) {
         out("ERR: " . $reason);
         exit(3);
-    }
-
-    if ($new != 0 && ($_SESSION['peppy_display'] ?? '0') === '1' && ($_SESSION['alsa_output_mode'] ?? '') === 'plughw') {
-        out('When Peppy is on, ALSA output mode cannot be "Default".');
-        exit(4);
     }
 
     if ($new == $old) {
@@ -199,10 +195,6 @@ function set_alsaequal($dbh, $target) {
     if ($new !== 'Off' && $reason !== null) {
         out("ERR: " . $reason);
         exit(3);
-    }
-    if ($new !== 'Off' && ($_SESSION['peppy_display'] ?? '0') === '1' && ($_SESSION['alsa_output_mode'] ?? '') === 'plughw') {
-        out('When Peppy is on, ALSA output mode cannot be "Default".');
-        exit(4);
     }
 
     if ($new === $old) {
