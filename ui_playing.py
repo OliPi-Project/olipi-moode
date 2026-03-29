@@ -111,14 +111,35 @@ confirm_box_options = [
     {"id": "confirm_yes", "label": core.t("menu_yes")},
     {"id": "confirm_no", "label": core.t("menu_no")}
 ]
+
 tool_menu_active = False
 tool_menu_selection = 0
 tool_menu_options = [
     {"id": "renderers", "label": core.t("menu_renderers")},
+    {"id": "equalizers", "label": core.t("menu_equalizers")},
     {"id": "show_songlog", "label": core.t("menu_show_songlog")},
     {"id": "hardware_info", "label": core.t("menu_hardware_info")},
     {"id": "configuration", "label": core.t("menu_configuration")}
 ]
+
+eq_menu_active = False
+eq_menu_selection = 0
+eq_menu_options = [
+    {"id": "graphic", "label": core.t("menu_graphic_eq")},
+    {"id": "parametric", "label": core.t("menu_parametric_eq")}
+]
+
+eq_preset_active = False
+eq_preset_selection = 0
+eq_preset_options = []
+
+eq_preset_action_active = False
+eq_preset_action_selection = 0
+eq_preset_action_options = [
+    {"id": "active_preset", "label": core.t("menu_active_preset")},
+    {"id": "set_shortcut", "label": core.t("menu_shortcut_key")}
+]
+
 songlog_active = False
 songlog_lines = []
 songlog_meta = []
@@ -2343,6 +2364,32 @@ def toggle_audio_output(mode, mac=None):
     blocking_render = False
     bluetooth_menu_active = True
 
+def update_eq_preset_menu(eq_type):
+    global eq_preset_options, eq_preset_selection
+    eq_preset_options = []
+    try:
+        cmd = ["sudo", "php", "/home/ben/olipi-moode/eqctl.php", eq_type, "list"]
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+        lines = result.stdout.strip().splitlines()
+        for line in lines:
+            parts = line.split("|")
+            if len(parts) != 3:
+                continue
+            preset_id, name, active = parts
+            label = name
+            if active == "1":
+                label = "✓ " + name
+            eq_preset_options.append({
+                "id": preset_id,
+                "label": label,
+                "name": name,
+                "active": active == "1",
+                "type": eq_type
+            })
+        eq_preset_selection = 0
+    except Exception as e:
+        core.show_message(f"EQ list error: {e}")
+
 def render_screen():
     with render_lock:
         global now_playing_mode
@@ -2378,6 +2425,12 @@ def render_screen():
             draw_bluetooth_paired_menu()
         elif bluetooth_menu_active:
             draw_bluetooth_menu()
+        elif eq_preset_action_active:
+            draw_eq_preset_action_menu()
+        elif eq_preset_active:
+            draw_eq_preset_menu()
+        elif eq_menu_active:
+            draw_eq_menu()
         elif tool_menu_active:
             draw_tool_menu()
         elif songlog_action_active:
@@ -2459,6 +2512,15 @@ def draw_songlog_action_menu():
 
 def draw_tool_menu():
     core.draw_custom_menu([item["label"] for item in tool_menu_options], tool_menu_selection, title=core.t("title_tools"))
+
+def draw_eq_menu():
+    core.draw_custom_menu([item["label"] for item in eq_menu_options], eq_menu_selection, title=core.t("title_equalizers"))
+
+def draw_eq_preset_menu():
+    core.draw_custom_menu([item["label"] for item in eq_preset_options], eq_preset_selection, title=core.t("title_eq_preset"))
+
+def draw_eq_preset_action_menu():
+    core.draw_custom_menu([item["label"] for item in eq_preset_action_options], eq_preset_action_selection, title=core.t("title_eq_preset_action"))
 
 def draw_renderers_menu():
     active = []
@@ -3118,7 +3180,8 @@ def nav_left_long():
             "screensaver_menu_active", "ui_menu_active","theme_menu_active",
             "power_menu_active", "renderers_menu_active", "bluetooth_menu_active",
             "bluetooth_scan_menu_active", "bluetooth_paired_menu_active",
-            "bluetooth_audioout_menu_active", "bluetooth_device_actions_menu_active", "playback_modes_menu_active"
+            "bluetooth_audioout_menu_active", "bluetooth_device_actions_menu_active", "playback_modes_menu_active",
+            "eq_menu_active", "eq_preset_active", "eq_preset_action_active"
         ]:
             globals()[var] = False
 
@@ -3227,6 +3290,7 @@ def finish_press(key):
     global bluetooth_menu_active, bluetooth_menu_selection, bluetooth_scan_menu_active, bluetooth_scan_menu_selection
     global bluetooth_audioout_menu_active, bluetooth_audioout_menu_selection
     global bluetooth_paired_menu_active, bluetooth_paired_menu_selection, bluetooth_device_actions_menu_active, bluetooth_device_actions_menu_selection
+    global eq_menu_active, eq_menu_selection, eq_preset_active, eq_preset_selection, eq_preset_action_active, eq_preset_action_selection
     global blocking_render, screen_on, idle_timer, is_sleeping, last_wake_time
 
     data = debounce_data.get(key)
@@ -3515,6 +3579,10 @@ def finish_press(key):
                 tool_menu_active = False
                 renderers_menu_active = True
                 renderers_menu_selection = 0
+            elif option_id == "equalizers":
+                tool_menu_active = False
+                eq_menu_active = True
+                eq_menu_selection = 0
             elif option_id == "show_songlog":
                 tool_menu_active = False
                 show_songlog()
@@ -3533,6 +3601,83 @@ def finish_press(key):
                 config_menu_selection = 0
             core.reset_scroll("menu_item", "menu_title")
         return
+
+    if eq_menu_active:
+        if key == "KEY_UP" and eq_menu_selection > 0:
+            eq_menu_selection -= 1
+            core.reset_scroll("menu_item")
+        elif key == "KEY_DOWN" and eq_menu_selection < len(eq_menu_options) - 1:
+            eq_menu_selection += 1
+            core.reset_scroll("menu_item")
+        elif key == "KEY_LEFT":
+            eq_menu_active = False
+            tool_menu_active = True
+            core.reset_scroll("menu_item", "menu_title")
+        elif key == "KEY_OK":
+            option_id = eq_menu_options[eq_menu_selection]["id"]
+            if option_id == "graphic":
+                update_eq_preset_menu("graphic")
+            elif option_id == "parametric":
+                update_eq_preset_menu("parametric")
+            eq_menu_active = False
+            eq_preset_active = True
+            eq_preset_selection = 0
+            core.reset_scroll("menu_item", "menu_title")
+        return
+
+    if eq_preset_active:
+        global current_eq_selection
+        if key == "KEY_UP" and eq_preset_selection > 0:
+            eq_preset_selection -= 1
+            core.reset_scroll("menu_item")
+        elif key == "KEY_DOWN" and eq_preset_selection < len(eq_preset_options) - 1:
+            eq_preset_selection += 1
+            core.reset_scroll("menu_item")
+        elif key == "KEY_LEFT":
+            eq_preset_active = False
+            eq_menu_active = True
+            core.reset_scroll("menu_item", "menu_title")
+        elif key == "KEY_OK":
+            selected = eq_preset_options[eq_preset_selection]
+            eq_preset_active = False
+            eq_preset_action_active = True
+            eq_preset_action_selection = 0
+            current_eq_selection = selected
+            core.reset_scroll("menu_item", "menu_title")
+
+    if eq_preset_action_active:
+        if key == "KEY_UP" and eq_preset_action_selection > 0:
+            eq_preset_action_selection -= 1
+            core.reset_scroll("menu_item")
+        elif key == "KEY_DOWN" and eq_preset_action_selection < len(eq_preset_action_options) - 1:
+            eq_preset_action_selection += 1
+            core.reset_scroll("menu_item")
+        elif key == "KEY_LEFT":
+            eq_preset_action_active = False
+            eq_preset_active = True
+            core.reset_scroll("menu_item", "menu_title")
+        elif key == "KEY_OK":
+            selected_action = eq_preset_action_options[eq_preset_action_selection]["id"]
+            if selected_action == "active_preset":
+                preset = current_eq_selection
+                if preset["active"]:
+                    try:
+                        cmd = ["sudo", "php", "/home/ben/olipi-moode/eqctl.php", preset["type"], "set", "off"]
+                        subprocess.run(cmd, timeout=5)
+                        core.show_message(f"{preset['name']} off")
+                    except Exception as e:
+                        core.show_message(f"EQ set error: {e}")
+                else:
+                    try:
+                        cmd = ["sudo", "php", "/home/ben/olipi-moode/eqctl.php", preset["type"], "set", preset["id"]]
+                        subprocess.run(cmd, timeout=5)
+                        core.show_message(f"{preset['name']} applied")
+                    except Exception as e:
+                        core.show_message(f"EQ set error: {e}")
+                update_eq_preset_menu(preset["type"])
+                eq_preset_action_active = False
+                eq_preset_active = True
+                core.reset_scroll("menu_item", "menu_title")
 
     if renderers_menu_active:
         if key == "KEY_UP" and renderers_menu_selection > 0:
