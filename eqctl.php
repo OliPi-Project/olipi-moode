@@ -43,8 +43,8 @@ function out($msg = '') {
 function usage() {
     out('Usage:');
     out('  sudo eqctl.php status');
-    out('  sudo eqctl.php parametric list|set <id|"name"|off>');
     out('  sudo eqctl.php graphic list|set <id|"name"|off>');
+    out('  sudo eqctl.php parametric list|set <id|"name"|off>');
     exit(1);
 }
 
