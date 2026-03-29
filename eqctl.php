@@ -59,7 +59,7 @@ function dsp_protections($type) {
         return "DSP not allowed when multiroom is active";
     }
     // --- ALSA chain ---
-    if (function_exists('allowDspInAlsaChain') && allowDspInAlsaChain() == false) {
+    if (allowDspInAlsaChain() == false) {
         return "DSP not allowed in current ALSA chain";
     }
     // --- Peppy display ---
