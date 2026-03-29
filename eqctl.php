@@ -52,7 +52,7 @@ function normalize_arg($s) {
     return trim((string)$s);
 }
 
-function dsp_blocked_reason($type) {
+function dsp_protections($type) {
     // --- Multiroom ---
     if (($_SESSION['multiroom_tx'] ?? 'Off') !== 'Off' ||
         ($_SESSION['multiroom_rx'] ?? 'Off') === 'On') {
@@ -122,7 +122,7 @@ function set_eqp12($dbh, $target) {
     }
 
     // --- Protections ---
-    $reason = dsp_blocked_reason('eqp12');
+    $reason = dsp_protections('eqp12');
     if ($new != 0 && $reason !== null) {
         out("ERR: " . $reason);
         exit(3);
@@ -195,7 +195,7 @@ function set_alsaequal($dbh, $target) {
     }
 
     // --- Protections ---
-    $reason = dsp_blocked_reason('alsaequal');
+    $reason = dsp_protections('alsaequal');
     if ($new !== 'Off' && $reason !== null) {
         out("ERR: " . $reason);
         exit(3);
