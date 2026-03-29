@@ -58,18 +58,15 @@ function dsp_protections($type) {
         ($_SESSION['multiroom_rx'] ?? 'Off') === 'On') {
         return "DSP not allowed when multiroom is active";
     }
-
     // --- ALSA chain ---
     if (function_exists('allowDspInAlsaChain') && allowDspInAlsaChain() == false) {
         return "DSP not allowed in current ALSA chain";
     }
-
     // --- Peppy display ---
     if (($_SESSION['peppy_display'] ?? '0') === '1' &&
         ($_SESSION['alsa_output_mode'] ?? '') === 'plughw') {
         return 'When Peppy is on, ALSA output mode cannot be "Default"';
     }
-
     // --- Other DSP active ---
     if (($_SESSION['invert_polarity'] ?? '0') != '0') {
         return "Disable invert polarity first";
@@ -80,7 +77,6 @@ function dsp_protections($type) {
     if (($_SESSION['camilladsp'] ?? 'off') != 'off') {
         return "Disable CamillaDSP first";
     }
-
     // --- EQ conflict ---
     if ($type === 'eqp12' && ($_SESSION['alsaequal'] ?? 'Off') !== 'Off') {
         return "Graphic EQ must be off first";
@@ -88,11 +84,10 @@ function dsp_protections($type) {
     if ($type === 'alsaequal' && ($_SESSION['eqfa12p'] ?? 'Off') !== 'Off') {
         return "Parametric EQ must be off first";
     }
-
     return null;
 }
 
-// --- EQP12 (Parametric EQ) ---
+// --- Parametric EQ ---
 function resolve_eqp12_target($dbh, $arg) {
     $eqp12 = Eqp12($dbh);
     $presets = $eqp12->getPresets();
@@ -112,23 +107,20 @@ function resolve_eqp12_target($dbh, $arg) {
 function set_eqp12($dbh, $target) {
     $eqp12 = Eqp12($dbh);
     $presets = $eqp12->getPresets();
-
     $old = $eqp12->getActivePresetIndex();
     $new = $target;
+    $name = $new == 0 ? 'Off' : ($presets[$new] ?? 'Unknown');
 
     if ($new === null) {
         out("ERR: unknown Parametric EQ preset");
         exit(2);
     }
 
-    // --- Protections ---
     $reason = dsp_protections('eqp12');
     if ($new != 0 && $reason !== null) {
         out("ERR: " . $reason);
         exit(3);
     }
-
-    $name = $new == 0 ? 'Off' : ($presets[$new] ?? 'Unknown');
 
     if ($new == $old) {
         out("Graphic EQ already set to '$name'");
@@ -138,7 +130,6 @@ function set_eqp12($dbh, $target) {
     $eqp12->setActivePresetIndex($new);
     phpSession('write', 'eqfa12p', $new == 0 ? 'Off' : 'On');
     submitJob('eqfa12p', $old . ',' . $new);
-
     out("parametric|$new|$name");
 }
 
@@ -152,16 +143,13 @@ function list_eqp12($dbh) {
     }
 }
 
-// --- ALSA Graphic EQ ---
+// --- Graphic EQ ---
 function resolve_alsaequal_target($dbh, $arg) {
     $arg = normalize_arg($arg);
-
     if ($arg === '' || strtolower($arg) === 'off' || $arg === '0') {
         return 'Off';
     }
-
     $rows = sqlQuery("SELECT id, curve_name FROM cfg_eqalsa ORDER BY id", $dbh);
-
     // --- ID lookup ---
     if (ctype_digit($arg)) {
         $id = intval($arg);
@@ -172,20 +160,17 @@ function resolve_alsaequal_target($dbh, $arg) {
         }
         return null;
     }
-
     // --- Name lookup ---
     foreach ($rows as $row) {
         if (strcasecmp($row['curve_name'], $arg) === 0) {
             return $row['curve_name'];
         }
     }
-
     return null;
 }
 
 function set_alsaequal($dbh, $target) {
     $rows = sqlQuery("SELECT id, curve_name FROM cfg_eqalsa ORDER BY id", $dbh);
-
     $old = $_SESSION['alsaequal'] ?? 'Off';
     $new = $target;
 
@@ -194,7 +179,6 @@ function set_alsaequal($dbh, $target) {
         exit(2);
     }
 
-    // --- Protections ---
     $reason = dsp_protections('alsaequal');
     if ($new !== 'Off' && $reason !== null) {
         out("ERR: " . $reason);
@@ -208,7 +192,6 @@ function set_alsaequal($dbh, $target) {
 
     phpSession('write', 'alsaequal', $new);
     submitJob('alsaequal', $old . ',' . $new);
-
     // --- Resolve ID ---
     $id = 0;
     if ($new !== 'Off') {
@@ -219,7 +202,6 @@ function set_alsaequal($dbh, $target) {
             }
         }
     }
-
     out("graphic|$id|$new");
 }
 
@@ -233,10 +215,9 @@ function list_alsaequal($dbh) {
 }
 
 function status_all($dbh) {
-    // eqp12
+    // Parametric EQ
     $eqp12 = Eqp12($dbh);
     $active_eqp = $eqp12->getActivePresetIndex();
-
     if ($active_eqp != 0) {
         $presets = $eqp12->getPresets();
         $name = $presets[$active_eqp] ?? 'Unknown';
@@ -244,9 +225,8 @@ function status_all($dbh) {
         return;
     }
 
-    // alsaequal
+    // Graphic EQ
     $active_alsa = $_SESSION['alsaequal'] ?? 'Off';
-
     if ($active_alsa !== 'Off') {
         $rows = sqlQuery("SELECT id, curve_name FROM cfg_eqalsa ORDER BY id", $dbh);
         foreach ($rows as $row) {
