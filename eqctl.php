@@ -274,12 +274,10 @@ if ($mode === 'status' && $cmd === '') {
 if ($mode === '' || $cmd === '') usage();
 if ($mode === 'parametric') {
     if ($cmd === 'list') list_eqp12($dbh);
-    elseif ($cmd === 'status') status_eqp12($dbh);
     elseif ($cmd === 'set') set_eqp12($dbh, resolve_eqp12_target($dbh, $arg));
     else usage();
 } elseif ($mode === 'graphic') {
     if ($cmd === 'list') list_alsaequal($dbh);
-    elseif ($cmd === 'status') status_alsaequal($dbh);
     elseif ($cmd === 'set') set_alsaequal($dbh, resolve_alsaequal_target($dbh, $arg));
     else usage();
 } else usage();
