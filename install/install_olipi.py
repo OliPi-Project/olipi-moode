@@ -452,22 +452,34 @@ def merge_ini_with_dist(user_file: Path, dist_file: Path):
                     prefix = "#" if data["commented"] else ""
                     merged_lines.append(f"{prefix}{key} = {data['value']}")
         merged_lines.append("")
-    # --- Append user-only sections
-    for section in user_sections.keys():
-        if section not in dist_sections:
-            merged_lines.append(f"[{section}]")
-            merged_lines.extend(user_sections[section][1:])
-            merged_lines.append("")
     # Make a backup
     user = os.getenv("SUDO_USER") or os.getenv("USER") or "pi"
     home = Path("/home") / user
     timestamp = time.strftime("%Y%m%d_%H%M%S")
     backup_path = home / f"{user_file.name}.{timestamp}.bak"
+    new_content = "\n".join(merged_lines) + "\n"
+    if user_file.exists() and user_file.read_text() == new_content:
+        print("[INFO] No changes in config, skipping write")
+        return
     if user_file.exists():
         user_file.replace(backup_path)
-    print(f"✅ backup file saved to {backup_path}")
-    # Write new merged file
-    user_file.write_text("\n".join(merged_lines) + "\n")
+        print(f"✅ backup file saved to {backup_path}")
+        # --- Backup rotation
+        backup_dir = backup_path.parent
+        backup_prefix = f"{user_file.name}."
+        backups = sorted(
+            [f for f in backup_dir.glob(f"{backup_prefix}*.bak")],
+            key=lambda x: x.stat().st_mtime,
+            reverse=True
+        )
+        for old_backup in backups[5:]:
+            try:
+                old_backup.unlink()
+                print(f"[INFO] Deleted old backup: {old_backup}")
+            except Exception as e:
+                print(f"[WARN] Could not delete backup {old_backup}: {e}")
+# Write new merged file
+user_file.write_text("\n".join(merged_lines) + "\n")
 
 def sync_user_themes():
     themes_main = yaml.safe_load(THEME_PATH_MAIN.read_text(encoding="utf-8")) or {}
