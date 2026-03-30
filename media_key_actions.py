@@ -57,6 +57,19 @@ def is_key_reserved(key):
 def is_key_used(key):
     return key in shortcuts
 
+def get_active_eq():
+    try:
+        result = subprocess.run(
+            ["sudo", "/var/www/util/eqctl.php", "status"],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        typ, idx, name = result.stdout.strip().split("|")
+        return {"type": typ, "id": idx, "name": name}
+    except Exception:
+        return None
+
 def execute_shortcut(action, menu_context_flag=""):
     try:
         typ, value = action.split(":", 1)
@@ -81,11 +94,24 @@ def execute_shortcut(action, menu_context_flag=""):
      
     elif typ in ("parametric", "graphic"):
         try:
-            cmd = ["sudo", "/var/www/util/eqctl.php", typ, "set", value]
-            subprocess.run(cmd, timeout=5)
-            show_message(f"{value} applied")
+            current = get_active_eq()
+            if current and current["type"] == typ and current["name"] == str(value):
+                cmd = ["sudo", "/var/www/util/eqctl.php", typ, "set", "off"]
+            else:
+                cmd = ["sudo", "/var/www/util/eqctl.php", typ, "set", str(value)]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+            msg = result.stdout.strip() or result.stderr.strip()
+            if result.returncode == 0:
+                parts = msg.split("|")
+                if len(parts) == 3:
+                    typ, _, name = parts
+                    show_message(f"{typ} EQ set to {name}")
+                else:
+                    show_message(msg)
+            else:
+                show_message(msg.replace("ERR: ", ""))
         except Exception as e:
-            show_message(f"EQ set error: {e}")
+            core.show_message(f"EQ error: {e}")
     
     elif typ == "playback":
         subprocess.run(["mpc", value], check=False)
