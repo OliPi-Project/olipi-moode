@@ -197,7 +197,6 @@ class SpectrumCapture(threading.Thread):
         lr_norm = lr_sample / nominal_full_scale
         rr_norm = rr_sample / nominal_full_scale
 
-
         # --- parse volume ---
         vol_step = None
         try:
