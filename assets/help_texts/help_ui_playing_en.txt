@@ -17,3 +17,10 @@ OK: Confirm action/option
 ↑ ↓: Navigate menu
 ←: Cancel/Close menu
 ← long: Cancel/Back Home
+
+# CONTEXT:menu_can_shortcut
+OK: Confirm action/option
+OK long: set shortcut
+↑ ↓: Navigate menu
+←: Cancel/Close menu
+← long: Cancel/Back Home
