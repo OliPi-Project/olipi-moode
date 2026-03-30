@@ -475,7 +475,6 @@ def merge_ini_with_dist(user_file: Path, dist_file: Path):
         for old_backup in backups[5:]:
             try:
                 old_backup.unlink()
-                print(f"[INFO] Deleted old backup: {old_backup}")
             except Exception as e:
                 print(f"[WARN] Could not delete backup {old_backup}: {e}")
     # Write new merged file

@@ -81,7 +81,7 @@ def execute_shortcut(action, menu_context_flag=""):
      
     elif typ in ("parametric", "graphic"):
         try:
-            cmd = ["sudo", "/home/ben/olipi-moode/eqctl.php", typ, "set", value]
+            cmd = ["sudo", "/var/www/util/eqctl.php", typ, "set", value]
             subprocess.run(cmd, timeout=5)
             show_message(f"{value} applied")
         except Exception as e:
