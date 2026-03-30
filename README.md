@@ -325,7 +325,7 @@ And/or with GPIO button (If you use MPR121 and GPIO You can comment out all unus
   KEY_MYKEY = 22
   ```
 
-Custom shortcuts are stored in the config.ini file under the **[library_shortcuts]** section. They can also be configured manually if you know the path (relative to the MPD library) or the name of the item you want to configure. Special characters and spaces are allowed.  
+Custom shortcuts are stored in the config.ini file under the **[shortcuts]** section. They can also be configured manually if you know the path (relative to the MPD library) or the name of the item you want to configure. Special characters and spaces are allowed.  
 
   - playlist:name of your playlist or path of radio.pls
   - file:path to your file.mp3 or path to your stream link
@@ -334,7 +334,7 @@ Custom shortcuts are stored in the config.ini file under the **[library_shortcut
 Here is an example (but the easiest way is to go through the menu):
 
   ```ini
-  [library_shortcuts]
+  [shortcuts]
   KEY_MYPLAYLIST = playlist:Default Playlist
   KEY_MYOTHERKEY = folder:USB/EA9AF9F99AF9C1DD/Scylla/Scylla & Furax Barbarossa - Portes du desert
   KEY_MYKEY = file:USB/EA9AF9F99AF9C1DD/Audio Book/Alexandre Soljénitsyne/01 Une journée de Ivan Denissovitch.mp3
@@ -347,10 +347,10 @@ Here is an example (but the easiest way is to go through the menu):
 A small on-screen menu allows you to change:
 
     Menu:
-    - Add to Favorites/SongLog
-    - Remove track from queue
-    - Modify playback modes (Random, repeat etc..)
-    - Or if that's the case, show YT stream queue
+    - Add to Favorites/SongLog.
+    - Remove track from queue.
+    - Toggle playback modes (Random, repeat etc..) and can set as shortcut key.
+    - Or if that's the case, show YT stream queue.
     - Menu Power:
       - Shutdown
       - Reboot
@@ -358,19 +358,20 @@ A small on-screen menu allows you to change:
       - Restart MPD
 
     Tools Menu:
-    - Perform some actions on certain renderers (Bluetooth, Airplay, UPnP)
+    - Perform some actions on certain renderers (Bluetooth, Airplay, UPnP).
+    - Turn On/Off EQ curves (Parametric EQ and Graphic EQ) and can set as shortcut key.
     - Display SongLog and allows to search logged tracks and listen to YT.
-    - Display hardware stats
+    - Display hardware stats.
     - Config Menu:
-      - Language (currently English and French)
-      - Change color theme
+      - Language (currently English and French).
+      - Change color theme.
       - Configure UI:
-        - Show/hide: icons barre, audio infos, progress bare, spectrum, peak-meter
-        - Display clock or elapsed time
+        - Show/hide: icons barre, audio infos, progress bare, spectrum, peak-meter.
+        - Display clock or elapsed time.
       - Configure screensaver:
-        - Screen sleep delay
-        - Choose: blank, LCD clock, covers, spectrum, orbital
-      - Toggle debug mode  
+        - Screen sleep delay.
+        - Choose: blank, LCD clock, covers, spectrum, orbital.
+      - Toggle debug mode.
 
 
 ## 🔧 Uninstall

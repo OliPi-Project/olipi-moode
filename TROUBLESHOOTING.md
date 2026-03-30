@@ -1,4 +1,4 @@
-# 🛠️ OliPi MoOde - Troubleshooting and AFQ
+# 🛠️ OliPi MoOde - Troubleshooting and FAQ
 
 This guide covers common problems and their solutions when using OliPi MoOde.
 
