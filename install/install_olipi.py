@@ -360,7 +360,7 @@ def move_contents(src: Path, dst: Path, preserve_files=None, base: Path = None):
             shutil.move(str(item), str(target))
 
 def merge_ini_with_dist(user_file: Path, dist_file: Path):
-    DYNAMIC_SECTIONS = {"shortcuts", "library_shortcut"}
+    DYNAMIC_SECTIONS = {"shortcuts"}
     def parse_ini_with_comments(lines):
         """Parse ini preserving comments and blank lines per section."""
         sections = {}
