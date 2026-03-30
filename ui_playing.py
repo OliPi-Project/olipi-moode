@@ -3728,20 +3728,22 @@ def finish_press(key):
             core.reset_scroll("menu_item", "menu_title")
         elif key == "KEY_OK":
             selected = eq_preset_options[eq_preset_selection]
-            if selected["active"]:
-                try:
-                    cmd = ["sudo", "/var/www/util/eqctl.php", selected["type"], "set", "off"]
-                    subprocess.run(cmd, timeout=5)
-                    core.show_message(f"{selected['name']} Off")
-                except Exception as e:
-                    core.show_message(f"EQ set error: {e}")
-            else:
-                try:
-                    cmd = ["sudo", "/var/www/util/eqctl.php", selected["type"], "set", selected["id"]]
-                    subprocess.run(cmd, timeout=5)
-                    core.show_message(f"{selected['name']} On")
-                except Exception as e:
-                    core.show_message(f"EQ set error: {e}")
+            try:
+                cmd = ["sudo", "/var/www/util/eqctl.php", selected["type"], "set",
+                    "off" if selected["active"] else str(selected["id"])]
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+                msg = result.stdout.strip() or result.stderr.strip()
+                if result.returncode == 0:
+                    parts = msg.split("|")
+                    if len(parts) == 3:
+                        typ, _, name = parts
+                        core.show_message(f"{typ} EQ set to {name}")
+                    else:
+                        core.show_message(msg)
+                else:
+                    core.show_message(msg.replace("ERR: ", ""))
+            except Exception as e:
+                core.show_message(f"EQ error: {e}")
             update_eq_preset_menu(selected["type"])
             core.reset_scroll("menu_item", "menu_title")
 
