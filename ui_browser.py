@@ -19,7 +19,7 @@ os.environ.setdefault("OLIPI_DIR", str(OLIPIMOODE_DIR))
 
 from olipi_core import core_common as core
 from olipi_core.input_manager import start_inputs, debounce_data, process_key
-from media_key_actions import load_shortcuts, handle_audio_keys, handle_custom_key, USED_MEDIA_KEYS, set_hooks as set_custom_hooks
+from media_key_actions import load_shortcuts, is_key_reserved, is_key_used, handle_audio_keys, handle_custom_key, USED_MEDIA_KEYS, set_hooks as set_custom_hooks
 
 font_title = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 10)
 font_item = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 11)
@@ -195,23 +195,6 @@ def run_sleep_loop():
 
 learning_mode = False
 learning_callback = None
-
-RESERVED_KEYS = {
-    "KEY_UP", "KEY_DOWN", "KEY_LEFT", "KEY_RIGHT",
-    "KEY_OK", "KEY_BACK", "KEY_INFO",
-    "KEY_CHANNELUP", "KEY_CHANNELDOWN", "KEY_PLAY",
-    "KEY_STOP", "KEY_NEXT", "KEY_PREVIOUS",
-    "KEY_FORWARD", "KEY_REWIND", "KEY_VOLUMEUP",
-    "KEY_VOLUMEDOWN", "KEY_MUTE", "KEY_POWER"
-}
-
-def is_key_reserved(key):
-    return key in RESERVED_KEYS
-
-def is_key_already_used(key):
-    if not core.config.has_section("library_shortcuts"):
-        return False
-    return key in core.config["library_shortcuts"]
 
 def build_radio_url_to_title1_map(pls_directory="/var/lib/mpd/music/RADIO"):
     url_to_title = {}
@@ -1277,9 +1260,9 @@ def assign_shortcut_to_selected():
             core.show_message(core.t("info_key_reserved", key=key))
             return
 
-        already_used = is_key_already_used(key)
+        already_used = is_key_used(key)
 
-        core.save_config(key, action, section="library_shortcuts", preserve_case=True)
+        core.save_config(key, action, section="shortcuts", preserve_case=True)
         core.reload_config()
         load_shortcuts()
 

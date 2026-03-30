@@ -37,8 +37,25 @@ def set_hooks(trsl, cfg, show_fn, next_fn=None, prev_fn=None, stop_flag_fn=None)
 def load_shortcuts():
     global shortcuts
     shortcuts = {}
-    if config and config.has_section("library_shortcuts"):
-        shortcuts = dict(config["library_shortcuts"])
+    for section in ("shortcuts", "other_shortcuts"):
+        if config and config.has_section(section):
+            for k, v in config[section].items():
+                shortcuts[k.upper()] = v.strip()
+
+RESERVED_KEYS = {
+    "KEY_UP", "KEY_DOWN", "KEY_LEFT", "KEY_RIGHT",
+    "KEY_OK", "KEY_BACK", "KEY_INFO",
+    "KEY_CHANNELUP", "KEY_CHANNELDOWN", "KEY_PLAY",
+    "KEY_STOP", "KEY_NEXT", "KEY_PREVIOUS",
+    "KEY_FORWARD", "KEY_REWIND", "KEY_VOLUMEUP",
+    "KEY_VOLUMEDOWN", "KEY_MUTE", "KEY_POWER"
+}
+
+def is_key_reserved(key):
+    return key in RESERVED_KEYS
+
+def is_key_used(key):
+    return key in shortcuts
 
 def execute_shortcut(action, menu_context_flag=""):
     try:
@@ -54,16 +71,28 @@ def execute_shortcut(action, menu_context_flag=""):
         subprocess.run(["mpc", "load", value], check=False)
         time.sleep(0.5)
         subprocess.run(["mpc", "play"], check=False)
+        show_message(f"▶ {value.split('/')[-1]}")
     elif typ in ("folder", "file"):
         subprocess.run(["mpc", "clear"], check=False)
         subprocess.run(["mpc", "add", value], check=False)
         time.sleep(0.5)
         subprocess.run(["mpc", "play"], check=False)
+        show_message(f"▶ {value.split('/')[-1]}")
+     
+    elif typ in ("parametric", "graphic"):
+        try:
+            cmd = ["sudo", "/home/ben/olipi-moode/eqctl.php", typ, "set", value]
+            subprocess.run(cmd, timeout=5)
+            show_message(f"{value} applied")
+        except Exception as e:
+            show_message(f"EQ set error: {e}")
+    
+    elif typ == "playback":
+        subprocess.run(["mpc", value], check=False)
+
     else:
         return False
 
-    if show_message:
-        show_message(f"▶ {value.split('/')[-1]}")
     return True
 
 # ------------------------
@@ -200,9 +229,10 @@ def extract_hardcoded_keys():
 
 def get_used_keys():
     keys = set()
-    keys.update(extract_hardcoded_keys())  # hardcoded keys
-    if config and config.has_section("library_shortcuts"):
-        keys.update(config["library_shortcuts"].keys())  # dynamiques
+    keys.update(extract_hardcoded_keys())
+    for section in ("shortcuts", "other_shortcuts"):
+        if config and config.has_section(section):
+            keys.update(k.upper() for k in config[section].keys())
     return keys
 
 USED_MEDIA_KEYS = get_used_keys()

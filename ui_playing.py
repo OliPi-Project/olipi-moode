@@ -27,7 +27,7 @@ os.environ.setdefault("OLIPI_DIR", str(OLIPIMOODE_DIR))
 
 from olipi_core import core_common as core
 from olipi_core.input_manager import start_inputs, debounce_data, process_key
-from media_key_actions import load_shortcuts, handle_audio_keys, handle_custom_key, USED_MEDIA_KEYS, set_hooks as set_custom_hooks
+from media_key_actions import load_shortcuts, is_key_reserved, is_key_used, handle_audio_keys, handle_custom_key, USED_MEDIA_KEYS, set_hooks as set_custom_hooks
 
 yt_cache_path = OLIPIMOODE_DIR / "yt_cache.json"
 
@@ -271,6 +271,9 @@ eth_extra_info = ""
 help_active = False
 help_lines = []
 help_selection = 0
+
+learning_mode = False
+learning_callback = None
 
 # ---- ICON PATHS (keep as file paths) ----
 ICON_PATHS = {
@@ -575,8 +578,7 @@ RENDERER_PARAMS = [
 
 def load_renderer_states_from_db():
     try:
-        db_path = "/var/local/www/db/moode-sqlite3.db"
-        conn = sqlite3.connect(db_path)
+        conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
         placeholders = ",".join(["?"] * len(RENDERER_PARAMS))
         cursor.execute(f"SELECT param, value FROM cfg_system WHERE param IN ({placeholders})", RENDERER_PARAMS)
@@ -658,6 +660,25 @@ def get_fallback_image():
     except:
         return None
 
+def get_moode_volume():
+    try:
+        conn = sqlite3.connect(DB_PATH, timeout=1)
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT param, value
+            FROM cfg_system
+            WHERE param IN ('volmute', 'volknob')
+        """)
+        data = dict(cursor.fetchall())
+        conn.close()
+        level = int(data.get("volknob", 0))
+        mute = data.get("volmute", "0") == "1"
+        return "Mute" if mute else str(level)
+    except Exception as e:
+        if core.DEBUG:
+            print("get_moode_volume error:", e)
+        return 0
+
 def player_status_thread():
     global last_title_seen, last_artist_seen, menu_context_flag
     client = MPDClient()
@@ -667,7 +688,8 @@ def player_status_thread():
             client.connect("localhost", 6600)
             break
         except Exception as e:
-            print("Player MPD connect error, retry in 5s:", e)
+            if core.DEBUG:
+                print("Player MPD connect error, retry in 5s:", e)
             time.sleep(5)
     first_run = True
     while True:
@@ -770,7 +792,8 @@ def player_status_thread():
                 else:
                     global_state["audio"] = "No Info"
         except Exception as e:
-            print("Player idle error:", e)
+            if core.DEBUG:
+                print("Player idle error:", e)
             first_run = True
             try:
                 client.disconnect()
@@ -787,7 +810,8 @@ def mixer_status_thread():
             client.connect("localhost", 6600)
             break
         except Exception as e:
-            print("Mixer MPD connect error, retry in 5s:", e)
+            if core.DEBUG:
+                print("Mixer MPD connect error, retry in 5s:", e)
             time.sleep(5)
     first_run = True
     while True:
@@ -801,21 +825,18 @@ def mixer_status_thread():
                 events = []
             if "mixer" in events or first_run:
                 first_run = False
-                status_extra = client.status()
-                volume_state = status_extra.get("volume", "N/A")
-                if volume_state == "0":
-                    global_state["volume"] = "Mute"
-                else:
-                    global_state["volume"] = volume_state
+                volume_state = get_moode_volume()
+                global_state["volume"] = volume_state
         except Exception as e:
-            print("Mixer idle error:", e)
+            if core.DEBUG:
+                print("Mixer idle error:", e)
             first_run = True
             try:
                 client.disconnect()
                 client.connect("localhost", 6600)
             except Exception:
                 time.sleep(5)
-        time.sleep(0.3)
+        time.sleep(0.4)
 
 def options_status_thread():
     client = MPDClient()
@@ -825,7 +846,8 @@ def options_status_thread():
             client.connect("localhost", 6600)
             break
         except Exception as e:
-            print("Options MPD connect error, retry in 5s:", e)
+            if core.DEBUG:
+                print("Options MPD connect error, retry in 5s:", e)
             time.sleep(5)
     first_run = True
     while True:
@@ -845,7 +867,8 @@ def options_status_thread():
                 global_state["single"] = status_extra.get("single", "0")
                 global_state["consume"] = status_extra.get("consume", "0")
         except Exception as e:
-            print("Options idle error:", e)
+            if core.DEBUG:
+                print("Options idle error:", e)
             first_run = True
             try:
                 client.disconnect()
@@ -866,7 +889,8 @@ def non_idle_status_thread():
             client.connect("localhost", 6600)
             break
         except Exception as e:
-            print("Player MPD connect error, retry in 5s:", e)
+            if core.DEBUG:
+                print("Player MPD connect error, retry in 5s:", e)
             time.sleep(5)
     while True:
         if is_sleeping and screensaver_mode != "spectrum":
@@ -880,7 +904,8 @@ def non_idle_status_thread():
                 global_state["elapsed"] = float(status_extra.get("elapsed", 0.0))
                 global_state["bitrate"] = status_extra.get("bitrate", "")
             except Exception as e:
-                print("Non_idle_status error:", e)
+                if core.DEBUG:
+                    print("Non_idle_status error:", e)
                 try:
                     client.disconnect()
                 except Exception:
@@ -889,7 +914,8 @@ def non_idle_status_thread():
                 try:
                     client.connect("localhost", 6600)
                 except Exception as e2:
-                    print("MPD reconnect failed:", e2)
+                    if core.DEBUG:
+                        print("MPD reconnect failed:", e2)
                     time.sleep(2)
         if now - last_renderer_check > 1.5:
             last_renderer_check = now
@@ -2368,7 +2394,7 @@ def update_eq_preset_menu(eq_type):
     global eq_preset_options, eq_preset_selection
     eq_preset_options = []
     try:
-        cmd = ["sudo", "php", "/home/ben/olipi-moode/eqctl.php", eq_type, "list"]
+        cmd = ["sudo", "/var/www/util/eqctl.php", eq_type, "list"]
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
         lines = result.stdout.strip().splitlines()
         for line in lines:
@@ -3141,6 +3167,65 @@ def draw_nowplaying():
         clock_w = core.draw.textlength(clock_text, font=font_vol_clock)
         core.draw.text((core.width - clock_w - padding_x, y_vol_bar), clock_text, font=font_vol_clock, fill=core.COLOR_VOL_CLOCK)
 
+def build_shortcut_action(typ, val):
+    if typ == "parametric":
+        return f"parametric:{val}" # val == preset[name] 
+    elif typ == "graphic":
+        return f"graphic:{val}" # val == preset[name]
+    elif typ == "playback":
+        return f"playback:{val}" # val == random, consume, etc..
+    return None
+
+def assign_shortcut_to_selected(selected):
+    global learning_mode, learning_callback, blocking_render
+
+    if eq_preset_active:
+        typ = selected["type"]
+        val = selected["name"]
+    if playback_modes_menu_active:
+        typ = "playback"
+        val = selected["id"]
+
+
+    #typ, val = menu_items[menu_selection]
+    action = build_shortcut_action(typ, val)
+
+    if not action:
+        core.show_message(core.t("info_invalid_item"))
+        return
+
+    core.message_permanent = True
+    blocking_render = True
+    core.message_text = core.t("info_press_key")
+    render_screen()
+
+    def on_key(key):
+        global learning_mode, learning_callback, blocking_render
+
+        core.message_permanent = False
+        core.message_text = None
+        blocking_render = False
+        learning_mode = False
+        learning_callback = None
+
+        if is_key_reserved(key):
+            core.show_message(core.t("info_key_reserved", key=key))
+            return
+
+        already_used = is_key_used(key)
+
+        core.save_config(key, action, section="shortcuts", preserve_case=True)
+        core.reload_config()
+        load_shortcuts()
+
+        if already_used:
+            core.show_message(core.t("info_key_replaced", key=key))
+        else:
+            core.show_message(core.t("info_key_assigned", key=key))
+
+    learning_mode = True
+    learning_callback = on_key
+
 def nav_left_short():
     if menu_context_flag == "local_stream":
         previous_stream(manual_skip=True)
@@ -3211,6 +3296,12 @@ def nav_ok_long():
     if now_playing_mode:
         tool_menu_active = True
         tool_menu_selection = 0
+    elif eq_preset_active:
+        selected = eq_preset_options[eq_preset_selection]
+        assign_shortcut_to_selected(selected)
+    elif playback_modes_menu_active:
+        selected = playback_modes_options[playback_modes_selection]
+        assign_shortcut_to_selected(selected)
     else:
         return
 
@@ -3291,7 +3382,7 @@ def finish_press(key):
     global bluetooth_audioout_menu_active, bluetooth_audioout_menu_selection
     global bluetooth_paired_menu_active, bluetooth_paired_menu_selection, bluetooth_device_actions_menu_active, bluetooth_device_actions_menu_selection
     global eq_menu_active, eq_menu_selection, eq_preset_active, eq_preset_selection, eq_preset_action_active, eq_preset_action_selection
-    global blocking_render, screen_on, idle_timer, is_sleeping, last_wake_time
+    global blocking_render, screen_on, idle_timer, is_sleeping, last_wake_time, learning_mode, learning_callback
 
     data = debounce_data.get(key)
 
@@ -3302,6 +3393,12 @@ def finish_press(key):
         print(f"End pressure {key} with final code {final_code}.")
 
     idle_timer = time.time()
+
+    if learning_mode:
+        learning_mode = False
+        if learning_callback:
+            learning_callback(key)
+        return
 
     if is_renderer_active():
         if key in ("KEY_LEFT", "KEY_RIGHT", "KEY_UP", "KEY_DOWN"):
@@ -3554,6 +3651,9 @@ def finish_press(key):
             playback_modes_menu_active = False
             menu_active = True
             core.reset_scroll("menu_item", "menu_title")
+        elif key == "KEY_OK" and final_code >= 6:
+            selected = playback_modes_options[playback_modes_selection]
+            assign_shortcut_to_selected(selected)
         elif key == "KEY_OK":
             option = playback_modes_options[playback_modes_selection]
             state_key = option["id"]
@@ -3637,6 +3737,9 @@ def finish_press(key):
             eq_preset_active = False
             eq_menu_active = True
             core.reset_scroll("menu_item", "menu_title")
+        elif key == "KEY_OK" and final_code >= 6:
+            selected = eq_preset_options[eq_preset_selection]
+            assign_shortcut_to_selected(selected)
         elif key == "KEY_OK":
             selected = eq_preset_options[eq_preset_selection]
             eq_preset_active = False
@@ -3662,14 +3765,14 @@ def finish_press(key):
                 preset = current_eq_selection
                 if preset["active"]:
                     try:
-                        cmd = ["sudo", "php", "/home/ben/olipi-moode/eqctl.php", preset["type"], "set", "off"]
+                        cmd = ["sudo", "/var/www/util/eqctl.php", preset["type"], "set", "off"]
                         subprocess.run(cmd, timeout=5)
                         core.show_message(f"{preset['name']} off")
                     except Exception as e:
                         core.show_message(f"EQ set error: {e}")
                 else:
                     try:
-                        cmd = ["sudo", "php", "/home/ben/olipi-moode/eqctl.php", preset["type"], "set", preset["id"]]
+                        cmd = ["sudo", "/var/www/util/eqctl.php", preset["type"], "set", preset["id"]]
                         subprocess.run(cmd, timeout=5)
                         core.show_message(f"{preset['name']} applied")
                     except Exception as e:

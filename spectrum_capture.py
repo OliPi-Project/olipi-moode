@@ -202,9 +202,9 @@ class SpectrumCapture(threading.Thread):
         vol_step = None
         try:
             if isinstance(volume_state, str):
-                vol_step = 0.0 if volume_state.lower()=="mute" else int(float(volume_state))
+                vol_step = 0.0 if volume_state.lower()=="mute" else int(volume_state)
             elif volume_state is not None:
-                vol_step = int(float(volume_state))
+                vol_step = int(volume_state)
         except Exception:
             vol_step = None
 
