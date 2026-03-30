@@ -478,8 +478,8 @@ def merge_ini_with_dist(user_file: Path, dist_file: Path):
                 print(f"[INFO] Deleted old backup: {old_backup}")
             except Exception as e:
                 print(f"[WARN] Could not delete backup {old_backup}: {e}")
-# Write new merged file
-user_file.write_text("\n".join(merged_lines) + "\n")
+    # Write new merged file
+    user_file.write_text("\n".join(merged_lines) + "\n")
 
 def sync_user_themes():
     themes_main = yaml.safe_load(THEME_PATH_MAIN.read_text(encoding="utf-8")) or {}
