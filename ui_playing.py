@@ -133,13 +133,6 @@ eq_preset_active = False
 eq_preset_selection = 0
 eq_preset_options = []
 
-eq_preset_action_active = False
-eq_preset_action_selection = 0
-eq_preset_action_options = [
-    {"id": "active_preset", "label": core.t("menu_active_preset")},
-    {"id": "set_shortcut", "label": core.t("menu_shortcut_key")}
-]
-
 songlog_active = False
 songlog_lines = []
 songlog_meta = []
@@ -2451,8 +2444,6 @@ def render_screen():
             draw_bluetooth_paired_menu()
         elif bluetooth_menu_active:
             draw_bluetooth_menu()
-        elif eq_preset_action_active:
-            draw_eq_preset_action_menu()
         elif eq_preset_active:
             draw_eq_preset_menu()
         elif eq_menu_active:
@@ -2544,9 +2535,6 @@ def draw_eq_menu():
 
 def draw_eq_preset_menu():
     core.draw_custom_menu([item["label"] for item in eq_preset_options], eq_preset_selection, title=core.t("title_eq_preset"))
-
-def draw_eq_preset_action_menu():
-    core.draw_custom_menu([item["label"] for item in eq_preset_action_options], eq_preset_action_selection, title=core.t("title_eq_preset_action"))
 
 def draw_renderers_menu():
     active = []
@@ -3266,7 +3254,7 @@ def nav_left_long():
             "power_menu_active", "renderers_menu_active", "bluetooth_menu_active",
             "bluetooth_scan_menu_active", "bluetooth_paired_menu_active",
             "bluetooth_audioout_menu_active", "bluetooth_device_actions_menu_active", "playback_modes_menu_active",
-            "eq_menu_active", "eq_preset_active", "eq_preset_action_active"
+            "eq_menu_active", "eq_preset_active"
         ]:
             globals()[var] = False
 
@@ -3326,7 +3314,12 @@ def nav_info():
     help_base_path = OLIPIMOODE_DIR / f"assets/help_texts/help_ui_playing_{core.LANGUAGE}.txt"
     if not help_base_path.exists():
         help_base_path = OLIPIMOODE_DIR / "assets/help_texts/help_ui_playing_en.txt"
-    context = "nowplaying_mode" if now_playing_mode else "menu"
+    if now_playing_mode:
+        context = "nowplaying_mode"
+    elif playback_modes_menu_active or eq_preset_active:
+        context = "menu_can_shortcut"
+    else:
+        context = "menu"
     try:
         with open(help_base_path, "r", encoding="utf-8") as f:
             lines = f.readlines()
@@ -3381,7 +3374,7 @@ def finish_press(key):
     global bluetooth_menu_active, bluetooth_menu_selection, bluetooth_scan_menu_active, bluetooth_scan_menu_selection
     global bluetooth_audioout_menu_active, bluetooth_audioout_menu_selection
     global bluetooth_paired_menu_active, bluetooth_paired_menu_selection, bluetooth_device_actions_menu_active, bluetooth_device_actions_menu_selection
-    global eq_menu_active, eq_menu_selection, eq_preset_active, eq_preset_selection, eq_preset_action_active, eq_preset_action_selection
+    global eq_menu_active, eq_menu_selection, eq_preset_active, eq_preset_selection
     global blocking_render, screen_on, idle_timer, is_sleeping, last_wake_time, learning_mode, learning_callback
 
     data = debounce_data.get(key)
@@ -3651,9 +3644,6 @@ def finish_press(key):
             playback_modes_menu_active = False
             menu_active = True
             core.reset_scroll("menu_item", "menu_title")
-        elif key == "KEY_OK" and final_code >= 6:
-            selected = playback_modes_options[playback_modes_selection]
-            assign_shortcut_to_selected(selected)
         elif key == "KEY_OK":
             option = playback_modes_options[playback_modes_selection]
             state_key = option["id"]
@@ -3726,7 +3716,6 @@ def finish_press(key):
         return
 
     if eq_preset_active:
-        global current_eq_selection
         if key == "KEY_UP" and eq_preset_selection > 0:
             eq_preset_selection -= 1
             core.reset_scroll("menu_item")
@@ -3737,50 +3726,24 @@ def finish_press(key):
             eq_preset_active = False
             eq_menu_active = True
             core.reset_scroll("menu_item", "menu_title")
-        elif key == "KEY_OK" and final_code >= 6:
-            selected = eq_preset_options[eq_preset_selection]
-            assign_shortcut_to_selected(selected)
         elif key == "KEY_OK":
             selected = eq_preset_options[eq_preset_selection]
-            eq_preset_active = False
-            eq_preset_action_active = True
-            eq_preset_action_selection = 0
-            current_eq_selection = selected
+            if selected["active"]:
+                try:
+                    cmd = ["sudo", "/var/www/util/eqctl.php", selected["type"], "set", "off"]
+                    subprocess.run(cmd, timeout=5)
+                    core.show_message(f"{selected['name']} Off")
+                except Exception as e:
+                    core.show_message(f"EQ set error: {e}")
+            else:
+                try:
+                    cmd = ["sudo", "/var/www/util/eqctl.php", selected["type"], "set", selected["id"]]
+                    subprocess.run(cmd, timeout=5)
+                    core.show_message(f"{selected['name']} On")
+                except Exception as e:
+                    core.show_message(f"EQ set error: {e}")
+            update_eq_preset_menu(selected["type"])
             core.reset_scroll("menu_item", "menu_title")
-
-    if eq_preset_action_active:
-        if key == "KEY_UP" and eq_preset_action_selection > 0:
-            eq_preset_action_selection -= 1
-            core.reset_scroll("menu_item")
-        elif key == "KEY_DOWN" and eq_preset_action_selection < len(eq_preset_action_options) - 1:
-            eq_preset_action_selection += 1
-            core.reset_scroll("menu_item")
-        elif key == "KEY_LEFT":
-            eq_preset_action_active = False
-            eq_preset_active = True
-            core.reset_scroll("menu_item", "menu_title")
-        elif key == "KEY_OK":
-            selected_action = eq_preset_action_options[eq_preset_action_selection]["id"]
-            if selected_action == "active_preset":
-                preset = current_eq_selection
-                if preset["active"]:
-                    try:
-                        cmd = ["sudo", "/var/www/util/eqctl.php", preset["type"], "set", "off"]
-                        subprocess.run(cmd, timeout=5)
-                        core.show_message(f"{preset['name']} off")
-                    except Exception as e:
-                        core.show_message(f"EQ set error: {e}")
-                else:
-                    try:
-                        cmd = ["sudo", "/var/www/util/eqctl.php", preset["type"], "set", preset["id"]]
-                        subprocess.run(cmd, timeout=5)
-                        core.show_message(f"{preset['name']} applied")
-                    except Exception as e:
-                        core.show_message(f"EQ set error: {e}")
-                update_eq_preset_menu(preset["type"])
-                eq_preset_action_active = False
-                eq_preset_active = True
-                core.reset_scroll("menu_item", "menu_title")
 
     if renderers_menu_active:
         if key == "KEY_UP" and renderers_menu_selection > 0:

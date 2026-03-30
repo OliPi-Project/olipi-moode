@@ -17,3 +17,10 @@ OK: Valider action/option
 ↑ ↓: Naviguer dans le menu
 ←: Annuler / Fermer le menu
 ← long: Annuler / Retour Acceuil
+
+# CONTEXT:menu_can_shortcut
+OK: Valider action/option
+OK long: configurer raccourci
+↑ ↓: Naviguer dans le menu
+←: Annuler / Fermer le menu
+← long: Annuler / Retour Acceuil
