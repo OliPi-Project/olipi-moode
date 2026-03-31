@@ -7,7 +7,6 @@ import time
 import re
 import dis
 
-# --- Globals / injectable hooks ---
 t = None
 config = None
 show_message = None
@@ -15,12 +14,8 @@ next_stream = None
 previous_stream = None
 set_stream_manual_stop = None
 
-# --- Shortcuts loaded from .ini ---
 shortcuts = {}
 
-# ------------------------
-# Hooks injection
-# ------------------------
 def set_hooks(trsl, cfg, show_fn, next_fn=None, prev_fn=None, stop_flag_fn=None):
     global t, config, show_message, next_stream, previous_stream, set_stream_manual_stop
     t = trsl
@@ -31,9 +26,6 @@ def set_hooks(trsl, cfg, show_fn, next_fn=None, prev_fn=None, stop_flag_fn=None)
     set_stream_manual_stop = stop_flag_fn
     load_shortcuts()
 
-# ------------------------
-# Load shortcuts from config
-# ------------------------
 def load_shortcuts():
     global shortcuts
     shortcuts = {}
@@ -225,7 +217,7 @@ def handle_custom_key(key, final_code, menu_context_flag=""):
     if key in shortcuts:
         return execute_shortcut(shortcuts[key], menu_context_flag)
 
-    # --- Hardcoded keys example ---
+    # --- Hardcoded keys ---
     if key == "KEY_TESTKEY":
         if menu_context_flag == "local_stream" and set_stream_manual_stop:
             set_stream_manual_stop(manual_stop=True)
