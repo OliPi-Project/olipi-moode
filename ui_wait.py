@@ -11,7 +11,7 @@ os.environ.setdefault("OLIPI_DIR", str(OLIPIMOODE_DIR))
 
 from olipi_core import core_common as core
 
-TIMEOUT_MOODE = 300
+TIMEOUT_MOODE = 600
 
 font_large = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 14)
 
@@ -66,6 +66,5 @@ if not wait_for_moode():
 show_message_centered("MoOde Ready!")
 time.sleep(1)
 
-print("Lancement de olipi-ui-playing.service...")
 subprocess.call(["sudo", "systemctl", "start", "olipi-ui-playing"])
 sys.exit(0)
