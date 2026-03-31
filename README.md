@@ -250,7 +250,7 @@ These keys are **required** to navigate and control all interfaces:
 | **KEY_DOWN**        | Move down                                           | Volume - if outside menu                           |
 | **KEY_LEFT**        | Move left                                           | Previous / Seek -10s (long press) if outside menu  |
 | **KEY_RIGHT**       | Move right                                          | Next / Seek +10s (long press) if outside menu      |
-| **KEY_OK**          | Open menu / Tools menu (long press) / Confirm       |                                                    |
+| **KEY_OK**          | Open menu / Confirm / Tools menu (long press)       | Set shortcut if long press in some menus (see [User Keys](#-user-keys))|
 | **KEY_BACK**        | Switch to `ui_browser`/`ui_queue`/`ui_playing`      | Switch to `ui_browser` (short) / `ui_queue` (long) |
 | **KEY_INFO**        | Show contextual help                                |                                                    |
 | **KEY_CHANNELUP**   | Context action                                      | Add/Remove favorites, if radio: add to songlog     |
@@ -282,13 +282,20 @@ Recommended if available on your remote, but **not mandatory**:
 
 ### 🆓 User Keys
 
-You can assign additional buttons on your remote control to a radio station, playlist, album, or song.  
+You can assign additional actions on your unused buttons.
 
-The easiest way is to use the "**Set shortcut**" option from the menu (**OK** button in the UI library browser) on the item you want to create a shortcut for, then press the button of your choice (excluding the essential and optional Olipy buttons), and that’s it (But make sure your remote control is set up correctly; see [IR remote configuration](#-ir-remote-configuration) if necessary). 
+For loading radio station, playlist, album, or song: 
 
-It is also possible to assign shortcuts to the GPIO buttons and the MPR121 pads by using custom button names in config.ini and proceeding in the same way as for remote control buttons via the "Set shortcut" menu entry.
+Use the "**Set shortcut**" option from the menu (**OK** button in the UI library browser) on the item you want to create a shortcut for, then press the unused button of your choice (excluding the essential and optional OliPy buttons), and that’s it.
 
-For example, if you have a few unused MPR121 pads or GPIO pins, you can assign them unused names:
+To toggle playback modes and Equalizer curves:
+
+In the Now playing UI go to playback modes or equalizer menus and long press KEY_OK on the item you want to create a shortcut for, then press the unused button of your choice (excluding the essential and optional OliPy buttons), and that’s it.
+
+Make sure your remote control is set up correctly, see [IR remote configuration](#-ir-remote-configuration) if necessary. 
+It is also possible to assign shortcuts to the GPIO buttons and the MPR121 pads by using custom button names in config.ini and proceeding in the same way as stated above.
+
+For example, if you have a few unused MPR121 pads or GPIO pins, you can assign them unused name:
 
   ```ini
   [mpr121_pads]
@@ -306,7 +313,7 @@ For example, if you have a few unused MPR121 pads or GPIO pins, you can assign t
   pad11 = KEY_MYOTHERKEY
   ```
 
-And/or with GPIO button (If you use MPR121 and GPIO You can comment out all unused keys to add custom keys like bellow):
+And/or with GPIO button (If you use MPR121 and GPIO You can comment out all unused keys to add custom KEY_NAME like bellow):
 
   ```ini
   [buttons]
@@ -331,7 +338,7 @@ Custom shortcuts are stored in the config.ini file under the **[shortcuts]** sec
   - file:path to your file.mp3 or path to your stream link
   - folder:path to your album folder
 
-Here is an example (but the easiest way is to go through the menu):
+Here is an example (but the easiest way is to go through the UI):
 
   ```ini
   [shortcuts]
