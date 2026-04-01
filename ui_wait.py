@@ -11,8 +11,6 @@ os.environ.setdefault("OLIPI_DIR", str(OLIPIMOODE_DIR))
 
 from olipi_core import core_common as core
 
-TIMEOUT_MOODE = 600
-
 font_large = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 14)
 
 def show_message_centered(text1, text2=""):
@@ -36,7 +34,7 @@ def show_message_centered(text1, text2=""):
         core.draw.text((x1, y1), text1, font=font_large, fill=core.COLOR_TEXT)
     core.refresh()
 
-def wait_for_moode(timeout=TIMEOUT_MOODE):
+def wait_for_moode():
     frames = ["⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"]
     start = time.time()
     frame = 0
@@ -55,16 +53,9 @@ def wait_for_moode(timeout=TIMEOUT_MOODE):
         frame += 1
         time.sleep(0.2)
 
-        if time.time() - start > timeout:
-            show_message_centered("MoOde Not Ready", "Restarting Wait Service")
-            time.sleep(1)
-            return False
+if wait_for_moode():
+    show_message_centered("MoOde Ready!")
+    time.sleep(1)
 
-if not wait_for_moode():
-    sys.exit("MoOde not Avaible")
-
-show_message_centered("MoOde Ready!")
-time.sleep(1)
-
-subprocess.call(["sudo", "systemctl", "start", "olipi-ui-playing"])
-sys.exit(0)
+    subprocess.call(["sudo", "systemctl", "start", "olipi-ui-playing"])
+    sys.exit(0)
