@@ -371,6 +371,8 @@ load_spectrum_palette(core.THEME_NAME)
 
 last_title_seen = ""
 last_artist_seen = ""
+last_radio_path = None
+ignore_next_radio_title = False
 
 query = ""
 stream_url = ""
@@ -530,6 +532,7 @@ global_state = {
     "artist": "",
     "artist_album": "",
     "path": "",
+    "radio_track_covers": False,
     "cover_img": None,
     "btsvc": "0",
     "btactive": "0",
@@ -653,6 +656,128 @@ def get_fallback_image():
     except:
         return None
 
+def get_radio_track_covers_enabled():
+    try:
+        conn = sqlite3.connect(DB_PATH, timeout=1)
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT value FROM cfg_system
+            WHERE param='radio_track_covers'
+        """)
+        result = cursor.fetchone()
+        conn.close()
+        if result[0] == "Yes":
+            global_state["radio_track_covers"] = True
+        return result and result[0] == "Yes"
+    except Exception as e:
+        if core.DEBUG:
+            print("radio_track_covers read error:", e)
+        return False
+get_radio_track_covers_enabled()
+
+def get_radio_track_cover(url):
+    if not url:
+        return None
+    try:
+        resp = requests.get(url, timeout=3)
+        resp.raise_for_status()
+        img = core.Image.open(BytesIO(resp.content))
+        radio_cover = convert_img_for_display(img)
+    except Exception as e:
+        if core.DEBUG:
+            print("cover download error:", e)
+    return radio_cover
+
+def get_itunes_cover_url(title, artist_album=None):
+    try:
+        if not title:
+            return None
+        # --- parse "Artist - Track" ---
+        artist = ""
+        track = title
+        if " - " in title:
+            parts = title.split(" - ", 1)
+            artist = parts[0].strip()
+            track = parts[1].strip()
+        # --- clean ---
+        def clean(text):
+            if not text:
+                return ""
+            # --- remove (...) and [...] ---
+            text = re.sub(r"\(.*?\)|\[.*?\]", "", text)
+            # --- remove common junk words ---
+            junk_words = [
+                "live", "remix", "edit", "version", "official", "video",
+                "radio edit", "remastered", "mono", "stereo"
+            ]
+            for word in junk_words:
+                text = re.sub(rf"\b{word}\b", "", text, flags=re.IGNORECASE)
+            # --- cleanup spaces ---
+            text = re.sub(r"\s+", " ", text)
+            return text.strip()
+        # --- validation ---
+        def is_valid(text):
+            return text and len(text) >= 3 and re.search(r"[a-zA-Z0-9]", text)
+        # --- blacklist radio ---
+        text_all = f"{artist} {track}".lower()
+        blacklist = ["radio", "fm", "stream", "station", "webradio"]
+        for word in blacklist:
+            if word in text_all:
+                return None
+        # --- compare with radio name ---
+        if artist_album:
+            radio_name = artist_album.lower()
+            if track.lower() == radio_name or artist.lower() == radio_name:
+                return None
+        # --- fallback logic ---
+        args = ["python3", "/var/www/util/trackcover-url.py"]
+        if is_valid(artist) and is_valid(track):
+            args += ["--artist", artist, "--track", track]
+        elif is_valid(track):
+            args += ["--track", track]
+        else:
+            return None
+        result = subprocess.run(
+            args,
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        url = result.stdout.strip()
+        if core.DEBUG:
+            print(f"artist={artist} | track={track} | cover_url={url}")
+        return url if url.startswith("http") else None
+    except Exception as e:
+        if core.DEBUG:
+            print("itunes cover error:", e)
+        return None
+
+def clean_youtube_title(text):
+    if not text:
+        return ""
+    # --- remove (...) and [...] ---
+    text = re.sub(r"\(.*?\)|\[.*?\]", "", text)
+    # --- remove youtube junk ---
+    junk_patterns = [
+        r"official music video",
+        r"official video",
+        r"official audio",
+        r"lyrics video",
+        r"lyrics",
+        r"video clip",
+        r"audio video"
+        r"hd",
+        r"hq",
+        r"4k",
+        r"remastered",
+    ]
+
+    for pattern in junk_patterns:
+        text = re.sub(pattern, "", text, flags=re.IGNORECASE)
+    # --- cleanup ---
+    text = re.sub(r"\s+", " ", text)
+    return text.strip(" -")
+
 def get_moode_volume():
     try:
         conn = sqlite3.connect(DB_PATH, timeout=1)
@@ -710,15 +835,15 @@ def player_status_thread():
                         if stream_queue:
                             position = stream_queue_pos + 1 if 0 <= stream_queue_pos < len(stream_queue) else "?"
                             artist_album = f"YT {core.t('show_stream_queue_number', count=len(stream_queue), position=position)}"
-                            title = final_title_yt
+                            title = clean_youtube_title(final_title_yt)
                         else:
                             artist_album = f"YT Stream | [Album: {album_yt}]" if album_yt else "YT Stream"
-                            title = final_title_yt
+                            title = clean_youtube_title(final_title_yt)
                         # global_state["duration"] defined in yt_search_track()
                     else:
                         menu_context_flag = "radio"
                         album = RADIO_MAP.get(path, "Unknown Radio")
-                        artist_album = album
+                        artist_album = album # Radio name
                         global_state["duration"] = float(status_extra.get("duration", 0.0))
                 else:
                     menu_context_flag = "library"
@@ -751,15 +876,35 @@ def player_status_thread():
                                     cover_img = get_fallback_image()
                             else:
                                 cover_img = get_fallback_image()
-                        elif path and path.startswith("http") and album != "Unknown Radio":
-                            try:
-                                radio_path_cover = f"/var/local/www/imagesw/radio-logos/{album}.jpg"
-                                img = core.Image.open(radio_path_cover)
-                                cover_img = convert_img_for_display(img)
-                            except:
+
+                        elif path and path.startswith("http"):
+                            cover_img = None
+                            # Radio tracks covers
+                            global last_radio_path, ignore_next_radio_title
+                            if path != last_radio_path:
+                                last_radio_path = path
+                                ignore_next_radio_title = True
+                            if global_state.get("radio_track_covers"):
+                                if ignore_next_radio_title:
+                                    ignore_next_radio_title = False
+                                else:
+                                    cover_url = get_itunes_cover_url(title, artist_album)
+                                    if cover_url:
+                                        new_cover = get_radio_track_cover(cover_url)
+                                        if new_cover:
+                                            cover_img = new_cover
+                            # Fallback radio cover
+                            if not cover_img and album != "Unknown Radio":
+                                try:
+                                    radio_path_cover = f"/var/local/www/imagesw/radio-logos/{album}.jpg"
+                                    img = core.Image.open(radio_path_cover)
+                                    cover_img = convert_img_for_display(img)
+                                except:
+                                    cover_img = None
+                            # Fallback default cover
+                            if not cover_img:
                                 cover_img = get_fallback_image()
-                        else:
-                            cover_img = get_fallback_image()
+
                     except Exception as e:
                         if core.DEBUG:
                             print(f"error: {e}")
@@ -2676,12 +2821,12 @@ def monitor_spectrum():
                     if time.time() - last_toggle < 0.2:
                         continue
                     stop_spectrum()
-                    time.sleep(0.02)
-                    client.pause()
-                    time.sleep(0.01)
-                    client.pause()
+                    #time.sleep(0.02)
+                    #client.pause()
+                    #time.sleep(0.01)
+                    #client.pause()
                     last_toggle = time.time()
-                    time.sleep(0.02)
+                    #time.sleep(0.02)
                     start_spectrum()
             except Exception as e:
                 print("MPD monitor error:", e)
@@ -3157,60 +3302,47 @@ def draw_nowplaying():
 
 def build_shortcut_action(typ, val):
     if typ == "parametric":
-        return f"parametric:{val}" # val == preset[name] 
+        return f"parametric:{val}"
     elif typ == "graphic":
-        return f"graphic:{val}" # val == preset[name]
+        return f"graphic:{val}"
     elif typ == "playback":
-        return f"playback:{val}" # val == random, consume, etc..
+        return f"playback:{val}"
     return None
 
 def assign_shortcut_to_selected(selected):
     global learning_mode, learning_callback, blocking_render
-
     if eq_preset_active:
         typ = selected["type"]
         val = selected["name"]
     if playback_modes_menu_active:
         typ = "playback"
         val = selected["id"]
-
-
-    #typ, val = menu_items[menu_selection]
     action = build_shortcut_action(typ, val)
-
     if not action:
         core.show_message(core.t("info_invalid_item"))
         return
-
     core.message_permanent = True
     blocking_render = True
     core.message_text = core.t("info_press_key")
     render_screen()
-
     def on_key(key):
         global learning_mode, learning_callback, blocking_render
-
         core.message_permanent = False
         core.message_text = None
         blocking_render = False
         learning_mode = False
         learning_callback = None
-
         if is_key_reserved(key):
             core.show_message(core.t("info_key_reserved", key=key))
             return
-
         already_used = is_key_used(key)
-
         core.save_config(key, action, section="shortcuts", preserve_case=True)
         core.reload_config()
         load_shortcuts()
-
         if already_used:
             core.show_message(core.t("info_key_replaced", key=key))
         else:
             core.show_message(core.t("info_key_assigned", key=key))
-
     learning_mode = True
     learning_callback = on_key
 
