@@ -394,6 +394,8 @@ You can uninstall all without leaving any residue with the following command:
 
 ## ❓ Troubleshooting and FAQ
 
+Known issues: If you are using the "YouTube queue", do not use the controls in the Moode UI (this causes a crash); instead, use only the controls via OliPy.
+
 If you want to learn more about OliPi Moode or if you encounter issues (black screen, IR remote not detected, GPIO not working, etc.), please check the [FAQ & Troubleshooting guide](./TROUBLESHOOTING.md).
 
 
