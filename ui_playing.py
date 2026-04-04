@@ -385,45 +385,57 @@ favorites_cache = []
 favorites_last_mtime = 0
 favorites_last_check = 0
 
+core.poweron_safe()
+
 def run_active_loop():
     if not blocking_render and not is_sleeping:
         render_screen()
 
 def run_sleep_loop():
     global is_sleeping, screen_on
-
     if is_sleeping:
         return
-
     is_sleeping = True
     screen_on = False
     last_displayed_cover = None
+    last_mpd_state = None
 
-    if screensaver_mode == "covers" and global_state.get("state", "unknown") != "stop":
+    if screensaver_mode == "covers":
         while is_sleeping:
-            cover = global_state.get("cover_img")
-            if global_state.get("state", "unknown") == "stop":
-                screen_on = True
-                is_sleeping = False
-                last_displayed_cover = None
-                break
-            elif cover and id(cover) != last_displayed_cover:
-                core.draw.rectangle((0, 0, core.width, core.height), fill=core.COLOR_BG)
-                img = cover.copy()
-                margin = int(min(core.width, core.height) * 0.05)
-                if core.height <= 64:
-                    margin = 0
-                img.thumbnail((core.width - margin * 2, core.height - margin * 2), core.Image.LANCZOS)
-                x = (core.width - img.width) // 2
-                y = (core.height - img.height) // 2
-                core.image.paste(img, (x, y))
-                core.refresh()
-                last_displayed_cover = id(cover)
-            elif not cover and last_displayed_cover != "no_cover":
-                print("NO COVER")
-                last_displayed_cover = "no_cover"
-                core.clear_display()
-            time.sleep(0.2)
+            mpd_state = global_state.get("state", "unknown")
+            # --- state change detection ---
+            if mpd_state != last_mpd_state:
+                last_mpd_state = mpd_state
+                if mpd_state == "stop":
+                    core.clear_display()
+                    core.poweroff_safe()
+                    last_displayed_cover = None
+                elif mpd_state == "play":
+                    core.poweron_safe()
+                    last_displayed_cover = None  # 🔥 force refresh
+            if mpd_state == "play":
+                cover = global_state.get("cover_img")
+                if cover and cover is not last_displayed_cover:
+                    core.draw.rectangle((0, 0, core.width, core.height), fill=core.COLOR_BG)
+                    img = cover.copy()
+                    margin = int(min(core.width, core.height) * 0.05)
+                    if core.height <= 64:
+                        margin = 0
+                    img.thumbnail(
+                        (core.width - margin * 2, core.height - margin * 2),
+                        core.Image.LANCZOS
+                    )
+                    x = (core.width - img.width) // 2
+                    y = (core.height - img.height) // 2
+                    core.image.paste(img, (x, y))
+                    core.refresh()
+                    last_displayed_cover = cover
+                elif not cover and last_displayed_cover != "no_cover":
+                    if core.DEBUG:
+                        print("NO COVER")
+                    last_displayed_cover = "no_cover"
+                    core.clear_display()
+            time.sleep(0.3)
 
     elif screensaver_mode == "orbital":
         from screensavers.screensaver_orbital import SaverOrbital
@@ -1746,14 +1758,16 @@ def next_stream(manual_skip=False):
         stream_transition_in_progress = True
         stream_manual_skip = manual_skip
         next_index = stream_queue[stream_queue_pos]
-        core.show_message(core.t("info_next_stream", pos=stream_queue_pos + 1, total=len(stream_queue)))
+        if not is_sleeping:
+            core.show_message(core.t("info_next_stream", pos=stream_queue_pos + 1, total=len(stream_queue)))
         if core.DEBUG:
             print("-------------------------Next Stream----------------------------------")
             print(f"⏭️ Next stream from queue: {next_index}")
             print(f"[next_stream] manual_skip = {manual_skip}")
         yt_search_track(next_index, preload=False)
     else:
-        core.show_message(core.t("info_end_queue"))
+        if not is_sleeping:
+            core.show_message(core.t("info_end_queue"))
         if core.DEBUG:
             print("✅ End of stream queue")
 
@@ -1768,14 +1782,16 @@ def previous_stream(manual_skip=True):
         stream_transition_in_progress = True
         stream_manual_skip = manual_skip
         stream_queue_pos = previous_index
-        core.show_message(core.t("info_prev_stream", pos=stream_queue_pos + 1, total=len(stream_queue)))
+        if not is_sleeping:
+            core.show_message(core.t("info_prev_stream", pos=stream_queue_pos + 1, total=len(stream_queue)))
         if core.DEBUG:
             print("-------------------------Previous Stream----------------------------------")
             print(f"⏮️ Previous stream from queue: {previous_index}")
             print(f"[prev_stream] manual_skip = {manual_skip}")
         yt_search_track(previous_index, preload=False)
     else:
-        core.show_message(core.t("info_top_queue"))
+        if not is_sleeping:
+            core.show_message(core.t("info_top_queue"))
         if core.DEBUG:
             print("✅ Top of stream queue")
 
@@ -1859,7 +1875,7 @@ def yt_search_track(index, preload=False, _fallback_attempt=False, local_query=N
         if core.DEBUG:
             print("❓ No entry in cache")
 
-    if not preload:
+    if not preload and not is_sleeping:
         core.message_text = core.t("info_search_yt", query=local_query)
         core.message_permanent = True
         blocking_render = True
@@ -2101,11 +2117,12 @@ def stream_songlog_entry():
     if core.DEBUG:
         print(f"⇨ Start Local Stream")
 
-    core.message_text = core.t("info_streaming", title=final_title_yt)
-    core.message_permanent = True
-    blocking_render = True
-    time.sleep(0.05)
-    render_screen()
+    if not is_sleeping:
+        core.message_text = core.t("info_streaming", title=final_title_yt)
+        core.message_permanent = True
+        blocking_render = True
+        time.sleep(0.05)
+        render_screen()
 
     class StreamHandler(http.server.BaseHTTPRequestHandler):
         def do_GET(self):
