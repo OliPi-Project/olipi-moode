@@ -10,20 +10,14 @@ import dis
 t = None
 config = None
 show_message = None
-next_stream = None
-previous_stream = None
-set_stream_manual_stop = None
 
 shortcuts = {}
 
-def set_hooks(trsl, cfg, show_fn, next_fn=None, prev_fn=None, stop_flag_fn=None):
-    global t, config, show_message, next_stream, previous_stream, set_stream_manual_stop
+def set_hooks(trsl, cfg, show_fn):
+    global t, config, show_message
     t = trsl
     config = cfg
     show_message = show_fn
-    next_stream = next_fn
-    previous_stream = prev_fn
-    set_stream_manual_stop = stop_flag_fn
     load_shortcuts()
 
 def load_shortcuts():
@@ -67,9 +61,6 @@ def execute_shortcut(action, menu_context_flag=""):
         typ, value = action.split(":", 1)
     except ValueError:
         return False
-
-    if menu_context_flag == "local_stream" and set_stream_manual_stop:
-        set_stream_manual_stop(manual_stop=True)
 
     if typ == "playlist":
         subprocess.run(["mpc", "clear"], check=False)
@@ -121,16 +112,12 @@ def handle_audio_keys(key, final_code, menu_context_flag=""):
     if key in ("KEY_PLAY", "KEY_PAUSE"):
         if final_code >= 10:
             show_message(t("info_reboot"))
-            if menu_context_flag == "local_stream" and set_stream_manual_stop:
-                set_stream_manual_stop(manual_stop=True)
             subprocess.run("sudo moodeutl --reboot", shell=True, check=True)
         else:
             subprocess.run(["mpc", "toggle"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         return True
 
     elif key == "KEY_STOP":
-        if menu_context_flag == "local_stream" and set_stream_manual_stop:
-            set_stream_manual_stop(manual_stop=True)
         if final_code >= 10:
             show_message(t("info_poweroff"))
             subprocess.run("sudo moodeutl --shutdown", shell=True, check=True)
@@ -139,9 +126,6 @@ def handle_audio_keys(key, final_code, menu_context_flag=""):
         return True
 
     elif key == "KEY_NEXT":
-        if menu_context_flag == "local_stream" and next_stream:
-            next_stream(manual_skip=True)
-            return True
         if final_code >= 8:
             subprocess.run(["mpc", "seek", "+00:00:30"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         elif final_code >= 4:
@@ -151,10 +135,7 @@ def handle_audio_keys(key, final_code, menu_context_flag=""):
         return True
 
     elif key == "KEY_PREVIOUS":
-        if menu_context_flag == "local_stream" and previous_stream:
-            previous_stream(manual_skip=True)
-            return True
-        elif final_code >= 8:
+        if final_code >= 8:
             subprocess.run(["mpc", "seek", "-00:00:30"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         elif final_code >= 4:
             subprocess.run(["mpc", "seek", "-00:00:10"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -219,8 +200,6 @@ def handle_custom_key(key, final_code, menu_context_flag=""):
 
     # --- Hardcoded keys ---
     if key == "KEY_TESTKEY":
-        if menu_context_flag == "local_stream" and set_stream_manual_stop:
-            set_stream_manual_stop(manual_stop=True)
         subprocess.run("mpc stop; mpc clear", shell=True)
         time.sleep(1)
         subprocess.run("mpc load Favorites; mpc play", shell=True)
