@@ -19,7 +19,9 @@ import http.server
 import sqlite3
 import json
 import queue
+import tempfile
 from pathlib import Path
+from urllib.parse import urlparse
 from mpd import MPDClient
 
 OLIPIMOODE_DIR = Path(__file__).resolve().parent
@@ -29,14 +31,7 @@ from olipi_core import core_common as core
 from olipi_core.input_manager import start_inputs, debounce_data, process_key
 from media_key_actions import load_shortcuts, is_key_reserved, is_key_used, handle_audio_keys, handle_custom_key, USED_MEDIA_KEYS, set_hooks as set_custom_hooks
 
-yt_cache_path = OLIPIMOODE_DIR / "yt_cache.json"
-
-PLS_PATH = "/var/lib/mpd/music/RADIO/Local Stream.pls"
-LOGO_PATH = "/var/local/www/imagesw/radio-logos/Local Stream.jpg"
-THUMB_PATH = "/var/local/www/imagesw/radio-logos/thumbs/Local Stream.jpg"
-THUMB_SM_PATH = "/var/local/www/imagesw/radio-logos/thumbs/Local Stream_sm.jpg"
 DB_PATH = "/var/local/www/db/moode-sqlite3.db"
-LOCAL_STREAM_URL = "http://localhost:8080/stream.mp3"
 
 # --- Fonts ui_playing ---
 font_artist = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 14)
@@ -82,7 +77,6 @@ menu_add_fav_option = [{"id": "add_fav", "label": core.t("menu_add_fav")}]
 menu_remove_fav_option = [{"id": "remove_fav", "label": core.t("menu_remove_fav")}]
 menu_add_songlog_option = [{"id": "add_songlog", "label": core.t("menu_add_songlog")}]
 menu_search_artist_option = [{"id": "search_artist", "label": core.t("menu_search_artist")}]
-menu_show_stream_queue_option = [{"id": "show_stream_queue", "label": core.t("menu_show_stream_queue")}]
 menu_options_contextuel = []
 menu_selection = 0
 menu_context_flag = ""
@@ -148,28 +142,14 @@ songlog_action_options = [
     {"id": "delete_all_songlog", "label": core.t("menu_delete_all_songlog")}
 ]
 
-stream_queue_active = False
-stream_queue_lines = []
-stream_queue_selection = 0
-
-stream_queue = []
-stream_queue_pos = 0
-preload_queue = queue.Queue()
-preload_queue_worker_started = False
+yt_cache_path = OLIPIMOODE_DIR / "yt_cache.json"
 yt_cache_lock = threading.Lock()
 
-stream_queue_action_active = False
-stream_queue_action_selection = 0
-stream_queue_action_options = [
-    {"id": "play_stream_queue_pos", "label": core.t("menu_play_stream_queue_pos")}
-]
+PLS_PATH = "/var/lib/mpd/music/RADIO/Local Stream.pls"
+LOGO_PATH = "/var/local/www/imagesw/radio-logos/Local Stream.jpg"
+THUMB_PATH = "/var/local/www/imagesw/radio-logos/thumbs/Local Stream.jpg"
+THUMB_SM_PATH = "/var/local/www/imagesw/radio-logos/thumbs/Local Stream_sm.jpg"
 
-stream_manual_stop = False
-stream_manual_skip = False
-stream_transition_in_progress = False
-current_ffmpeg = None
-current_server = None
-error_type = None
 
 config_menu_active = False
 config_menu_selection = 0
@@ -774,14 +754,17 @@ def clean_youtube_title(text):
         r"official music video",
         r"official video",
         r"official audio",
+        r"official visualizer",
         r"lyrics video",
         r"lyrics",
         r"video clip",
-        r"audio video"
+        r"audio video",
+        r"audio",
         r"hd",
         r"hq",
         r"4k",
         r"remastered",
+        r"remix",
     ]
 
     for pattern in junk_patterns:
@@ -842,16 +825,11 @@ def player_status_thread():
                 title = song_data.get("title", "")
                 if path.startswith("http"):
                     artist = "Radio station"
-                    if path == "http://localhost:8080/stream.mp3":
+                    if path.startswith("https://rr"):
                         menu_context_flag = "local_stream"
-                        if stream_queue:
-                            position = stream_queue_pos + 1 if 0 <= stream_queue_pos < len(stream_queue) else "?"
-                            artist_album = f"YT {core.t('show_stream_queue_number', count=len(stream_queue), position=position)}"
-                            title = clean_youtube_title(final_title_yt)
-                        else:
-                            artist_album = f"YT Stream | [Album: {album_yt}]" if album_yt else "YT Stream"
-                            title = clean_youtube_title(final_title_yt)
-                        # global_state["duration"] defined in yt_search_track()
+                        artist_album = f"YT Stream | [Album: {album_yt}]" if album_yt else "YT Stream"
+                        title = clean_youtube_title(title)
+                        global_state["duration"] = float(status_extra.get("duration", 0.0))
                     else:
                         menu_context_flag = "radio"
                         album = RADIO_MAP.get(path, "Unknown Radio")
@@ -891,6 +869,13 @@ def player_status_thread():
 
                         elif path and path.startswith("http"):
                             cover_img = None
+                            if path.startswith("https://rr"):
+                                cover_url = get_itunes_cover_url(title, artist_album)
+                                if cover_url:
+                                    new_cover = get_radio_track_cover(cover_url)
+                                    if new_cover:
+                                        cover_img = new_cover
+
                             # Radio tracks covers
                             global last_radio_path, ignore_next_radio_title
                             if path != last_radio_path:
@@ -933,7 +918,9 @@ def player_status_thread():
                         samplerate = round(int(samplerate)/1000, 1)
                         if samplerate.is_integer():
                             samplerate = int(samplerate)
-                        if core.screen.width >= 160:
+                        if path.startswith("https://rr"):
+                            global_state["audio"] = f"{samplerate} kHz / VBR"
+                        elif core.screen.width >= 160:
                             global_state["audio"] = f"{samplerate} kHz / {bits} bit"
                         else:
                             global_state["audio"] = f"{samplerate}k / {bits}b"
@@ -1495,6 +1482,7 @@ def show_songlog():
             core.show_message(core.t("info_empty_songlog"))
             songlog_lines = []
             songlog_meta = []
+            prune_yt_cache_to_songlog
             return
         entries = lines[-50:][::-1]
         songlog_lines = []
@@ -1550,66 +1538,31 @@ def delete_all_songlog():
 
 def delete_songlog_entry(index_from_display):
     global songlog_lines, songlog_selection
-    global stream_queue, stream_queue_pos
     try:
         path = OLIPIMOODE_DIR / "songlog.txt"
-
         with open(path, "r", encoding="utf-8") as f:
             all_lines = [ln.rstrip("\n") for ln in f if ln.strip()]
-
         if not all_lines or not songlog_lines:
             core.show_message(core.t("info_nothing_delete"))
             return
-
         # Retrieve the line to delete from songlog_lines
         target_line = songlog_lines[index_from_display]
         idx_abs = index_from_display
-
-        # Check if this is the currently playing track
-        if stream_queue and 0 <= stream_queue_pos < len(stream_queue):
-            playing_index = stream_queue[stream_queue_pos]
-            if 0 <= playing_index < len(songlog_lines):
-                delete_current = {songlog_lines[playing_index]}
-            if delete_current and stream_queue:
-                if core.DEBUG:
-                    print("♻️  Track in play was deleted – skipping to next")
-                next_stream(manual_skip=True)
-
         new_all_lines = []
         for ln in all_lines:
             if ln.startswith(target_line):
                 continue
             new_all_lines.append(ln)
-
         with open(path, "w", encoding="utf-8") as f:
             for ln in new_all_lines:
                 f.write(ln + "\n")
-
         # Update songlog_lines: delete by index
         songlog_lines.pop(idx_abs)
-
-        # Update stream_queue: remove equal indices and adjust others
-        new_queue = []
-        for i in stream_queue:
-            if i == idx_abs:
-                continue
-            new_queue.append(i - 1 if i > idx_abs else i)
-
-        # Adjust the position in the queue
-        removed_before_pos = len(stream_queue) - len(new_queue)
-        if stream_queue_pos >= len(new_queue):
-            stream_queue_pos = max(0, len(new_queue) - 1)
-        elif removed_before_pos and stream_queue_pos > 0:
-            stream_queue_pos = max(0, stream_queue_pos - removed_before_pos)
-        stream_queue = new_queue
-
         core.show_message(core.t("info_entry_deleted"))
         time.sleep(1)
         show_songlog()
-
         if songlog_selection >= len(songlog_lines):
             songlog_selection = max(0, len(songlog_lines) - 1)
-
     except Exception as e:
         core.show_message(core.t("error_rm_songlog", error=e))
         if core.DEBUG:
@@ -1636,201 +1589,75 @@ def prune_yt_cache_to_songlog():
         if core.DEBUG:
             print(f"Pruned {removed} entries from yt_cache (not in songlog)")
 
-def ensure_local_stream():
-    # Copy logo if present (optional)
-    if os.path.exists(OLIPIMOODE_DIR / "assets/local-stream.jpg") and not os.path.exists(LOGO_PATH):
-        if core.DEBUG:
-            print("Copying Local Stream logo...")
-        subprocess.run(["sudo", "cp", OLIPIMOODE_DIR / "assets/local-stream.jpg", LOGO_PATH])
-        subprocess.run(["sudo", "chmod", "777", LOGO_PATH])
-        subprocess.run(["sudo", "chown", "root:root", LOGO_PATH])
-
-        # Create large thumbnail (same as original logo)
-        if core.DEBUG:
-            print("Creating thumbnails...")
-        subprocess.run(["sudo", "cp", OLIPIMOODE_DIR / "assets/local-stream.jpg", THUMB_PATH])
-        subprocess.run(["sudo", "chmod", "777", THUMB_PATH])
-        subprocess.run(["sudo", "chown", "root:root", THUMB_PATH])
-
-        # Create small thumbnail (80x80)
-        img = core.Image.open(OLIPIMOODE_DIR / "assets/local-stream.jpg")
-        img.thumbnail((80, 80))
-        img = img.convert("RGB")  # Ensure JPEG format
-        temp_thumb_sm = "/tmp/local-stream-thumb-sm.jpg"
-        img.save(temp_thumb_sm, "JPEG")
-        subprocess.run(["sudo", "cp", temp_thumb_sm, THUMB_SM_PATH])
-        subprocess.run(["sudo", "chmod", "777", THUMB_SM_PATH])
-        subprocess.run(["sudo", "chown", "root:root", THUMB_SM_PATH])
-
-    # Check database entry
-    result = subprocess.run(
-        ["sqlite3", DB_PATH, f"SELECT COUNT(*) FROM cfg_radio WHERE station='{LOCAL_STREAM_URL}';"],
-        capture_output=True,
-        text=True
-    )
-    if result.stdout.strip() == "0":
-        if core.DEBUG:
-            print("Inserting Local Stream into database...")
-        sql_insert = f"""
-        INSERT INTO cfg_radio (
-            station, name, type, logo, genre, broadcaster, language,
-            country, region, bitrate, format, geo_fenced, home_page, monitor
-        ) VALUES (
-            '{LOCAL_STREAM_URL}',
-            'Local Stream',
-            'r',
-            'local',
-            '',
-            '',
-            '',
-            '',
-            '',
-            '192',
-            'MP3',
-            'No',
-            '',
-            'No'
-        );
-        """
-        subprocess.run(f"echo \"{sql_insert}\" | sudo sqlite3 {DB_PATH}", shell=True, check=True)
-
-    # Create .pls file if missing
-    if not os.path.exists(PLS_PATH):
-        if core.DEBUG:
-            print("Creating Local Stream .pls file...")
-        pls_content = """[playlist]
-File1=http://localhost:8080/stream.mp3
-Title1=Local Stream
-Length1=-1
-NumberOfEntries=1
-Version=2
-"""
-        subprocess.run(f"echo '{pls_content}' | sudo tee '{PLS_PATH}' > /dev/null", shell=True, check=True)
-        subprocess.run(["sudo", "chmod", "777", PLS_PATH])
-        subprocess.run(["sudo", "chown", "root:root", PLS_PATH])
-        subprocess.run(f"sudo touch '{PLS_PATH}'", shell=True, check=True)
-        subprocess.run(["sudo", "php", OLIPIMOODE_DIR / "assets/update_local_stream.php", LOCAL_STREAM_URL, "Local Stream", "r", "", "MP3"])
-
-    else:
-        if core.DEBUG:
-            print("Local Stream already exists in database.")
-
-def preload_worker():
-    while True:
-        index = preload_queue.get()
-        if core.DEBUG:
-            print("-  -  -  -  -  -  -  -  -")
-            print(f"⚪ Preloading track index {index}")
-        try:
-            yt_search_track(index, preload=True)
-        except Exception as e:
-            core.show_message(core.t("preload_yt", error=e))
-            if core.DEBUG:
-                print("error preload yt: ", e)
-        time.sleep(2.0)
-        preload_queue.task_done()
-
-def play_all_songlog_from_queue():
-    global stream_queue, stream_queue_pos, preload_queue_worker_started
-    if not songlog_lines:
-        core.show_message(core.t("info_empty_songlog"))
-        return
-    for i in range(len(songlog_lines)):
-        stream_queue.append(i)
-    core.show_message(core.t("info_stream_queue_full", count=len(stream_queue)))
-    time.sleep(1.5)
-    stream_queue_pos = 0
-    yt_search_track(stream_queue[0])
-    if not preload_queue_worker_started:
-        threading.Thread(target=preload_worker, daemon=True).start()
-        preload_queue_worker_started = True
-    for i in stream_queue[1:]:
-        preload_queue.put(i)
-
-def next_stream(manual_skip=False):
-    global stream_queue_pos, stream_manual_skip, stream_transition_in_progress
-    if stream_transition_in_progress:
-        if core.DEBUG:
-            print("⚠️ next_stream ignored (stream already launching)")
-        return
-    stream_queue_pos += 1
-    if stream_queue_pos < len(stream_queue):
-        stream_transition_in_progress = True
-        stream_manual_skip = manual_skip
-        next_index = stream_queue[stream_queue_pos]
-        if not is_sleeping:
-            core.show_message(core.t("info_next_stream", pos=stream_queue_pos + 1, total=len(stream_queue)))
-        if core.DEBUG:
-            print("-------------------------Next Stream----------------------------------")
-            print(f"⏭️ Next stream from queue: {next_index}")
-            print(f"[next_stream] manual_skip = {manual_skip}")
-        yt_search_track(next_index, preload=False)
-    else:
-        if not is_sleeping:
-            core.show_message(core.t("info_end_queue"))
-        if core.DEBUG:
-            print("✅ End of stream queue")
-
-def previous_stream(manual_skip=True):
-    global stream_queue_pos, stream_manual_skip, stream_transition_in_progress
-    if stream_transition_in_progress:
-        if core.DEBUG:
-            print("⚠️ previous_stream ignored (stream already launching)")
-        return
-    previous_index = stream_queue_pos - 1
-    if previous_index >= 0:
-        stream_transition_in_progress = True
-        stream_manual_skip = manual_skip
-        stream_queue_pos = previous_index
-        if not is_sleeping:
-            core.show_message(core.t("info_prev_stream", pos=stream_queue_pos + 1, total=len(stream_queue)))
-        if core.DEBUG:
-            print("-------------------------Previous Stream----------------------------------")
-            print(f"⏮️ Previous stream from queue: {previous_index}")
-            print(f"[prev_stream] manual_skip = {manual_skip}")
-        yt_search_track(previous_index, preload=False)
-    else:
-        if not is_sleeping:
-            core.show_message(core.t("info_top_queue"))
-        if core.DEBUG:
-            print("✅ Top of stream queue")
-
-def set_stream_manual_stop(manual_stop=True):
-    global stream_manual_stop
-    stream_manual_stop = manual_stop
-
-def yt_search_track(index, preload=False, _fallback_attempt=False, local_query=None):
-    global stream_url, final_title_yt, album_yt, artist_yt, query, blocking_render, stream_transition_in_progress
-
-    load_renderer_states_from_db()
-    if is_renderer_active() and not preload:
-        if core.DEBUG:
-            print("Renderer active – aborting yt_search_track()")
-        return
-
-    if not preload:
-        stop_current_stream()
-
-    if local_query is None:
-        if index >= len(songlog_lines):
-            if not preload:
-                core.show_message(core.t("info_invalid_index"))
-            return
-        local_query = songlog_lines[index].strip()
-
-    if core.DEBUG:
-        print(f"→ Search for: {local_query}")
-
-    yt_cache = {}
-
-    # Thread-safe loading of the cache
+def _load_yt_cache():
     with yt_cache_lock:
         try:
             with open(yt_cache_path, "r", encoding="utf-8") as f:
-                yt_cache = json.load(f)
-        except:
-            yt_cache = {}
+                return json.load(f)
+        except Exception:
+            return {}
 
+
+def _save_yt_cache(yt_cache):
+    with yt_cache_lock:
+        with open(yt_cache_path, "w", encoding="utf-8") as f:
+            json.dump(yt_cache, f, indent=2)
+
+
+def _extract_ytdlp_video(local_query):
+    from yt_dlp import YoutubeDL
+
+    ydl_opts = {
+        "quiet": True,
+        "default_search": "ytsearch2",
+        "no-check-certificate": True,
+        "noplaylist": True,
+        "format": "bestaudio[protocol!=m3u8]",
+        "no_warnings": True,
+    }
+
+    attempts_total = 2
+    info = None
+    last_exception = None
+
+    for attempt in range(attempts_total):
+        try:
+            with YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(local_query, download=False)
+            last_exception = None
+            break
+        except Exception as e:
+            last_exception = e
+            if core.DEBUG:
+                print(f"[yt-dlp] attempt {attempt + 1}/{attempts_total} failed: {e}")
+            if attempt < attempts_total - 1:
+                time.sleep(1.0)
+
+    if info is None:
+        raise last_exception if last_exception is not None else Exception("yt-dlp failed without exception")
+
+    if "_type" in info and "entries" in info:
+        entries = [v for v in info.get("entries", []) if v and v.get("url")]
+        if not entries:
+            raise RuntimeError(f"No yt-dlp entries found for: {local_query}")
+
+        entries_duration = [v for v in entries if (v.get("duration") or 0) > 60]
+        video = entries_duration[0] if entries_duration else entries[0]
+    else:
+        if not info.get("url"):
+            raise RuntimeError(f"No yt-dlp url found for: {local_query}")
+        video = info
+
+    return video
+
+def resolve_stream_track(local_query):
+    global final_title_yt, album_yt, artist_yt
+
+    local_query = local_query.strip()
+    if core.DEBUG:
+        print(f"→ Resolve stream track: {local_query}")
+
+    yt_cache = _load_yt_cache()
     cache_entry = yt_cache.get(local_query)
     url_expired = False
 
@@ -1843,10 +1670,14 @@ def yt_search_track(index, preload=False, _fallback_attempt=False, local_query=N
             url_expired = True
             if core.DEBUG:
                 print("❓ No expire_ts in cache – assuming expired")
-        elif now_ts >= expire_ts:
+        elif now_ts >= int(expire_ts):
             url_expired = True
             if core.DEBUG:
-                print(f"🟢 Cached URL expired\n   Expired at: {expire_str}\n   Now       : {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+                print(
+                    f"🟢 Cached URL expired\n"
+                    f"   Expired at: {expire_str}\n"
+                    f"   Now       : {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+                )
         else:
             if core.DEBUG:
                 print(f"✓ Cached URL still valid until {expire_str}")
@@ -1854,492 +1685,213 @@ def yt_search_track(index, preload=False, _fallback_attempt=False, local_query=N
         if not url_expired:
             if core.DEBUG:
                 print(f"Using cached result for: {local_query}")
-            if not preload:
-                stream_url = cache_entry["url"]
-                final_title_yt = cache_entry["title"]
-                artist_yt = cache_entry["artist"]
-                album_yt = cache_entry.get("album", "")
-                global_state["duration"] = float(cache_entry.get("duration") or 0.0)
-                load_renderer_states_from_db()
-                if is_renderer_active():
-                    if core.DEBUG:
-                        print("Renderer active – aborting launch of stream_songlog_entry()")
-                    return
-                try:
-                    stream_songlog_entry()
-                finally:
-                    stream_transition_in_progress = False
-                    stream_manual_skip = False
-            return
-    else:
-        if core.DEBUG:
-            print("❓ No entry in cache")
-
-    if not preload and not is_sleeping:
-        core.message_text = core.t("info_search_yt", query=local_query)
-        core.message_permanent = True
-        blocking_render = True
-        time.sleep(0.05)
-        render_screen()
-
-    from yt_dlp import YoutubeDL
-    try:
-        ydl_opts = {
-            'quiet': True,
-            'default_search': 'ytsearch3',
-            'noplaylist': True,
-            'format': "bestaudio[protocol!=m3u8]",
-            'no_warnings': True
-        }
-
-        # Retry logic: attempt the same extraction up to attempts_total times before giving up / fallback.
-        attempts_total = 2
-        info = None
-        last_exception = None
-        for attempt in range(attempts_total):
-            try:
-                with YoutubeDL(ydl_opts) as ydl:
-                    info = ydl.extract_info(local_query, download=False)
-                # success -> break out
-                last_exception = None
-                break
-            except Exception as e:
-                last_exception = e
-                if core.DEBUG:
-                    print(f"[yt-dlp] attempt {attempt+1}/{attempts_total} failed: {e}")
-                # if not last attempt, wait a bit and retry (for temporary CDN/format glitches)
-                if attempt < attempts_total - 1:
-                    time.sleep(1.0)
-                    continue
-        if info is None:
-            raise last_exception if last_exception is not None else Exception("yt-dlp failed without exception")
-
-        if "_type" in info and "entries" in info:
-            entries = [v for v in info["entries"] if v.get("duration", 0) and v["duration"] > 60]
-            if not entries:
-                entries = info["entries"]
-            video = entries[0]
-        else:
-            video = info
-
-        resolved_url = video['url']
-        title_raw = video.get("track") or video.get("title") or "Unknown"
-        album = video.get("album")
-        duration = video.get("duration")
-        webpage_url = video.get("webpage_url")
-
-        artist_candidates = {
-            "artist": video.get("artist"),
-            "album_artist": video.get("album_artist"),
-            "composer": video.get("composer"),
-            "creator": video.get("creator"),
-            "uploader": video.get("uploader"),
-        }
-
-        if " - " in local_query:
-            artist_query, title_query = map(str.strip, local_query.split(" - ", 1))
-        else:
-            artist_query = local_query.strip()
-            title_query = ""
-
-        artist_match = next((v for v in artist_candidates.values() if v and artist_query.lower() in v.lower()), None)
-
-        if artist_query.lower() in title_raw.lower():
-            title_final = title_raw
-            artist_final = artist_query
-        elif artist_match:
-            title_final = f"{artist_query} - {title_raw}"
-            artist_final = artist_query
-        else:
-            title_final = f"{title_raw} - ({artist_query} ?)"
-            artist_final = f"Unknown / maybe {artist_query}"
-
-        expire_ts = None
-        expire_str = None
-        match = re.search(r"[?&]expire=(\d+)", resolved_url)
-        if match:
-            expire_ts = int(match.group(1))
-            expire_str = datetime.datetime.fromtimestamp(expire_ts).strftime("%Y-%m-%d %H:%M:%S")
-
-        if core.DEBUG:
-            print(f"[yt-dlp] title: {title_raw}")
-            print(f"[yt-dlp] album: {album}")
-            print(f"[yt-dlp] final-title: {title_final}")
-            print(f"[yt-dlp] duration: {duration}")
-            print(f"[yt-dlp] expire at: {expire_str}")
-
-        with yt_cache_lock:
-            yt_cache[local_query] = {
-                "title": title_final,
-                "artist": artist_final,
-                "album": album,
-                "duration": duration,
-                "acodec": video.get('acodec'),
-                "abr": video.get('abr'),
-                "ext": video.get('ext'),
-                "format": video.get('format'),
-                "webpage_url": webpage_url,
-                "url": resolved_url,
-                "resolved": True,
-                "timestamp": datetime.datetime.now().isoformat(),
-                "expires": expire_str,
-                "expire_ts": expire_ts
+            return {
+                "query": local_query,
+                "url": cache_entry["url"],
+                "title": cache_entry.get("title") or local_query,
+                "artist": cache_entry.get("artist") or "",
+                "album": cache_entry.get("album") or "",
+                "duration": float(cache_entry.get("duration") or 0.0),
             }
 
-            with open(yt_cache_path, "w", encoding="utf-8") as f:
-                json.dump(yt_cache, f, indent=2)
+    if core.DEBUG and not cache_entry:
+        print("❓ No entry in cache")
 
-        if not preload:
-            stream_url = resolved_url
-            final_title_yt = title_final
-            artist_yt = artist_final
-            album_yt = album
-            global_state["duration"] = float((cache_entry.get("duration") if cache_entry else duration) or 0.0)
-            load_renderer_states_from_db()
-            if is_renderer_active():
-                if core.DEBUG:
-                    print("Renderer active – aborting launch of stream_songlog_entry()")
-                core.message_permanent = False
-                core.message_text = None
-                blocking_render = False
-                return
-            try:
-                stream_songlog_entry()
-            finally:
-                stream_transition_in_progress = False
-                stream_manual_skip = False
+    video = _extract_ytdlp_video(local_query)
 
-    except Exception as e:
-        if not preload:
-            core.message_permanent = False
-            core.message_text = None
-            stream_manual_skip = False
-            stream_transition_in_progress = False
-            blocking_render = False
+    resolved_url = video["url"]
+    title_raw = video.get("track") or video.get("title") or "Unknown"
+    album = video.get("album")
+    duration = video.get("duration")
+    webpage_url = video.get("webpage_url")
 
-        if preload:
-            if core.DEBUG:
-                print(f"[yt-dlp] preload failed for '{local_query}': {e}")
-            return
+    artist_candidates = {
+        "artist": video.get("artist"),
+        "album_artist": video.get("album_artist"),
+        "composer": video.get("composer"),
+        "creator": video.get("creator"),
+        "uploader": video.get("uploader"),
+    }
 
-        if not _fallback_attempt:
-            parts = local_query.split(" - ")
-            if len(parts) == 2:
-                fallback_query = parts[1].strip()
-            else:
-                fallback_query = local_query
-
-            if core.DEBUG:
-                print(f"No results for query: {local_query}")
-                print(f"Retrying with fallback query: {fallback_query}")
-
-            return yt_search_track(index, preload=preload, _fallback_attempt=True, local_query=fallback_query)
-
-        core.show_message(core.t("error_yt", error=e))
-        if core.DEBUG:
-            print("error yt: ", e)
-        if not preload and not core.DEBUG:
-            core.show_message(core.t("error_yt_simple"))
-        return
-
-    if not preload:
-        core.message_permanent = False
-        core.message_text = None
-        blocking_render = False
-
-def stop_current_stream():
-    global current_ffmpeg, current_server
-
-    if current_ffmpeg and current_ffmpeg.poll() is None:
-        try:
-            current_ffmpeg.terminate()
-            current_ffmpeg.wait(timeout=4)
-            if core.DEBUG:
-                print("✓ ffmpeg terminated")
-        except subprocess.TimeoutExpired:
-            if core.DEBUG:
-                print("⚠️ ffmpeg did not terminate in time, killing...")
-            try:
-                current_ffmpeg.kill()
-                current_ffmpeg.wait(timeout=2)
-                if core.DEBUG:
-                    print("✓ ffmpeg killed")
-            except Exception as e:
-                core.show_message(core.t("error_kill_ffmpeg", error=e))
-                if core.DEBUG:
-                    print("error kill ffmpeg: ", e)
-        except Exception as e:
-            core.show_message(core.t("error_stop_ffmpeg", error=e))
-            if core.DEBUG:
-                print("error stop ffmpeg: ", e)
-    current_ffmpeg = None
-
-    if current_server:
-        try:
-            current_server.shutdown()
-            current_server.server_close()
-            if core.DEBUG:
-                print("✓ HTTP server stopped")
-        except Exception as e:
-            core.show_message(core.t("error_http_server", error=e))
-            if core.DEBUG:
-                print("error http server: ", e)
-    current_server = None
-
-    # Wait max 4s for port 8080 to be released
-    for i in range(20):
-        try:
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                if s.connect_ex(("localhost", 8080)) != 0:
-                    if core.DEBUG:
-                        print("✓ Port 8080 libre")
-                    break
-        except Exception as e:
-            core.show_message(core.t("error_socket_check", error=e))
-            if core.DEBUG:
-                print("error socket check: ", e)
-            break
-        time.sleep(0.2)
+    if " - " in local_query:
+        artist_query, title_query = map(str.strip, local_query.split(" - ", 1))
     else:
-        if core.DEBUG:
-            print("⚠️ Port 8080 encore occupé après timeout")
+        artist_query = local_query.strip()
+        title_query = ""
 
-def stream_songlog_entry():
-    global current_ffmpeg, current_server, blocking_render, stream_manual_skip, stream_transition_in_progress, error_type
-    stream_manual_skip = False
+    artist_match = next(
+        (v for v in artist_candidates.values() if v and artist_query.lower() in str(v).lower()),
+        None,
+    )
 
-    load_renderer_states_from_db()
-    if is_renderer_active():
-        if core.DEBUG:
-            print("Renderer active – aborting stream_songlog_entry()")
-        return
+    if artist_query.lower() in str(title_raw).lower():
+        title_final = title_raw
+        artist_final = artist_query
+    elif artist_match:
+        title_final = f"{artist_query} - {title_raw}"
+        artist_final = artist_query
+    else:
+        title_final = f"{title_raw} - ({artist_query} ?)"
+        artist_final = f"Unknown / maybe {artist_query}"
+
+    title_final = clean_youtube_title(title_final)
+
+    expire_ts = None
+    expire_str = None
+    match = re.search(r"[?&]expire=(\d+)", resolved_url)
+    if match:
+        expire_ts = int(match.group(1))
+        expire_str = datetime.datetime.fromtimestamp(expire_ts).strftime("%Y-%m-%d %H:%M:%S")
 
     if core.DEBUG:
-        print(f"⇨ Start Local Stream")
+        print(f"[yt-dlp] title: {title_raw}")
+        print(f"[yt-dlp] album: {album}")
+        print(f"[yt-dlp] final-title: {title_final}")
+        print(f"[yt-dlp] duration: {duration}")
+        print(f"[yt-dlp] expire at: {expire_str}")
 
-    if not is_sleeping:
-        core.message_text = core.t("info_streaming", title=final_title_yt)
-        core.message_permanent = True
-        blocking_render = True
-        time.sleep(0.05)
-        render_screen()
+    yt_cache[local_query] = {
+        "title": title_final,
+        "artist": artist_final,
+        "album": album,
+        "duration": duration,
+        "acodec": video.get("acodec"),
+        "abr": video.get("abr"),
+        "ext": video.get("ext"),
+        "format": video.get("format"),
+        "webpage_url": webpage_url,
+        "url": resolved_url,
+        "resolved": True,
+        "timestamp": datetime.datetime.now().isoformat(),
+        "expires": expire_str,
+        "expire_ts": expire_ts,
+    }
+    _save_yt_cache(yt_cache)
 
-    class StreamHandler(http.server.BaseHTTPRequestHandler):
-        def do_GET(self):
-            global current_ffmpeg, blocking_render, current_server, stream_manual_stop, stream_manual_skip, error_type
-            if self.path != "/stream.mp3":
-                self.send_error(404)
-                return
+    return {
+        "query": local_query,
+        "url": resolved_url,
+        "title": title_final,
+        "artist": artist_final,
+        "album": album or "",
+        "duration": float(duration or 0.0),
+    }
 
-            self.send_response(200)
-            self.send_header("Content-Type", "audio/mpeg")
-            self.end_headers()
+def add_default_cover(playlist_name):
+    src =  OLIPIMOODE_DIR / "assets/NewPlaylist.jpg"
+    dest_dir = "/var/local/www/imagesw/playlist-covers"
+    dest = os.path.join(dest_dir, f"{playlist_name}.jpg")
+    subprocess.call(["sudo", "cp", src, dest])
+    if core.DEBUG:
+        print(f"Custom cover image saved to: {dest}")
 
-            if core.DEBUG:
-                print(f"→ Launching ffmpeg for: {final_title_yt}")
-
-            cmd = [
-                "ffmpeg", "-re",
-                "-fflags", "+discardcorrupt",
-                "-reconnect", "1",
-                "-reconnect_streamed", "1",
-                "-reconnect_delay_max", "2",
-                "-i", stream_url,
-                "-vn",
-                "-c:a", "libmp3lame",
-                "-b:a", "192k",
-                "-metadata", f"title={final_title_yt}",
-                "-f", "mp3", "-"
-            ]
-
-            try:
-                # Launch ffmpeg with stderr piped so we can read errors without blocking ffmpeg.
-                current_ffmpeg = subprocess.Popen(
-                    cmd,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE
-                )
-
-                # Sanity check
-                if not current_ffmpeg or not current_ffmpeg.stdout:
-                    if core.DEBUG:
-                        print("⚠️ ffmpeg not ready, aborting stream")
-                    return
-
-                # Thread: read stderr continuously to avoid blocking ffmpeg.
-                def _read_stderr(proc):
-                    global error_type
-                    try:
-                        for raw in iter(proc.stderr.readline, b""):
-                            if not raw:
-                                break
-                            line = raw.decode("utf-8", errors="replace").rstrip()
-                            if not line:
-                                continue
-
-                            #error_type = None
-                            lower = line.lower()
-                            if "http error 403" in lower:
-                                error_type = "Server returned 403 Forbidden (access denied)"
-                            elif "http error 404" in lower:
-                                error_type = "HTTP 404 Not Found"
-                            elif "invalid data found" in lower or "moov atom not found" in lower:
-                                error_type = "Corrupt / unsupported media"
-                            elif "connection refused" in lower:
-                                error_type = "Network error"
-                            elif "could not find codec" in lower:
-                                error_type = "Codec error"
-
-                            if error_type:
-                                if core.DEBUG:
-                                    print(f" +++ {line} +++ ")
-
-                    except Exception as e:
-                        if core.DEBUG:
-                            print(f"[ffmpeg stderr reader] {e}")
-                    finally:
-                        try:
-                            if proc.stderr:
-                                proc.stderr.close()
-                        except Exception:
-                            pass
-
-                threading.Thread(target=_read_stderr, args=(current_ffmpeg,), daemon=True).start()
-
-                # Read stdout and pipe to client
-                empty_reads = 0
-                while True:
-                    chunk = current_ffmpeg.stdout.read(4096)
-                    if not chunk:
-                        empty_reads += 1
-                        if empty_reads >= 20:
-                            if core.DEBUG:
-                                print("2s of empty chunk – aborting stream loop")
-                            break
-                        time.sleep(0.1)
-                        continue
-
-                    empty_reads = 0
-                    try:
-                        self.wfile.write(chunk)
-                        self.wfile.flush()
-                    except (BrokenPipeError, ConnectionResetError) as e:
-                        if core.DEBUG:
-                            print(f"⚠️ Client disconnected: {e}")
-                        break
-
-            except Exception as e:
-                if "NoneType" in str(e) and "stdout" in str(e):
-                    if core.DEBUG:
-                        print(f"Ignored stream error on ffmpeg stop: {e}")
-                else:
-                    core.show_message(core.t("error_stream", error=e))
-                    if core.DEBUG:
-                        print("error stream: ", e)
-            finally:
-                try:
-                    client = MPDClient()
-                    client.connect("localhost", 6600)
-                    client.stop()
-                    client.close()
-                    client.disconnect()
-                except Exception as e:
-                    core.show_message(core.t("error_mpd", error=e))
-                    if core.DEBUG:
-                        print("error mpd: ", e)
-                    if not core.DEBUG:
-                        core.show_message(core.t("error_generic"))
-
-                if current_ffmpeg and current_ffmpeg.poll() is None:
-                    try:
-                        current_ffmpeg.terminate()
-                        current_ffmpeg.wait(timeout=4)
-                        if core.DEBUG:
-                            print("✓ ffmpeg terminated cleanly")
-                    except subprocess.TimeoutExpired:
-                        if core.DEBUG:
-                            print("⚠️ ffmpeg timeout, forcing kill")
-                        try:
-                            current_ffmpeg.kill()
-                            current_ffmpeg.wait(timeout=2)
-                            if core.DEBUG:
-                                print("✓ ffmpeg killed")
-                        except Exception as e:
-                            core.show_message(core.t("error_ffmpeg", error=e))
-                            if core.DEBUG:
-                                print("error ffmpeg: ", e)
-                current_ffmpeg = None
-                if core.DEBUG:
-                    print("----------------End of Stream---------------------")
-                    print(f"[StreamHandler] stream_manual_skip = {stream_manual_skip}")
-                    print(f"[StreamHandler] stream_manual_stop = {stream_manual_stop}")
-                load_renderer_states_from_db()
-                if error_type:
-                    show_ffmpeg_error(error_type)
-                    time.sleep(2)
-                    error_type = None
-                if not stream_manual_skip and not stream_manual_stop and not is_renderer_active():
-                    threading.Thread(target=next_stream, daemon=True).start()
-                stream_manual_stop = False
-                stream_manual_skip = False
-
-    def run_server():
-        global current_server
-        current_server = http.server.HTTPServer(("0.0.0.0", 8080), StreamHandler)
-        current_server.serve_forever()
-
-    threading.Thread(target=run_server, daemon=True).start()
-
+def write_m3u_playlist(source_lines):
+    total = len(source_lines)
+    core.start_spinner(core.t("info_start_stream"))
     try:
-        client = MPDClient()
-        client.timeout = 10
-        client.connect("localhost", 6600)
-        client.clear()
-        client.load("RADIO/Local Stream.pls")
+        lines = [
+            "#EXTM3U",
+            "#EXTGENRE:YouTube",
+            "#EXTIMG:default",
+        ]
+        resolved_tracks = []
 
-        for _ in range(20):
+        for idx, raw in enumerate(source_lines):
+            query = raw.strip()
+            #short_title = query[:48]
+            core.update_spinner(text=core.t("info_search"), extra=f" [{idx+1}/{total}]:\n{query}\n")
+            if not query:
+                continue
             try:
-                with socket.create_connection(("localhost", 8080), timeout=0.5):
-                    break
-            except OSError:
-                time.sleep(0.25)
+                track = resolve_stream_track(query)
+            except Exception as e:
+                if core.DEBUG:
+                    print(f"[resolve] skip: {query}")
+                    print(f"   reason: {e}")
+                continue
 
-        client.play()
+            url = track.get("url")
+            if not url:
+                continue
 
-        start_time = time.time()
-        while time.time() - start_time < 20:
-            status = client.status()
-            if status.get("state") == "play":
-                song = client.currentsong()
-                title = song.get("title", "")
-                if title != "Local Stream":
-                    break
-            time.sleep(0.3)
+            duration = int(track.get("duration") or -1)
+            display = track["title"]
 
-        client.close()
-        client.disconnect()
+            lines.append(f"#EXTINF:{duration},{display}")
+            lines.append(url)
+            resolved_tracks.append(track)
 
-        core.message_permanent = False
-        core.message_text = None
-        if core.DEBUG:
-            print(f"✅ Streaming ready: {final_title_yt}")
+        if len(resolved_tracks) == 0:
+            print("⚠️ Playlist empty")
+            return None
 
+        content = "\n".join(lines) + "\n"
+
+        tmp_path = "/tmp/YT-Stream.m3u"
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            f.write(content)
+
+        subprocess.run(["sudo", "cp", tmp_path, "/var/lib/mpd/playlists/YT-Stream.m3u"], check=True)
+        subprocess.run(["sudo", "chmod", "777", "/var/lib/mpd/playlists/YT-Stream.m3u"], check=True)
+        subprocess.run(["sudo", "chown", "root:root", "/var/lib/mpd/playlists/YT-Stream.m3u"], check=True)
+        add_default_cover("YT-Stream")
+        return resolved_tracks
+    finally:
+        core.stop_spinner()
+
+def load_and_tag_playlist(resolved_tracks):
+    client = MPDClient()
+    client.timeout = 10
+    client.connect("localhost", 6600)
+    client.clear()
+    client.load("YT-Stream")
+    playlist = client.playlistinfo()
+
+    for pos, song in enumerate(playlist):
+        if pos >= len(resolved_tracks):
+            break
+
+        songid = song["id"]
+        track = resolved_tracks[pos]
+
+        client.addtagid(songid, "name", "YT Stream")
+        client.addtagid(songid, "title", track["title"])
+
+    client.play(0)
+    client.close()
+    client.disconnect()
+
+def play_all_songlog_via_m3u(songlog_lines):
+    if not songlog_lines:
+        core.show_message(core.t("info_empty_songlog"))
+        return
+    try:
+        resolved_tracks = write_m3u_playlist(songlog_lines)
+        if not resolved_tracks:
+            return
+        load_and_tag_playlist(resolved_tracks)
     except Exception as e:
-        core.message_permanent = False
-        core.message_text = None
-        stream_transition_in_progress = False
-        blocking_render = False
         core.show_message(core.t("error_mpd", error=e))
         if core.DEBUG:
-            print("error mpd: ", e)
-        else:
-            core.show_message(core.t("error_generic"))
+            print("error play_all_songlog_via_m3u:", e)
+    finally:
+        core.stop_spinner()
 
-    stream_transition_in_progress = False
-    blocking_render = False
-
-def show_ffmpeg_error(msg):
-    core.show_message(msg)
+def play_songlog_index(index):
+    if index >= len(songlog_lines):
+        core.show_message(core.t("info_invalid_index"))
+        return
+    try:
+        resolved_tracks = write_m3u_playlist([songlog_lines[index]])
+        if not resolved_tracks:
+            return
+        load_and_tag_playlist(resolved_tracks)
+    except Exception as e:
+        core.show_message(core.t("error_mpd", error=e))
+        if core.DEBUG:
+            print("error play_songlog_index:", e)
+    finally:
+        core.stop_spinner()
 
 def run_bluetooth_action(*args):
     output = []
@@ -2620,10 +2172,6 @@ def render_screen():
             draw_power_menu()
         elif playback_modes_menu_active:
             draw_playback_modes_menu()
-        elif stream_queue_action_active:
-            draw_stream_queue_action_menu()
-        elif stream_queue_active:
-            draw_stream_queue_menu()
         elif menu_active:
             draw_menu()
         else:
@@ -2648,11 +2196,7 @@ def draw_menu():
         else:
             menu_options_contextuel = menu_add_songlog_option.copy() + menu_options.copy()
     elif menu_context_flag == "local_stream":
-        filtered_options = [opt for opt in menu_options if opt.get("id") not in {"remove_queue", "playback_modes"}]
-        if stream_queue:
-            menu_options_contextuel = menu_show_stream_queue_option.copy() + filtered_options
-        else:
-            menu_options_contextuel = filtered_options
+        menu_options_contextuel = menu_options.copy()
     else:
         menu_options_contextuel = menu_options.copy()
 
@@ -2670,21 +2214,7 @@ def draw_power_menu():
     core.draw_custom_menu([item["label"] for item in power_menu_options], power_menu_selection, title=core.t("title_power"))
 
 def draw_songlog_menu():
-    selected = set()
-    if stream_queue and 0 <= stream_queue_pos < len(stream_queue):
-        playing_index = stream_queue[stream_queue_pos]
-        if 0 <= playing_index < len(songlog_lines):
-            selected = {songlog_lines[playing_index]}
-    core.draw_custom_menu(songlog_lines, songlog_selection, title=core.t("title_songlog"), multi=selected, checkmark="▶ ")
-
-def draw_stream_queue_menu():
-    global stream_queue_lines
-    stream_queue_lines = [songlog_lines[i] for i in stream_queue if 0 <= i < len(songlog_lines)]
-    selected = {stream_queue_lines[stream_queue_pos]}
-    core.draw_custom_menu(stream_queue_lines, stream_queue_selection, title=core.t("title_stream_queue"), multi=selected, checkmark="▶ ")
-
-def draw_stream_queue_action_menu():
-    core.draw_custom_menu([item["label"] for item in stream_queue_action_options], stream_queue_action_selection, title=core.t("title_action_stream_queue"))
+    core.draw_custom_menu(songlog_lines, songlog_selection, title=core.t("title_songlog"))
 
 def draw_songlog_action_menu():
     core.draw_custom_menu([item["label"] for item in songlog_action_options], songlog_action_selection, title=core.t("title_action_songlog"))
@@ -3099,7 +2629,7 @@ def draw_nowplaying():
 
         spacing_icon = 2
         core.image.paste(icon1, (0 * icon_width, -0), mask=icon1)
-        if menu_context_flag != "local_stream" and not is_renderer_active():
+        if not is_renderer_active():
             core.image.paste(icon2, (1 * (icon_width + spacing_icon), -0), mask=icon2)
             core.image.paste(icon3, (2 * (icon_width + spacing_icon), -0), mask=icon3)
             core.image.paste(icon4, (3 * (icon_width + spacing_icon), -0), mask=icon4)
@@ -3236,7 +2766,7 @@ def draw_nowplaying():
         if show_extra_infos:
             extra_info = global_state.get("audio", "")
             bitrate = global_state.get("bitrate", "")
-            if bitrate:
+            if bitrate and menu_context_flag != "local_stream":
                 if extra_info:
                     extra_info += f" / {bitrate} kbps"
                 else:
@@ -3364,16 +2894,10 @@ def assign_shortcut_to_selected(selected):
     learning_callback = on_key
 
 def nav_left_short():
-    if menu_context_flag == "local_stream":
-        previous_stream(manual_skip=True)
-        return
     if now_playing_mode:
         subprocess.run(["mpc", "prev"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
 
 def nav_right_short():
-    if menu_context_flag == "local_stream":
-        next_stream(manual_skip=True)
-        return
     if now_playing_mode:
         subprocess.run(["mpc", "next"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
 
@@ -3453,10 +2977,7 @@ def nav_channelup():
         core.show_message(core.t("info_unknown_fav"))
 
 def nav_channeldown():
-    if menu_context_flag == "local_stream":
-        return
-    else:
-        remove_from_queue()
+    remove_from_queue()
 
 def nav_info():
     global help_active, help_lines, help_selection
@@ -3514,8 +3035,6 @@ def nav_back_long():
 def finish_press(key):
     global menu_active, menu_selection, songlog_active, songlog_selection, songlog_action_active, songlog_action_selection
     global power_menu_active, power_menu_selection, playback_modes_menu_active, playback_modes_selection
-    global stream_queue_active, stream_queue_selection, stream_queue_action_active, stream_queue_action_selection
-    global stream_queue_pos, stream_manual_skip, stream_transition_in_progress
     global tool_menu_selection, tool_menu_active, config_menu_active, config_menu_selection
     global theme_menu_active, theme_menu_selection, ui_menu_active, ui_menu_selection, screensaver_menu_active, screensaver_menu_selection, sleep_timeout_options
     global help_active, help_selection, hardware_info_active, hardware_info_selection, language_menu_active, language_menu_selection
@@ -3690,9 +3209,6 @@ def finish_press(key):
             elif option_id == "add_songlog":
                 menu_active = False
                 log_song()
-            elif option_id == "show_stream_queue":
-                menu_active = False
-                stream_queue_active = True
             elif option_id == "remove_queue":
                 menu_active = False
                 remove_from_queue()
@@ -3734,51 +3250,6 @@ def finish_press(key):
             elif option_id == "restart_mpd":
                 core.show_message(core.t("info_restart_mpd"))
                 subprocess.call(["sudo", "systemctl", "restart", "mpd"])
-            core.reset_scroll("menu_item", "menu_title")
-        return
-
-    if stream_queue_active:
-        if key == "KEY_UP":
-            stream_queue_selection = (stream_queue_selection - 1) % len(stream_queue_lines)
-            core.reset_scroll("menu_item")
-        elif key == "KEY_DOWN":
-            stream_queue_selection = (stream_queue_selection + 1) % len(stream_queue_lines)
-            core.reset_scroll("menu_item")
-        elif key == "KEY_LEFT":
-            stream_queue_active = False
-            menu_active = True
-            core.reset_scroll("menu_item", "menu_title")
-        elif key == "KEY_OK":
-            stream_queue_active = False
-            stream_queue_action_active = True
-            stream_queue_action_selection = 0
-            core.reset_scroll("menu_item", "menu_title")
-        return
-
-    if stream_queue_action_active:
-        if key == "KEY_UP":
-            stream_queue_action_selection = (stream_queue_action_selection - 1) % len(stream_queue_action_options)
-            core.reset_scroll("menu_item")
-            return
-        elif key == "KEY_DOWN":
-            stream_queue_action_selection = (stream_queue_action_selection + 1) % len(stream_queue_action_options)
-            core.reset_scroll("menu_item")
-            return
-        elif key == "KEY_LEFT":
-            stream_queue_action_active = False
-            stream_queue_active = True
-            core.reset_scroll("menu_item", "menu_title")
-            return
-        elif key == "KEY_OK":
-            selected_action = stream_queue_action_options[stream_queue_action_selection]["id"]
-            if selected_action == "play_stream_queue_pos":
-                stream_queue_action_active = False
-                if core.DEBUG:
-                    print(f"▶️ Play from queue at position {stream_queue_selection}")
-                stream_manual_skip = True
-                stream_transition_in_progress = True
-                stream_queue_pos = stream_queue_selection
-                yt_search_track(stream_queue_pos, preload=False)
             core.reset_scroll("menu_item", "menu_title")
         return
 
@@ -4088,20 +3559,16 @@ def finish_press(key):
             option_id = songlog_action_options[songlog_action_selection]["id"]
             if option_id == "play_yt_songlog":
                 songlog_action_active = False
-                ensure_local_stream()
                 if not has_internet_connection():
                     core.show_message(core.t("info_no_internet"))
                     return
-                stream_queue.clear()
-                yt_search_track(songlog_selection)
+                play_songlog_index(songlog_selection)
             elif option_id == "queue_yt_songlog":
                 songlog_action_active = False
-                ensure_local_stream()
                 if not has_internet_connection():
                     core.show_message(core.t("info_no_internet"))
                     return
-                stream_queue.clear()
-                play_all_songlog_from_queue()
+                play_all_songlog_via_m3u(songlog_lines)
             elif option_id == "show_info_songlog":
                 info = songlog_meta[songlog_selection]
                 if info:
@@ -4371,7 +3838,7 @@ def finish_press(key):
 core.start_message_updater()
 
 start_inputs(core.config, finish_press, msg_hook=core.show_message)
-set_custom_hooks(core.t, core.config, core.show_message, next_stream, previous_stream, set_stream_manual_stop)
+set_custom_hooks(core.t, core.config, core.show_message)
 
 def main():
     global previous_blocking_render, idle_timer
