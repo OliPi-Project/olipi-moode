@@ -1463,7 +1463,7 @@ def main():
     clean_reex_flag()
 
     if not reexecuted:
-        check_ram()
+        #check_ram()
         check_moode_version()
 
     # check if repos are present
