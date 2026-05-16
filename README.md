@@ -157,7 +157,7 @@ After that you can:
        This script performs the following actions:
        
        - Detects Moode & OliPi version.
-       - Installation/Migration from/to systemd-zram-generator if not present.
+       - (currently disabled) Installation/Migration from/to systemd-zram-generator if not present.
        - Clone latest release from olipi-core
        - Installs APT dependencies.
        - Creates a virtual environment at `~/.olipi-moode-venv`.
