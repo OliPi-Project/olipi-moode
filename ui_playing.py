@@ -495,6 +495,16 @@ def run_sleep_loop():
         core.clear_display()
         core.poweroff_safe()
 
+def wake_screen():
+    global is_sleeping, screen_on, last_wake_time
+    if not is_sleeping:
+        return
+    screen_on = True
+    core.poweron_safe()
+    core.reset_scroll("menu_title", "menu_item")
+    is_sleeping = False
+    last_wake_time = time.time()
+
 def has_internet_connection(timeout=2):
     try:
         socket.create_connection(("8.8.8.8", 53), timeout=timeout)
@@ -852,7 +862,7 @@ def player_status_thread():
                 global_state["path"] = path
                 global_state["state"] = status_extra.get("state", "unknown")
 
-                if screensaver_mode == "covers":
+                if screensaver_mode == "covers" and core.SCREEN_TIMEOUT > 0:
                     cover_img = None
                     try:
                         if path and not path.startswith("http"):
@@ -3853,11 +3863,23 @@ def main():
             if previous_blocking_render != blocking_render:
                 idle_timer = time.time()
             previous_blocking_render = blocking_render
-            if core.SCREEN_TIMEOUT > 0 and time.time() - idle_timer > core.SCREEN_TIMEOUT:
-                if not is_sleeping and not blocking_render:
-                    run_sleep_loop()
-            elif screen_on:
+            ui_busy = (
+                blocking_render
+                or core.message_permanent
+                or core.message_text is not None
+            )
+            # --- wake if message appears ---
+            if is_sleeping and ui_busy:
+                wake_screen()
+            # --- sleep handling ---
+            if core.SCREEN_TIMEOUT > 0:
+                if time.time() - idle_timer > core.SCREEN_TIMEOUT:
+                    if not is_sleeping and not ui_busy:
+                        run_sleep_loop()
+            # --- render ---
+            if screen_on:
                 run_active_loop()
+
             if is_sleeping and screensaver_mode not in DYNAMIC_SS:
                 time.sleep(0.1)
             else:

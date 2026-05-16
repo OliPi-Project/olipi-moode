@@ -178,6 +178,7 @@ help_active = False
 help_lines = []
 help_selection = 0
 
+core.poweron_safe()
 
 def run_active_loop():
     if not blocking_render and not is_sleeping:
@@ -192,6 +193,16 @@ def run_sleep_loop():
     core.poweroff_safe()
     screen_on = False
     is_sleeping = True
+
+def wake_screen():
+    global is_sleeping, screen_on, last_wake_time
+    if not is_sleeping:
+        return
+    screen_on = True
+    core.poweron_safe()
+    core.reset_scroll("menu_title", "menu_item")
+    is_sleeping = False
+    last_wake_time = time.time()
 
 learning_mode = False
 learning_callback = None
@@ -295,7 +306,7 @@ def rescan_library():
         print("→ End of rescan_library()")
 
 def confirm_copy(destination_path, move=False):
-    global copy_mode_active, copy_source_items, blocking_render
+    global copy_mode_active, copy_source_items
 
     def abs_src_path(rel):
         return os.path.join("/var/lib/mpd/music", rel)
@@ -329,6 +340,7 @@ def confirm_copy(destination_path, move=False):
             val == "Playlists" or val == "RADIO"
             or val.startswith("Playlists/")
             or val.startswith("RADIO/")
+            or val.startswith("Search:")
         ):
             print(f"Blocked: copy from protected or virtual folder: {val}")
             core.show_message(core.t("info_copy_blocked_folder"))
@@ -368,10 +380,8 @@ def confirm_copy(destination_path, move=False):
         return
 
     # ─── 3. Display banner "in progress" ────────────────────────────
-    core.message_permanent = True
-    blocking_render = True
-    core.message_text = core.t("info_move_progress") if move else core.t("info_copy_progress")
-    render_screen()
+    message = core.t("info_move_progress") if move else core.t("info_copy_progress")
+    core.start_spinner(message)
 
     action_done = False
 
@@ -392,8 +402,7 @@ def confirm_copy(destination_path, move=False):
             action_done = True
 
         # ─── 4. Ending Message ───────────────────────────────
-        core.message_permanent = False
-        blocking_render = False
+        core.stop_spinner()
         core.show_message(core.t("info_move_done") if move else core.t("info_copy_done"))
         time.sleep(1)
 
@@ -409,17 +418,20 @@ def confirm_copy(destination_path, move=False):
                     updated.add(base)
 
     except Exception as e:
+        core.stop_spinner()
         core.show_message(core.t("info_operation_failed"))
+        time.sleep(1)
         if core.DEBUG:
             print(f"Error in confirm_copy(): {e}")
 
     finally:
+        core.stop_spinner()
         if action_done:
             copy_source_items.clear()
             copy_mode_active = False
 
 def confirm_delete():
-    global delete_pending_item, blocking_render
+    global delete_pending_item
 
     if not delete_pending_item:
         core.show_message(core.t("info_nothing_to_delete"))
@@ -452,11 +464,7 @@ def confirm_delete():
         return
 
     # ─── 2. Banner display during deletion ──────────────
-    core.message_permanent = True
-    blocking_render = True
-    core.message_text = core.t("info_deleting")
-    render_screen()
-
+    core.start_spinner(core.t("info_deleting"))
     action_done = False
 
     try:
@@ -470,19 +478,21 @@ def confirm_delete():
         action_done = True
 
     except Exception as e:
-        core.message_permanent = False
-        blocking_render = False
+        core.stop_spinner()
         core.show_message(core.t("info_delete_failed"))
+        time.sleep(1)
         delete_pending_item = None
         if core.DEBUG:
             print(f"Error deleting {abs_path}: {e}")
         return
 
+    finally:
+        core.stop_spinner()
+
     # ─── 3. Complete deletion successful + MPD update ──────────────
     if action_done:
-        core.message_permanent = False
-        blocking_render = False
-        core.show_message(core.t("info_deleted"))
+        core.stop_spinner()
+        core.show_message(text=core.t("info_deleted"))
         time.sleep(1)
 
         base = val.split("/", 1)[0]
@@ -2107,10 +2117,21 @@ def main():
             if previous_blocking_render != blocking_render:
                 idle_timer = time.time()
             previous_blocking_render = blocking_render
-            if core.SCREEN_TIMEOUT > 0 and time.time() - idle_timer > core.SCREEN_TIMEOUT:
-                if not is_sleeping and not blocking_render:
-                    run_sleep_loop()
-            elif screen_on:
+            ui_busy = (
+                blocking_render
+                or core.message_permanent
+                or core.message_text is not None
+            )
+            # --- wake if message appears ---
+            if is_sleeping and ui_busy:
+                wake_screen()
+            # --- sleep handling ---
+            if core.SCREEN_TIMEOUT > 0:
+                if time.time() - idle_timer > core.SCREEN_TIMEOUT:
+                    if not is_sleeping and not ui_busy:
+                        run_sleep_loop()
+            # --- render ---
+            if screen_on:
                 run_active_loop()
             time.sleep(0.1 if is_sleeping else 0.05)
     except KeyboardInterrupt:

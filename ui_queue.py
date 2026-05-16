@@ -134,6 +134,16 @@ def run_sleep_loop():
     screen_on = False
     is_sleeping = True
 
+def wake_screen():
+    global is_sleeping, screen_on, last_wake_time
+    if not is_sleeping:
+        return
+    screen_on = True
+    core.poweron_safe()
+    core.reset_scroll("menu_title", "menu_item")
+    is_sleeping = False
+    last_wake_time = time.time()
+
 def monitor_mpd_status(interval=2):
     global current_playing
     prev_songid = -1
@@ -1542,10 +1552,21 @@ def main():
             if previous_blocking_render != blocking_render:
                 idle_timer = time.time()
             previous_blocking_render = blocking_render
-            if core.SCREEN_TIMEOUT > 0 and time.time() - idle_timer > core.SCREEN_TIMEOUT:
-                if not is_sleeping and not blocking_render:
-                    run_sleep_loop()
-            elif screen_on:
+            ui_busy = (
+                blocking_render
+                or core.message_permanent
+                or core.message_text is not None
+            )
+            # --- wake if message appears ---
+            if is_sleeping and ui_busy:
+                wake_screen()
+            # --- sleep handling ---
+            if core.SCREEN_TIMEOUT > 0:
+                if time.time() - idle_timer > core.SCREEN_TIMEOUT:
+                    if not is_sleeping and not ui_busy:
+                        run_sleep_loop()
+            # --- render ---
+            if screen_on:
                 run_active_loop()
             time.sleep(0.1 if is_sleeping else 0.05)
     except KeyboardInterrupt:
