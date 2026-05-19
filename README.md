@@ -354,6 +354,9 @@ Here is an example (but the easiest way is to go through the UI):
   KEY_MYKEY = file:USB/EA9AF9F99AF9C1DD/Audio Book/Alexandre Soljénitsyne/01 Une journée de Ivan Denissovitch.mp3
   KEY_SHORTCUT = file:https://channels.fluxfm.de/chillhop/stream.mp3
   KEY_MYRADIO1 = playlist:RADIO/4ZZZ FM 102.1 - Alternative.pls
+  KEY_8 = graphic:Lo Boost Plus
+  KEY_9 = parametric:My Preset 1
+  KEY_7 = playback:random
   ```
 
 ## 🔧 Configuration via menu in Now Playing UI
