@@ -344,6 +344,8 @@ Custom shortcuts are stored in the config.ini file under the **[shortcuts]** sec
   - playlist:name of your playlist or path of radio.pls
   - file:path to your file.mp3 or path to your stream link
   - folder:path to your album folder
+  - eq type:Preset Name
+  - playback:playback mode
 
 Here is an example (but the easiest way is to go through the UI):
 
