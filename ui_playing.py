@@ -20,6 +20,7 @@ import sqlite3
 import json
 import queue
 import tempfile
+import unicodedata
 from pathlib import Path
 from urllib.parse import urlparse
 from mpd import MPDClient
@@ -1656,106 +1657,196 @@ def _extract_ytdlp_video(local_query):
 
 def resolve_stream_track(local_query):
     global final_title_yt, album_yt, artist_yt
+    from difflib import SequenceMatcher
 
-    local_query = local_query.strip()
+    def _norm(text):
+        if not text:
+            return ""
+        text = text.lower().strip()
+        # remove accents
+        text = unicodedata.normalize("NFKD", text)
+        text = "".join(c for c in text if not unicodedata.combining(c))
+        # normalize separators
+        text = text.replace("–", "-").replace("—", "-")
+        # remove featuring blocks
+        text = re.sub(
+            r"\(?\b(feat\.?|ft\.?|featuring|with|w/)\b[^)\]]*\)?",
+            "",
+            text,
+            flags=re.IGNORECASE
+        )
+        # normalize separators
+        text = re.sub(r"[-_/|:~]+", " ", text)
+        # remove junk chars
+        text = re.sub(r"[^\w\s]", " ", text)
+        # collapse spaces
+        text = re.sub(r"\s+", " ", text)
+        return text.strip()
+
+    def _tokenize(text):
+        return [t for t in _norm(text).split() if len(t) > 1]
+
+    def _similar(a, b):
+        return SequenceMatcher(None, a, b).ratio()
+
+    def _soft_match(query, target, min_ratio=0.6):
+        q_tokens = _tokenize(query)
+        t_tokens = _tokenize(target)
+        if not q_tokens or not t_tokens:
+            return False
+        matched = 0
+        for q in q_tokens:
+            best = max((_similar(q, t) for t in t_tokens), default=0)
+            # short words must match exactly
+            threshold = 1.0 if len(q) <= 4 else 0.80
+            if best >= threshold:
+                matched += 1
+        ratio = matched / len(q_tokens)
+        return ratio >= min_ratio
+
+    local_query = (
+        local_query
+        .replace("–", "-")
+        .replace("—", "-")
+        .strip()
+    )
+
     if core.DEBUG:
         print(f"→ Resolve stream track: {local_query}")
 
+    if " - " not in local_query:
+        if core.DEBUG:
+            print(f"[yt] invalid query format: {local_query}")
+        return None
+
+    artist_query, title_query = map(
+        str.strip,
+        local_query.split(" - ", 1)
+    )
+
+    # canonical metadata
+    artist_final = artist_query
+    title_final = f"{artist_query} - {title_query}"
+
+    # normalized cache key
+    cache_key = _norm(title_final)
+
+    # ---------------------------------------------------------
+    # cache lookup
+    # ---------------------------------------------------------
+
     yt_cache = _load_yt_cache()
-    cache_entry = yt_cache.get(local_query)
-    url_expired = False
+    cache_entry = yt_cache.get(cache_key)
 
     if cache_entry and cache_entry.get("resolved") and cache_entry.get("url"):
+
         expire_ts = cache_entry.get("expire_ts")
         expire_str = cache_entry.get("expires", "?")
         now_ts = int(time.time())
 
-        if expire_ts is None:
-            url_expired = True
-            if core.DEBUG:
-                print("❓ No expire_ts in cache – assuming expired")
-        elif now_ts >= int(expire_ts):
-            url_expired = True
-            if core.DEBUG:
-                print(
-                    f"🟢 Cached URL expired\n"
-                    f"   Expired at: {expire_str}\n"
-                    f"   Now       : {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
-                )
-        else:
-            if core.DEBUG:
-                print(f"✓ Cached URL still valid until {expire_str}")
+        url_expired = (
+            expire_ts is None
+            or now_ts >= int(expire_ts)
+        )
 
         if not url_expired:
+
             if core.DEBUG:
+                print(f"✓ Cached URL still valid until {expire_str}")
                 print(f"Using cached result for: {local_query}")
+
             return {
                 "query": local_query,
                 "url": cache_entry["url"],
-                "title": cache_entry.get("title") or local_query,
-                "artist": cache_entry.get("artist") or "",
+                "title": cache_entry.get("title") or title_final,
+                "artist": cache_entry.get("artist") or artist_final,
                 "album": cache_entry.get("album") or "",
                 "duration": float(cache_entry.get("duration") or 0.0),
             }
 
-    if core.DEBUG and not cache_entry:
-        print("❓ No entry in cache")
+    else:
+        if core.DEBUG:
+            print("❓ No entry in cache")
+
+    # ---------------------------------------------------------
+    # yt-dlp resolve
+    # ---------------------------------------------------------
 
     video = _extract_ytdlp_video(local_query)
 
+    if not video or not video.get("url"):
+        if core.DEBUG:
+            print(f"[resolve] no valid yt-dlp result: {local_query}")
+        return None
+
     resolved_url = video["url"]
-    title_raw = video.get("track") or video.get("title") or "Unknown"
+
+    yt_artist = (
+        video.get("artist")
+        or video.get("album_artist")
+        or video.get("creator")
+        or ""
+    )
+
+    yt_track = (
+        video.get("track")
+        or video.get("title")
+        or ""
+    )
+
     album = video.get("album")
     duration = video.get("duration")
     webpage_url = video.get("webpage_url")
 
-    artist_candidates = {
-        "artist": video.get("artist"),
-        "album_artist": video.get("album_artist"),
-        "composer": video.get("composer"),
-        "creator": video.get("creator"),
-        "uploader": video.get("uploader"),
-    }
+    # ---------------------------------------------------------
+    # validation
+    # ---------------------------------------------------------
 
-    if " - " in local_query:
-        artist_query, title_query = map(str.strip, local_query.split(" - ", 1))
-    else:
-        artist_query = local_query.strip()
-        title_query = ""
-
-    artist_match = next(
-        (v for v in artist_candidates.values() if v and artist_query.lower() in str(v).lower()),
-        None,
+    artist_ok = (
+        _soft_match(artist_query, yt_artist)
+        or _soft_match(artist_query, yt_track)
     )
 
-    if artist_query.lower() in str(title_raw).lower():
-        title_final = title_raw
-        artist_final = artist_query
-    elif artist_match:
-        title_final = f"{artist_query} - {title_raw}"
-        artist_final = artist_query
-    else:
-        title_final = f"{title_raw} - ({artist_query} ?)"
-        artist_final = f"Unknown / maybe {artist_query}"
+    title_ok = _soft_match(
+        clean_youtube_title(title_query),
+        clean_youtube_title(yt_track)
+    )
 
-    title_final = clean_youtube_title(title_final)
+    if not artist_ok or not title_ok:
+
+        if core.DEBUG:
+            print(
+                "[yt] rejected result\n"
+                f"   query artist : {artist_query}\n"
+                f"   query title  : {title_query}\n"
+                f"   yt artist    : {yt_artist}\n"
+                f"   yt track     : {yt_track}"
+            )
+
+        return None
 
     expire_ts = None
     expire_str = None
+
     match = re.search(r"[?&]expire=(\d+)", resolved_url)
+
     if match:
         expire_ts = int(match.group(1))
-        expire_str = datetime.datetime.fromtimestamp(expire_ts).strftime("%Y-%m-%d %H:%M:%S")
+
+        expire_str = datetime.datetime.fromtimestamp(
+            expire_ts
+        ).strftime("%Y-%m-%d %H:%M:%S")
 
     if core.DEBUG:
-        print(f"[yt-dlp] title: {title_raw}")
-        print(f"[yt-dlp] album: {album}")
+        print(f"[yt-dlp] yt-track    : {yt_track}")
         print(f"[yt-dlp] final-title: {title_final}")
-        print(f"[yt-dlp] duration: {duration}")
-        print(f"[yt-dlp] expire at: {expire_str}")
+        print(f"[yt-dlp] album      : {album}")
+        print(f"[yt-dlp] duration   : {duration}")
+        print(f"[yt-dlp] expire at  : {expire_str}")
 
-    yt_cache[local_query] = {
+    yt_cache[cache_key] = {
         "title": title_final,
+        "title_raw": yt_track,
         "artist": artist_final,
         "album": album,
         "duration": duration,
@@ -1770,6 +1861,7 @@ def resolve_stream_track(local_query):
         "expires": expire_str,
         "expire_ts": expire_ts,
     }
+
     _save_yt_cache(yt_cache)
 
     return {
@@ -1808,6 +1900,10 @@ def write_m3u_playlist(source_lines):
                 continue
             try:
                 track = resolve_stream_track(query)
+                if not track:
+                    if core.DEBUG:
+                        print(f"[resolve] rejected: {query}")
+                    continue
             except Exception as e:
                 if core.DEBUG:
                     print(f"[resolve] skip: {query}")
@@ -1866,6 +1962,7 @@ def load_and_tag_playlist(resolved_tracks):
     client.disconnect()
 
 def play_all_songlog_via_m3u(songlog_lines):
+    global now_playing_mode
     if not songlog_lines:
         core.show_message(core.t("info_empty_songlog"))
         return
@@ -1880,8 +1977,10 @@ def play_all_songlog_via_m3u(songlog_lines):
             print("error play_all_songlog_via_m3u:", e)
     finally:
         core.stop_spinner()
+        now_playing_mode = True
 
 def play_songlog_index(index):
+    global now_playing_mode
     if index >= len(songlog_lines):
         core.show_message(core.t("info_invalid_index"))
         return
@@ -1896,6 +1995,7 @@ def play_songlog_index(index):
             print("error play_songlog_index:", e)
     finally:
         core.stop_spinner()
+        now_playing_mode = True
 
 def run_bluetooth_action(*args):
     output = []
