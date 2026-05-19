@@ -145,12 +145,6 @@ songlog_action_options = [
 yt_cache_path = OLIPIMOODE_DIR / "yt_cache.json"
 yt_cache_lock = threading.Lock()
 
-PLS_PATH = "/var/lib/mpd/music/RADIO/Local Stream.pls"
-LOGO_PATH = "/var/local/www/imagesw/radio-logos/Local Stream.jpg"
-THUMB_PATH = "/var/local/www/imagesw/radio-logos/thumbs/Local Stream.jpg"
-THUMB_SM_PATH = "/var/local/www/imagesw/radio-logos/thumbs/Local Stream_sm.jpg"
-
-
 config_menu_active = False
 config_menu_selection = 0
 config_menu_options = [
@@ -1802,7 +1796,7 @@ def write_m3u_playlist(source_lines):
         lines = [
             "#EXTM3U",
             "#EXTGENRE:YouTube",
-            "#EXTIMG:default",
+            "#EXTIMG:local",
         ]
         resolved_tracks = []
 
