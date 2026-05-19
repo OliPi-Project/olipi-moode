@@ -42,18 +42,18 @@ And follow instructions.
 
 Latest updates:
 
-  - Playing Songlog entries via YT from playlist. 
-  - Remove check for zram (Moode now use 4gb swap files).
-  - Radio track covers support if enabled via the Moode UI (used in OliPi with screensaver cover).
-  - Add equalizer menus to select a parametric or graphic preset.
-  - Can set shortcut for EQ and playback modes.
-  ...
-
-  - Add menu option "Set shortcut" in library browser UI to configure not used remote keys, MPR121 pads and GPIO buttons for loading radio, album folder or track.
-  - Rework for some action/key ( See [Key configuration](#-key-configuration) ).
-  - Update & cleaning for Bluetooth to use set-btaudio.php and vol.sh to set volume.
-  - Now use moodeutl to toggle renderers.  
-  ...
+    - Playing Songlog entries via YT from playlist. 
+    - Remove check for zram (Moode now use 4gb swap files).
+    - Radio track covers support if enabled via the Moode UI (used in OliPi with screensaver cover).
+    - Add equalizer menus to select a parametric or graphic preset.
+    - Can set shortcut for EQ and playback modes.
+    ...
+    
+    - Add menu option "Set shortcut" in library browser UI to configure not used remote keys, MPR121 pads and GPIO buttons for loading radio, album folder or track.
+    - Rework for some action/key ( See [Key configuration](#-key-configuration) ).
+    - Update & cleaning for Bluetooth to use set-btaudio.php and vol.sh to set volume.
+    - Now use moodeutl to toggle renderers.
+    ...
     
     Still lots of things to perform/correct before going to V1...
 
