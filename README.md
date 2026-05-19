@@ -42,6 +42,13 @@ And follow instructions.
 
 Latest updates:
 
+  - Playing Songlog entries via YT from playlist. 
+  - Remove check for zram (Moode now use 4gb swap files).
+  - Radio track covers support if enabled via the Moode UI (used in OliPi with screensaver cover).
+  - Add equalizer menus to select a parametric or graphic preset.
+  - Can set shortcut for EQ and playback modes.
+  ...
+
   - Add menu option "Set shortcut" in library browser UI to configure not used remote keys, MPR121 pads and GPIO buttons for loading radio, album folder or track.
   - Rework for some action/key ( See [Key configuration](#-key-configuration) ).
   - Update & cleaning for Bluetooth to use set-btaudio.php and vol.sh to set volume.
@@ -78,7 +85,7 @@ Latest updates:
 ## ✨ Features
 
 - **Now Playing UI**: Displays the current track, metadata, playback status, hardware info, etc. Media controls, add/remove favorites (follows the playlist configured in Moode), playback modes, renderers (Bluetooth, Airplay, and UPNP), search for the currently playing artist in the music library… And a little extra: Logs radio track titles (via the "favorites" button) into a text file to list them in the menu, and lets you search them via Youtube and replay them via a local stream/radio (without download).
-- **Browser UI**: Browse the mpd music library, search, move, copy, delete to/from local or USB storage.
+- **Browser UI**: Browse the mpd music library, search, move, delete, copy to/from local or USB storage.
 - **Playlist/Queue UI**: Display and manage the playback queue. Can create or replace Playlist from queue.
 - **LIRC Installation and Configuration Script.**
 - **GPIO button, rotary encoder and MPR121 capcitive touch sensor support.** (configuration via config.ini)
@@ -286,7 +293,7 @@ You can assign additional actions on your unused buttons.
 
 For loading radio station, playlist, album, or song: 
 
-Use the "**Set shortcut**" option from the menu (**OK** button in the UI library browser) on the item you want to create a shortcut for, then press the unused button of your choice (excluding the essential and optional OliPy buttons), and that’s it.
+Use the "**Set shortcut**" option from the menu (Or long press **OK** button in the UI library browser) on the item you want to create a shortcut for, then press the unused button of your choice (excluding the essential and optional OliPy buttons), and that’s it.
 
 To toggle playback modes and Equalizer curves:
 
