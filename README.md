@@ -84,17 +84,17 @@ Latest updates:
 
 ## ✨ Features
 
-- **Now Playing UI**: Displays the current track, metadata, playback status, hardware info, etc. Media controls, add/remove favorites (follows the playlist configured in Moode), playback modes, renderers (Bluetooth, Airplay, and UPNP), search for the currently playing artist in the music library… And a little extra: Logs radio track titles (via the "favorites" button) into a text file to list them in the menu, and lets you search them via Youtube and replay them via a local stream/radio (without download).
-- **Browser UI**: Browse the mpd music library, search, move, delete, copy to/from local or USB storage.
+- **Now Playing UI**: Displays the current track, metadata, playback status, hardware info, etc. Media controls, add/remove favorites (follows the playlist configured in Moode), playback modes, renderers (Bluetooth, Airplay, and UPNP), search for the currently playing artist in the music library… And a little extra: Logs radio track titles (via the "favorites" button) into a text file to list them in the menu, and lets you search them on YouTube and listen to them again directly via the audio link, without downloading.
+- **Browser UI**: Browse the mpd music library, search, move, delete, copy to/from local/distant or USB storage.
 - **Playlist/Queue UI**: Display and manage the playback queue. Can create or replace Playlist from queue.
+- **Ability to add custom actions to unused keys directly from the screen.**
 - **LIRC Installation and Configuration Script.**
 - **GPIO button, rotary encoder and MPR121 capcitive touch sensor support.** (configuration via config.ini)
-- **Ability to add custom actions to unused keys directly from the screen.**
 
 
 ## 📦 System requirements
 
-- **Operating system**: Moode Audio Player ≥ 10.1.1 required.
+- **Operating system**: Moode Audio Player ≥ 10.2.0 required.
 
 - **Hardware**: 
   
