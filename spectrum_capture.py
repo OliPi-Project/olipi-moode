@@ -99,7 +99,11 @@ class SpectrumCapture(threading.Thread):
 
     def _open_device(self):
         try:
-            self.rec = alsaaudio.PCM(type=alsaaudio.PCM_CAPTURE, device=self.device)
+            self.rec = alsaaudio.PCM(
+                type=alsaaudio.PCM_CAPTURE,
+                mode=alsaaudio.PCM_NONBLOCK,
+                device=self.device
+            )
             info = self.rec.info()
         except Exception as e:
             print("[Spectro] open fail:",e)

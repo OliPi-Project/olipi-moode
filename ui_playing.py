@@ -2472,12 +2472,12 @@ def monitor_spectrum():
                     if time.time() - last_toggle < 0.2:
                         continue
                     stop_spectrum()
-                    #time.sleep(0.02)
-                    #client.pause()
-                    #time.sleep(0.01)
-                    #client.pause()
+                    time.sleep(0.02)
+                    client.pause()
+                    time.sleep(0.01)
+                    client.pause()
                     last_toggle = time.time()
-                    #time.sleep(0.02)
+                    time.sleep(0.02)
                     start_spectrum()
             except Exception as e:
                 print("MPD monitor error:", e)
