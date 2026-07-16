@@ -659,12 +659,16 @@ def get_radio_track_covers_enabled():
         cursor = conn.cursor()
         cursor.execute("""
             SELECT value FROM cfg_system
-            WHERE param='radio_track_covers'
+            WHERE param='radio_covers'
         """)
         result = cursor.fetchone()
         conn.close()
-        if result[0] == "Yes":
-            global_state["radio_track_covers"] = True
+        if result[0] == "No":
+            global_state["radio_track_covers"] = False
+        elif result[0] == "iTunes":
+            global_state["radio_track_covers"] = "itunes"
+        elif result[0] == "Radio Cover+":
+            global_state["radio_track_covers"] = "radiocover_plus"
         return result and result[0] == "Yes"
     except Exception as e:
         if core.DEBUG:
@@ -696,6 +700,7 @@ def get_itunes_cover_url(title, artist_album=None):
             parts = title.split(" - ", 1)
             artist = parts[0].strip()
             track = parts[1].strip()
+
         # --- clean ---
         def clean(text):
             if not text:
@@ -726,27 +731,49 @@ def get_itunes_cover_url(title, artist_album=None):
             radio_name = artist_album.lower()
             if track.lower() == radio_name or artist.lower() == radio_name:
                 return None
-        # --- fallback logic ---
-        args = ["python3", "/var/www/util/trackcover-url.py"]
-        if is_valid(artist) and is_valid(track):
-            args += ["--artist", artist, "--track", track]
-        elif is_valid(track):
-            args += ["--track", track]
+
+        radio_cover_type = global_state.get("radio_track_covers")
+        # --- fallback logic radiocover+ ---
+        if radio_cover_type == "radiocover_plus":
+            args = ["sudo", "python3", "/var/www/util/radiocover_plus.py"]
+            if is_valid(artist) and is_valid(track):
+                title = f"{artist} - {track}"
+                station = artist_album
+                args += ["--title", title, "--station", station]
+            elif is_valid(track):
+                args += ["--title", track, "--station", station]
+            else:
+                return None
+            if core.DEBUG:
+                print(f"Radio Covers + => title={title} | station={station}")
+
+        # --- fallback logic itunes ---
+        elif radio_cover_type == "itunes":
+            args = ["python3", "/var/www/util/itunescover.py"]
+            if is_valid(artist) and is_valid(track):
+                args += ["--artist", artist, "--title", track]
+            elif is_valid(track):
+                args += ["--title", track]
+            else:
+                return None
+            if core.DEBUG:
+                print(f"iTunes Covers => artist={artist} | title={track}")
         else:
             return None
+
         result = subprocess.run(
             args,
             capture_output=True,
             text=True,
-            timeout=5
+            timeout=11
         )
         url = result.stdout.strip()
         if core.DEBUG:
-            print(f"artist={artist} | track={track} | cover_url={url}")
+            print(f"cover_url={url}")
         return url if url.startswith("http") else None
     except Exception as e:
         if core.DEBUG:
-            print("itunes cover error:", e)
+            print("Radio cover error:", e)
         return None
 
 def clean_youtube_title(text):
