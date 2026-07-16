@@ -44,7 +44,7 @@ Latest updates:
 
     - Playing Songlog entries via YT from playlist. 
     - Remove check for zram (Moode now use 4gb swap files).
-    - Radio track covers support if enabled via the Moode UI (used in OliPi with screensaver cover).
+    - Follow radio track covers choice if enabled via the Moode UI (used in OliPi with screensaver cover).
     - Add equalizer menus to select a parametric or graphic preset.
     - Can set shortcut for EQ and playback modes.
     ...
