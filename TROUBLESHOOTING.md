@@ -96,7 +96,7 @@ pin_b = 23
   - INT (IRQ) => Any free GPIO (you must declare it in config.ini)
   - ADD => Leave unconnected for default address or look in your module's documentation to select the desired address. (you must declare it in config.ini)
 
-To adjust pads sensitivity (thresholds), you can use the test script:
+To test pads sensitivity (thresholds), you can use the test script:
 `python3 ~/olipi-moode/olipi_core/olipicap/test_prox.py`
 
 You can modify Pads/KEY_*/thresholds in config.ini
@@ -127,12 +127,6 @@ If you don't use SPI you can disable CE0 and CE1 with `dtoverlay=spi0-0cs`
 YT-DLP needs to be updated regularly, you can either restart the installation script and update all the virtual environment or update YT-dlp manually via Pip:
 - Activate the virtual environment:  `source ~/.olipi-moode-venv/bin/activate`
 - And launch the update: `pip3 install --upgrade yt-dlp`
-
-## 🧠 Low memory devices (512 MB RAM)
-
-- Devices like Pi Zero 2W or Pi 3 A+ may run into audio glitches with yt-dlp in some cases.
-- The installer will propose installing **ZRAM** automatically.
-- Swap is disabled to improve performance and avoid SD card wear.
 
 ## 💡 Can OliPi MoOde be used without Moode?
 
