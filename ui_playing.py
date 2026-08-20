@@ -3993,7 +3993,7 @@ def main():
             if is_sleeping and ui_busy:
                 wake_screen()
             # --- sleep handling ---
-            if core.SCREEN_TIMEOUT > 0:
+            if core.SCREEN_TIMEOUT > 0 and now_playing_mode:
                 if time.time() - idle_timer > core.SCREEN_TIMEOUT:
                     if not is_sleeping and not ui_busy:
                         run_sleep_loop()
