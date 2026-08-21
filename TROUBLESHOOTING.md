@@ -40,9 +40,11 @@ This guide covers common problems and their solutions when using OliPi MoOde.
 
 ## 💻 Console cursor flashes in background
 
-Since bookworm with KMS, force hotplug no longer works in config.txt.
+Since bookworm with KMS, force hotplug for HDMI no longer works in config.txt.
 If you are in "Kernel Mode" and your Raspberry is not connected to an hdmi screen, the system console will be displayed on the spi screen. To remedy this, force hdmi activation in `/boot/firmware/cmdline.txt` by adding at the end and on the same line, separated by a space: `vc4.force_hotplug=1`. And reboot. Your cmdline.txt should then end like this:  
-`...rootwait cfg80211.ieee80211_regdom=FR vc4.force_hotplug=1`  
+`...rootwait cfg80211.ieee80211_regdom=FR vc4.force_hotplug=1`
+
+If `vc4.force_hotplug=1` not work, another way is to remap console to specific or unused framebuffer by adding `fbcon=map:2` to `/boot/firmware/cmdline.txt` (Where "map:2" corresponds to fb2, which means in most case the console isn't displayed on any local screen)
 
 ## 📡 Wiring IR Receiver / Remote control is not detected
 
