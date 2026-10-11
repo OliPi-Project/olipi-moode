@@ -182,6 +182,10 @@ def install_apt_dependencies():
 def remove_apt_packages():
     print(SETUP["remove_apt"][lang])
 
+    if not APT_REMOVED:
+        print(SETUP["apt_remove_none"][lang])
+        return True
+    
     packages = " ".join(APT_REMOVED)
 
     # Simulate the deletion before making changes to the system.
