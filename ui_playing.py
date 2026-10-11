@@ -2538,7 +2538,7 @@ def interpolate_palette(value, palette):
             return (r, g, b)
     return palette[-1][1]
 
-def draw_spectrum(y_top, height, levels, attack=0.90, release=0.90):
+def draw_spectrum(y_top, height, levels, attack=1.0, release=0.80):
 
     palette = PALETTE_SPECTRUM
     num_bars = len(levels)
