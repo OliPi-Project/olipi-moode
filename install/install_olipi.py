@@ -22,7 +22,6 @@ from lang import SETUP
 
 APT_DEPENDENCIES = [
     "git", "python3-pil", "python3-venv", "python3-pip", "python3-tk", "libasound2-dev",
-    "libopenblas-dev", "libopenblas-pthread-dev", "libblas-dev", "liblapack-dev", "libgfortran5",
     "i2c-tools", "python3-rpi-lgpio", "python3-setuptools"
 ]
 
