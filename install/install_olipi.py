@@ -24,6 +24,9 @@ APT_DEPENDENCIES = [
     "git", "python3-pil", "python3-venv", "python3-pip", "python3-tk", "libasound2-dev",
     "i2c-tools", "python3-rpi-lgpio", "python3-setuptools"
 ]
+APT_REMOVED = [
+    "libopenblas-dev", "libopenblas-pthread-dev", "libblas-dev", "liblapack-dev", "libopenblas0", "libopenblas0-pthread"
+]
 
 REQUIRED_MOODE_VERSION = "9.3.7"
 OLIPI_CORE_REPO = "https://github.com/OliPi-Project/olipi-core.git"
@@ -175,6 +178,46 @@ def install_apt_dependencies():
         run_command(f"sudo apt-get install -y {' '.join(missing)}", log_out=True, show_output=True, check=True)
 
     print(SETUP["apt_ok"][lang])
+
+def remove_apt_packages():
+    print(SETUP["remove_apt"][lang])
+
+    packages = " ".join(APT_REMOVED)
+
+    # Simulate the deletion before making changes to the system.
+    res = run_command(f"sudo apt-get -s remove {packages}", log_out=True, show_output=False, check=False)
+    if res.returncode != 0:
+        print(SETUP["apt_remove_error"][lang])
+        return False
+
+    # Check all the packages that APT plans to remove.
+    planned = set()
+
+    for line in (res.stdout or "").splitlines():
+        fields = line.split()
+        if len(fields) >= 2 and fields[0] == "Remv":
+            planned.add(fields[1].split(":")[0])
+
+    unexpected = planned - set(APT_REMOVED)
+
+    if unexpected:
+        print(SETUP["apt_remove_unexpected"][lang].format(", ".join(sorted(unexpected))))
+        return False
+
+    if not planned:
+        print(SETUP["apt_remove_none"][lang])
+        return True
+
+    print(SETUP["apt_remove_plan"][lang].format(", ".join(sorted(planned))))
+
+    # Run only after the simulation has been validated.
+    res = run_command(f"sudo apt-get remove -y {' '.join(sorted(planned))}", log_out=True, show_output=True, check=False)
+    if res.returncode != 0:
+        print(SETUP["apt_remove_error"][lang])
+        return False
+
+    print(SETUP["apt_remove_ok"][lang])
+    return True
 
 def safe_read_file_as_lines(path, critical=True):
     try:
@@ -1554,6 +1597,7 @@ def main():
                     os.execv(sys.executable, [sys.executable, script_path, "--dev"])
                 else:
                     print("[dev] Repo cloning skipped")
+            remove_apt_packages()
             install_apt_dependencies()
             sync_user_themes()
             install_venv = check_virtualenv()
@@ -1578,6 +1622,7 @@ def main():
                 script_path = os.path.abspath(__file__)
                 print(SETUP.get("reexecut_script", {}).get(lang, "\n🔁 Re-executing freshly cloned install_olipi.py to pick up updates..."))
                 os.execv(sys.executable, [sys.executable, script_path, "--install"])
+            remove_apt_packages()
             install_apt_dependencies()
             sync_user_themes()
             install_venv = check_virtualenv()
@@ -1601,6 +1646,7 @@ def main():
                 script_path = os.path.abspath(__file__)
                 print(SETUP.get("reexecut_script", {}).get(lang, "\n🔁 Re-executing freshly cloned install_olipi.py to pick up updates..."))
                 os.execv(sys.executable, [sys.executable, script_path, "--update"])
+            remove_apt_packages()
             install_apt_dependencies()
             sync_user_themes()
             install_venv = check_virtualenv()
