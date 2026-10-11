@@ -78,7 +78,7 @@ def build_mel_filterbank(n_fft, sr, n_mels, fmin=20.0, fmax=None, bias=None):
 
 
 class SpectrumCapture(threading.Thread):
-    def __init__(self, n_bars=16):
+    def __init__(self, n_bars=21):
         super().__init__(daemon=True)
 
         self.device="hw:Loopback,1,0"
