@@ -31,6 +31,10 @@ Setting up custom shortcuts: [https://youtu.be/xP5Zl5nR0Qw](https://youtu.be/xP5
 
 ## ❔ What's new?
 
+### **<u>V0.5.6-pre</u>**
+
+>With the Moode 10.3.6 update, a dependency conflict has arisen that prevents MPD from starting. You must update OliPi MoOde to version 0.5.6 to resolve this issue.
+
 **<u>V0.5.0-pre</u> +** 
 
 If you're updating from a version prior to v0.4.0 a full update are required (don't skip screen configuration and update or reinstall venv). No need to force a config.ini reset when prompt.
