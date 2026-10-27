@@ -43,6 +43,7 @@ font_extra_info = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bol
 core.load_translations(Path(__file__).stem)
 
 show_icons = core.get_config("nowplaying", "show_icons", fallback=False, type=bool)
+show_one_line = core.get_config("nowplaying", "show_one_line", fallback=False, type=bool)
 show_extra_infos = core.get_config("nowplaying", "show_extra_infos", fallback=False, type=bool)
 show_progress_barre = core.get_config("nowplaying", "show_progress_barre", fallback=False, type=bool)
 show_spectrum = core.get_config("nowplaying", "show_spectrum", fallback=False, type=bool)
@@ -871,6 +872,7 @@ def player_status_thread():
                         menu_context_flag = "radio"
                         album = RADIO_MAP.get(path, "Unknown Radio")
                         artist_album = album # Radio name
+                        artist = album
                         global_state["duration"] = float(status_extra.get("duration", 0.0))
                 else:
                     menu_context_flag = "library"
@@ -2727,8 +2729,8 @@ def draw_nowplaying():
         title = global_state.get("title", "")
 
     state = global_state.get("state", "unknown")
-    volume = "100" if is_bt_local_active() else global_state.get("volume", "N/A")
-    volume_display = "Bt vol: 100%" if is_bt_local_active() else f"Vol: {volume}"
+    volume = global_state.get("volume", "N/A")
+    volume_display = "Vol: Bt" if is_bt_local_active() else f"Vol: {volume}"
 
     # Background
     core.draw.rectangle((0, 0, core.width, core.height), fill=core.COLOR_BG)
@@ -2972,7 +2974,7 @@ def draw_nowplaying():
             y_top1 = y_peak
             width = core.width
             y_top2 = y_top1 + peak_bar_h + padding
-            peaks = spectrum.get_channel_peaks(volume_state=global_state.get("volume"), mixer_type=global_state.get("mpdmixer"),)
+            peaks = spectrum.get_channel_peaks(volume_state=global_state.get("volume"), mixer_type=global_state.get("mpdmixer"))
             draw_peak_meters(y_top1, y_top2, pad_x, peak_bar_h, width, peaks)
 
         # --- Bottom bar (Volume / Clock) ---
