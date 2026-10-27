@@ -47,6 +47,7 @@ show_extra_infos = core.get_config("nowplaying", "show_extra_infos", fallback=Fa
 show_progress_barre = core.get_config("nowplaying", "show_progress_barre", fallback=False, type=bool)
 show_spectrum = core.get_config("nowplaying", "show_spectrum", fallback=False, type=bool)
 show_peak = core.get_config("nowplaying", "show_peak", fallback=False, type=bool)
+show_vol_bar = core.get_config("nowplaying", "show_vol_bar", fallback=True, type=bool)
 show_clock = core.get_config("nowplaying", "show_clock", fallback=True, type=bool)
 
 screensaver_mode = core.get_config("settings", "screensaver_mode", fallback="blank", type=str)
@@ -550,12 +551,15 @@ global_state = {
     "mpdmixer": "software"
 }
 
-def is_renderer_active():
+def is_bt_local_active():
     return (
         global_state.get("btsvc") == "1"
         and global_state.get("audioout") == "Local"
         and global_state.get("btactive") == "1"
-    ) or any(
+    )
+
+def is_renderer_active():
+    return is_bt_local_active() or any(
         global_state.get(flag) == "1"
         for flag in (
             "aplactive", "spotactive", "slactive", "rbactive",
@@ -855,6 +859,7 @@ def player_status_thread():
                 artist = song_data.get("artist", "")
                 album = song_data.get("album", "")
                 title = song_data.get("title", "")
+                state = status_extra.get("state", "unknown")
                 if path.startswith("http"):
                     artist = "Radio station"
                     if path.startswith("https://rr"):
@@ -882,7 +887,7 @@ def player_status_thread():
                 global_state["artist"] = artist
                 global_state["artist_album"] = artist_album
                 global_state["path"] = path
-                global_state["state"] = status_extra.get("state", "unknown")
+                global_state["state"] = state
 
                 if screensaver_mode == "covers" and core.SCREEN_TIMEOUT > 0:
                     cover_img = None
@@ -2704,31 +2709,26 @@ def draw_nowplaying():
         "nowplaying_artist",
         {"offset": 0, "last_update": time.time(), "phase": "pause_start", "pause_start_time": time.time()}
     )
-
     scroll_title = core.scroll_state.setdefault(
         "nowplaying_title",
         {"offset": 0, "last_update": time.time(), "phase": "pause_start", "pause_start_time": time.time()}
     )
+
     if is_renderer_active():
-        if (
-            global_state.get("btsvc") == "1"
-            and global_state.get("audioout") == "Local"
-            and global_state.get("btactive") == "1"
-        ):
+        if is_bt_local_active():
             artist_album = core.t("show_bt_input")
             title = core.t("show_bt_output_hint")
         else:
             artist_album = core.t("show_renderer_active")
             title = core.t("show_renderer_hint")
     else:
+        artist = global_state.get("artist", "")
         artist_album = global_state.get("artist_album", "")
         title = global_state.get("title", "")
 
-    text1_width = core.draw.textlength(artist_album, font=font_artist)
-    text2_width = core.draw.textlength(title, font=font_artist)
-
     state = global_state.get("state", "unknown")
-    volume = global_state.get("volume", "N/A")
+    volume = "100" if is_bt_local_active() else global_state.get("volume", "N/A")
+    volume_display = "Bt vol: 100%" if is_bt_local_active() else f"Vol: {volume}"
 
     # Background
     core.draw.rectangle((0, 0, core.width, core.height), fill=core.COLOR_BG)
@@ -2779,12 +2779,12 @@ def draw_nowplaying():
         y = (core.height - text_h) // 2 - bbox[1]
 
         core.draw.text((x, y), clock_text, font=font_stop_clock, fill=core.COLOR_STOP_CLOCK)
-
+   
         # Volume barre
         vol_bar_h = font_vol_clock.getbbox("Vol: 100")[3]
         y_vol_bar = core.height - vol_bar_h - padding_y
 
-        core.draw.text((3, y_vol_bar), f"Vol: {volume}", font=font_vol_clock, fill=core.COLOR_VOL_CLOCK)
+        core.draw.text((3, y_vol_bar), volume_display, font=font_vol_clock, fill=core.COLOR_VOL_CLOCK)
     else:
         # compute text height reliably from font bbox
         bbox = font_artist.getbbox("Aéy")
@@ -2884,16 +2884,24 @@ def draw_nowplaying():
         if not show_icons:
             top_bar_h = spacing if core.height > 64 else 0
 
-        # --- Artist / Album ---
-        y_artist = top_bar_h
-        draw_scrolling(artist_album, scroll_artist, y_artist, core.COLOR_ARTIST)
-
-        # --- Title ---
-        y_title = y_artist + text_h + spacing
-        draw_scrolling(title, scroll_title, y_title, core.COLOR_TRACK_TITLE)
+        # --- Artist / Album / Title---
+        if show_one_line:
+            # --- Artist / Title oneline ---
+            y_artist = top_bar_h
+            artist_title = f"{artist} - {title}"
+            draw_scrolling(artist_title, scroll_artist, y_artist, core.COLOR_ARTIST)
+            y_extra_info = y_artist + text_h + spacing
+        else:
+            # --- Artist / Album ---
+            y_artist = top_bar_h
+            draw_scrolling(artist_album, scroll_artist, y_artist, core.COLOR_ARTIST)
+            # --- Title ---
+            y_title = y_artist + text_h + spacing
+            draw_scrolling(title, scroll_title, y_title, core.COLOR_TRACK_TITLE)
+            y_extra_info = y_title + text_h + spacing
 
         # --- Extra Infos ---
-        y_extra_info = y_title + text_h + spacing
+        
         if show_extra_infos:
             extra_info = global_state.get("audio", "")
             bitrate = global_state.get("bitrate", "")
@@ -2936,7 +2944,10 @@ def draw_nowplaying():
             y_spectrum = y_progress
 
         # define avaible space for meters
-        vol_bar_h = font_vol_clock.getbbox("Vol: 100")[3] + (padding_y if core.height > 64 else 0)
+        if show_vol_bar:
+            vol_bar_h = font_vol_clock.getbbox("Vol: 100")[3] + (padding_y if core.height > 64 else 0)
+        else:
+            vol_bar_h = 0
         y_vol_bar = core.height - vol_bar_h - (padding_y if core.height > 64 else 0)
         # peak meter bars
         peak_bar_h = max(2, min(8, core.height // 36))
@@ -2965,18 +2976,19 @@ def draw_nowplaying():
             draw_peak_meters(y_top1, y_top2, pad_x, peak_bar_h, width, peaks)
 
         # --- Bottom bar (Volume / Clock) ---
-        core.draw.text((padding_x, y_vol_bar), f"Vol: {volume}", font=font_vol_clock, fill=core.COLOR_VOL_CLOCK)
-        if show_clock:
-            clock_text = global_state["clock"]
-        else:
-            elapsed_str = format_time(elapsed)
-            duration_str = format_time(duration)
-            if menu_context_flag == "radio":
-                clock_text = f"{elapsed_str}"
+        if show_vol_bar:
+            core.draw.text((padding_x, y_vol_bar), volume_display, font=font_vol_clock, fill=core.COLOR_VOL_CLOCK)
+            if show_clock:
+                clock_text = global_state["clock"]
             else:
-                clock_text = f"{elapsed_str}/{duration_str}"
-        clock_w = core.draw.textlength(clock_text, font=font_vol_clock)
-        core.draw.text((core.width - clock_w - padding_x, y_vol_bar), clock_text, font=font_vol_clock, fill=core.COLOR_VOL_CLOCK)
+                elapsed_str = format_time(elapsed)
+                duration_str = format_time(duration)
+                if menu_context_flag == "radio":
+                    clock_text = f"{elapsed_str}"
+                else:
+                    clock_text = f"{elapsed_str}/{duration_str}"
+            clock_w = core.draw.textlength(clock_text, font=font_vol_clock)
+            core.draw.text((core.width - clock_w - padding_x, y_vol_bar), clock_text, font=font_vol_clock, fill=core.COLOR_VOL_CLOCK)
 
 def build_shortcut_action(typ, val):
     if typ == "parametric":

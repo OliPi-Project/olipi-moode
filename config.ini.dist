@@ -27,8 +27,10 @@ gpio_rst =
 
 [nowplaying]
 show_icons = True
+show_one_line = False
 show_extra_infos = True
 show_progress_barre = True
+show_vol_bar = True
 show_clock = True
 ### Spectrum need Loopback actived in Moode > configure > audio > alsa options
 show_spectrum = False
