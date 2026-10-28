@@ -173,10 +173,12 @@ ui_menu_active = False
 ui_menu_selection = 0
 ui_menu_options = [
     {"id": "icons", "label": core.t("menu_icons")},
+    {"id": "oneline", "label": core.t("menu_oneline")},
     {"id": "extra", "label": core.t("menu_extra_infos")},
     {"id": "progress", "label": core.t("menu_progress_bare")},
     {"id": "spectrum", "label": core.t("menu_spectrum")},
     {"id": "peak", "label": core.t("menu_peak")},
+    {"id": "vol_bar", "label": core.t("menu_vol_bar")},
     {"id": "clock_elapse", "label": core.t("menu_clock")},
     {"id": "apply", "label": core.t("menu_apply")}
 ]
@@ -296,7 +298,7 @@ def _resize_icon(img, base_size=16):
     if img is None:
         return None
 
-    if core.height == 64:
+    if core.height <= 64:
         return img.resize((15, 15), core.Image.Resampling.LANCZOS)
 
     if core.ppi <= 150:
@@ -2418,12 +2420,16 @@ def draw_ui_menu():
     ui_flags = set()
     if show_icons:
         ui_flags.add(core.t("menu_icons"))
+    if show_one_line:
+        ui_flags.add(core.t("menu_oneline"))
     if show_extra_infos:
         ui_flags.add(core.t("menu_extra_infos"))
     if show_progress_barre:
         ui_flags.add(core.t("menu_progress_bare"))
     if show_spectrum:
         ui_flags.add(core.t("menu_spectrum"))
+    if show_vol_bar:
+        ui_flags.add(core.t("menu_vol_bar"))
     if show_clock:
         ui_flags.add(core.t("menu_clock"))
     if show_peak:
@@ -2933,7 +2939,7 @@ def draw_nowplaying():
             progress_x = (core.width - progress_w) // 2
             ratio = elapsed / duration if duration > 0 else 0
             fill_w = int(progress_w * ratio)
-            if core.height == 64 and fill_w > 0:
+            if core.height <= 64 and fill_w > 0:
                 core.draw.line((progress_x, y_progress, progress_x + fill_w, y_progress), fill=core.COLOR_PROGRESS, width=progress_h)
             else:
                 # Background barre
@@ -3814,7 +3820,7 @@ def finish_press(key):
         return
 
     if ui_menu_active:
-        global show_icons, show_extra_infos, show_progress_barre, show_spectrum, show_peak, show_clock
+        global show_icons, show_one_line, show_extra_infos, show_progress_barre, show_spectrum, show_peak, show_vol_bar, show_clock
         if key == "KEY_UP" and ui_menu_selection > 0:
             ui_menu_selection -= 1
             core.reset_scroll("menu_item")
@@ -3831,36 +3837,18 @@ def finish_press(key):
                 new_icons = not show_icons
                 core.save_config("show_icons", new_icons, section="nowplaying")
                 show_icons = new_icons
-                if core.height == 64 and show_icons:
-                    show_extra_infos = False
-                    core.save_config("show_extra_infos", False, section="nowplaying")
-                    show_progress_barre = False
-                    core.save_config("show_progress_barre", False, section="nowplaying")
-                    show_spectrum = False
-                    core.save_config("show_spectrum", False, section="nowplaying")
-                    show_peak = False
-                    core.save_config("show_peak", False, section="nowplaying")
+            elif option_id == "oneline":
+                new_oneline = not show_one_line
+                core.save_config("show_one_line", new_oneline, section="nowplaying")
+                show_one_line = new_oneline
             elif option_id == "extra":
                 new_extra = not show_extra_infos
                 core.save_config("show_extra_infos", new_extra, section="nowplaying")
                 show_extra_infos = new_extra
-                if core.height == 64 and show_extra_infos:
-                    show_icons = False
-                    core.save_config("show_icons", False, section="nowplaying")
-                    show_spectrum = False
-                    core.save_config("show_spectrum", False, section="nowplaying")
-                    show_peak = False
-                    core.save_config("show_peak", False, section="nowplaying")
             elif option_id == "progress":
                 new_progress = not show_progress_barre
                 core.save_config("show_progress_barre", new_progress, section="nowplaying")
                 show_progress_barre = new_progress
-                if core.height == 64 and show_progress_barre:
-                    show_icons = False
-                    core.save_config("show_icons", False, section="nowplaying")
-                if core.height == 64 and show_progress_barre and show_spectrum and show_peak:
-                    show_peak = False
-                    core.save_config("show_peak", False, section="nowplaying")
             elif option_id == "spectrum":
                 if not is_spectrum_available():
                     core.show_message(core.t("error_spectrum"))
@@ -3869,14 +3857,6 @@ def finish_press(key):
                 new_spectrum = not show_spectrum
                 core.save_config("show_spectrum", new_spectrum, section="nowplaying")
                 show_spectrum = new_spectrum
-                if core.height == 64 and show_spectrum:
-                    show_icons = False
-                    core.save_config("show_icons", False, section="nowplaying")
-                    show_extra_infos = False
-                    core.save_config("show_extra_infos", False, section="nowplaying")
-                if core.height == 64 and show_spectrum and show_peak:
-                    show_progress_barre = False
-                    core.save_config("show_progress_barre", False, section="nowplaying")
             elif option_id == "peak":
                 if not is_spectrum_available():
                     core.show_message(core.t("error_spectrum"))
@@ -3885,14 +3865,10 @@ def finish_press(key):
                 new_peak = not show_peak
                 core.save_config("show_peak", new_peak, section="nowplaying")
                 show_peak = new_peak
-                if core.height == 64 and show_peak:
-                    show_icons = False
-                    core.save_config("show_icons", False, section="nowplaying")
-                    show_extra_infos = False
-                    core.save_config("show_extra_infos", False, section="nowplaying")
-                if core.height == 64 and show_spectrum and show_peak:
-                    show_progress_barre = False
-                    core.save_config("show_progress_barre", False, section="nowplaying")
+            elif option_id == "vol_bar":
+                new_vol_bar = not show_vol_bar
+                core.save_config("show_vol_bar", new_vol_bar, section="nowplaying")
+                show_vol_bar = new_vol_bar
             elif option_id == "clock_elapse":
                 new_clock = not show_clock
                 core.save_config("show_clock", new_clock, section="nowplaying")
