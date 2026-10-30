@@ -1129,10 +1129,11 @@ def configure_screen(olipi_moode_dir, olipi_core_dir):
             return False
         
         if meta.get("height") <= 64:
+            core_config.save_config("show_icons", False, section="nowplaying", preserve_case=True)
+            core_config.reload_config()
+        if meta.get("height") < 64:
             core_config.save_config("show_extra_infos", False, section="nowplaying", preserve_case=True)
-            core_config.save_config("show_progress_barre", False, section="nowplaying", preserve_case=True)
-            if meta.get("height") < 64:
-                core_config.save_config("show_icons", False, section="nowplaying", preserve_case=True)
+            core_config.save_config("show_progress_barre", False, section="nowplaying", preserve_case=True)       
             core_config.reload_config()
         
         if meta.get("type") == "spi2c":

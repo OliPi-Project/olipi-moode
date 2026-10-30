@@ -33,6 +33,7 @@ from olipi_core.input_manager import start_inputs, debounce_data, process_key
 from media_key_actions import load_shortcuts, is_key_reserved, is_key_used, handle_audio_keys, handle_custom_key, USED_MEDIA_KEYS, set_hooks as set_custom_hooks
 
 DB_PATH = "/var/local/www/db/moode-sqlite3.db"
+BTMeta_Path = "/var/local/www/btmeta.json"
 
 # --- Fonts ui_playing ---
 font_artist = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 14)
@@ -370,50 +371,57 @@ def run_active_loop():
     if not blocking_render and not is_sleeping:
         render_screen()
 
+last_displayed_cover = None
+def show_screensaver_cover():
+    global last_displayed_cover
+    cover = global_state.get("cover_img")
+    if cover is None:
+        cover = get_fallback_image()
+        if cover is not None:
+            global_state["cover_img"] = cover
+    if cover and cover is not last_displayed_cover:
+        core.draw.rectangle((0, 0, core.width, core.height), fill=core.COLOR_BG)
+        img = cover.copy()
+        margin = int(min(core.width, core.height) * 0.05)
+        if core.height <= 64:
+            margin = 0
+        img.thumbnail(
+            (core.width - margin * 2, core.height - margin * 2),
+            core.Image.LANCZOS
+        )
+        x = (core.width - img.width) // 2
+        y = (core.height - img.height) // 2
+        core.image.paste(img, (x, y))
+        core.refresh()
+        last_displayed_cover = cover
+    elif not cover and last_displayed_cover != "no_cover":
+        if core.DEBUG:
+            print("NO COVER")
+        last_displayed_cover = "no_cover"
+        core.clear_display()
+
 def run_sleep_loop():
-    global is_sleeping, screen_on
+    global is_sleeping, screen_on, last_displayed_cover
     if is_sleeping:
         return
     is_sleeping = True
     screen_on = False
-    last_displayed_cover = None
-    last_mpd_state = None
-
+    last_state = None
     if screensaver_mode == "covers":
         while is_sleeping:
-            mpd_state = global_state.get("state", "unknown")
+            state = global_state.get("state", "unknown")
             # --- state change detection ---
-            if mpd_state != last_mpd_state:
-                last_mpd_state = mpd_state
-                if mpd_state == "stop":
+            if state != last_state:
+                last_state = state
+                if state == "stop": # MPD case
                     core.clear_display()
                     core.poweroff_safe()
                     last_displayed_cover = None
-                elif mpd_state == "play":
+                elif state == "play":
                     core.poweron_safe()
-                    last_displayed_cover = None  # 🔥 force refresh
-            if mpd_state == "play":
-                cover = global_state.get("cover_img")
-                if cover and cover is not last_displayed_cover:
-                    core.draw.rectangle((0, 0, core.width, core.height), fill=core.COLOR_BG)
-                    img = cover.copy()
-                    margin = int(min(core.width, core.height) * 0.05)
-                    if core.height <= 64:
-                        margin = 0
-                    img.thumbnail(
-                        (core.width - margin * 2, core.height - margin * 2),
-                        core.Image.LANCZOS
-                    )
-                    x = (core.width - img.width) // 2
-                    y = (core.height - img.height) // 2
-                    core.image.paste(img, (x, y))
-                    core.refresh()
-                    last_displayed_cover = cover
-                elif not cover and last_displayed_cover != "no_cover":
-                    if core.DEBUG:
-                        print("NO COVER")
-                    last_displayed_cover = "no_cover"
-                    core.clear_display()
+                    last_displayed_cover = None  # force refresh
+            if state == "play":
+                show_screensaver_cover()
             time.sleep(0.3)
 
     elif screensaver_mode == "orbital":
@@ -554,22 +562,6 @@ global_state = {
     "mpdmixer": "software"
 }
 
-def is_bt_local_active():
-    return (
-        global_state.get("btsvc") == "1"
-        and global_state.get("audioout") == "Local"
-        and global_state.get("btactive") == "1"
-    )
-
-def is_renderer_active():
-    return is_bt_local_active() or any(
-        global_state.get(flag) == "1"
-        for flag in (
-            "aplactive", "spotactive", "slactive", "rbactive",
-            "paactive", "deezactive"
-        )
-    )
-
 RENDERER_PARAMS = [
     "btsvc", "btactive", "airplaysvc", "aplactive", "spotifysvc", "spotactive",
     "slsvc", "slactive", "rbsvc", "rbactive", "pasvc", "paactive","deezersvc", "deezactive",
@@ -590,6 +582,23 @@ def load_renderer_states_from_db():
         core.show_message(core.t("error_db", error=e))
         if core.DEBUG:
             print("error db: ", e)
+load_renderer_states_from_db()
+
+def is_bt_local_active():
+    return (
+        global_state.get("btsvc") == "1"
+        and global_state.get("audioout") == "Local"
+        and global_state.get("btactive") == "1"
+    )
+
+def is_renderer_active():
+    return is_bt_local_active() or any(
+        global_state.get(flag) == "1"
+        for flag in (
+            "aplactive", "spotactive", "slactive", "rbactive",
+            "paactive", "deezactive"
+        )
+    )
 
 RADIO_MAP = {}
 def build_radio_map(pls_directory="/var/lib/mpd/music/RADIO"):
@@ -654,10 +663,11 @@ def convert_img_for_display(img):
 
 def get_fallback_image():
     try:
-        path = "/var/www/images/default-album-cover.png"
+        path = "/var/www/images/default-album-cover.jpg"
         img = core.Image.open(path)
         return convert_img_for_display(img)
     except:
+        print("error fallback cover")
         return None
 
 def get_radio_track_covers_enabled():
@@ -672,9 +682,7 @@ def get_radio_track_covers_enabled():
         conn.close()
         if result[0] == "No":
             global_state["radio_track_covers"] = False
-        elif result[0] == "iTunes":
-            global_state["radio_track_covers"] = "itunes"
-        elif result[0] == "Radio Cover+":
+        else:
             global_state["radio_track_covers"] = "radiocover_plus"
         return result and result[0] == "Yes"
     except Exception as e:
@@ -683,6 +691,54 @@ def get_radio_track_covers_enabled():
         return False
 get_radio_track_covers_enabled()
 
+def clean_metadata(text):
+    if not text:
+        return ""
+    # Fix common errors caused by misinterpreted UTF-8 encoding
+    if "Ã" in text or "Â" in text:
+        try:
+            text = text.encode("latin-1").decode("utf-8")
+        except (UnicodeEncodeError, UnicodeDecodeError):
+            pass
+    # Remove control characters and invisible characters
+    text = "".join(
+        char for char in text
+        if unicodedata.category(char) not in ("Cc", "Cf")
+    )
+    # Normalize spaces
+    text = text.replace("\u00a0", " ")
+    text = re.sub(r"\s+", " ", text).strip()
+    # Delete the information in parentheses and square brackets
+    text = re.sub(r"\([^)]*\)|\[[^]]*\]", "", text)
+    # Remove irrelevant information
+    junk_patterns = [
+        r"\bofficial\s+(?:music\s+)?video\b",
+        r"\bofficial\s+audio\b",
+        r"\bofficial\s+visualizer\b",
+        r"\bradio\s+edit\b",
+        r"\bremastered\b",
+        r"\bremix\b",
+        r"\blive\b",
+        r"\bversion\b",
+        r"\bmono\b",
+        r"\bstereo\b",
+    ]
+    for pattern in junk_patterns:
+        text = re.sub(pattern, "", text, flags=re.IGNORECASE)
+    # Remove spaces and residual punctuation
+    text = re.sub(r"\s+", " ", text)
+    text = re.sub(r"\s*[.,;:!?]+\s*$", "", text)
+    return text.strip(" \t\r\n-–—;,:|")
+
+def normalize_cover_title(title):
+    title = clean_metadata(title)
+    # Standardize the separators between artists
+    title = re.sub(r"\s*[;&]\s*", ", ", title)
+    # Avoid duplicate commas and spaces
+    title = re.sub(r"\s*,\s*", ", ", title)
+    title = re.sub(r"(?:,\s*){2,}", ", ", title)
+    return title.strip(" ,")
+
 def get_radio_track_cover(url):
     if not url:
         return None
@@ -690,14 +746,16 @@ def get_radio_track_cover(url):
         resp = requests.get(url, timeout=3)
         resp.raise_for_status()
         img = core.Image.open(BytesIO(resp.content))
-        radio_cover = convert_img_for_display(img)
+        img.load()
+        return convert_img_for_display(img)
     except Exception as e:
         if core.DEBUG:
             print("cover download error:", e)
-    return radio_cover
+        return None
 
 def get_itunes_cover_url(title, artist_album=None):
     try:
+        title = normalize_cover_title(title)
         if not title:
             return None
         # --- parse "Artist - Track" ---
@@ -707,23 +765,6 @@ def get_itunes_cover_url(title, artist_album=None):
             parts = title.split(" - ", 1)
             artist = parts[0].strip()
             track = parts[1].strip()
-
-        # --- clean ---
-        def clean(text):
-            if not text:
-                return ""
-            # --- remove (...) and [...] ---
-            text = re.sub(r"\(.*?\)|\[.*?\]", "", text)
-            # --- remove common junk words ---
-            junk_words = [
-                "live", "remix", "edit", "version", "official", "video",
-                "radio edit", "remastered", "mono", "stereo"
-            ]
-            for word in junk_words:
-                text = re.sub(rf"\b{word}\b", "", text, flags=re.IGNORECASE)
-            # --- cleanup spaces ---
-            text = re.sub(r"\s+", " ", text)
-            return text.strip()
         # --- validation ---
         def is_valid(text):
             return text and len(text) >= 3 and re.search(r"[a-zA-Z0-9]", text)
@@ -738,41 +779,27 @@ def get_itunes_cover_url(title, artist_album=None):
             radio_name = artist_album.lower()
             if track.lower() == radio_name or artist.lower() == radio_name:
                 return None
-
-        radio_cover_type = global_state.get("radio_track_covers")
         # --- fallback logic radiocover+ ---
-        if radio_cover_type == "radiocover_plus":
-            args = ["sudo", "python3", "/var/www/util/radiocover_plus.py"]
-            if is_valid(artist) and is_valid(track):
-                title = f"{artist} - {track}"
-                station = artist_album
-                args += ["--title", title, "--station", station]
-            elif is_valid(track):
-                args += ["--title", track, "--station", station]
-            else:
-                return None
-            if core.DEBUG:
-                print(f"Radio Covers + => title={title} | station={station}")
-
-        # --- fallback logic itunes ---
-        elif radio_cover_type == "itunes":
-            args = ["python3", "/var/www/util/itunescover.py"]
-            if is_valid(artist) and is_valid(track):
-                args += ["--artist", artist, "--title", track]
-            elif is_valid(track):
-                args += ["--title", track]
-            else:
-                return None
-            if core.DEBUG:
-                print(f"iTunes Covers => artist={artist} | title={track}")
+        station = (
+            artist_album
+            if artist_album and artist_album != "Unknown Radio"
+            else '""'
+        )
+        args = ["sudo", "python3", "/var/www/util/radiocover_plus.py"]
+        if is_valid(artist) and is_valid(track):
+            title = f"{artist} - {track}"
+            args += ["--title", title, "--station", station]
+        elif is_valid(track):
+            args += ["--title", track, "--station", station]
         else:
             return None
-
+        if core.DEBUG:
+            print(f"Radio Covers + => title={title} | station={station}")
         result = subprocess.run(
             args,
             capture_output=True,
             text=True,
-            timeout=11
+            timeout=15
         )
         url = result.stdout.strip()
         if core.DEBUG:
@@ -782,35 +809,6 @@ def get_itunes_cover_url(title, artist_album=None):
         if core.DEBUG:
             print("Radio cover error:", e)
         return None
-
-def clean_youtube_title(text):
-    if not text:
-        return ""
-    # --- remove (...) and [...] ---
-    text = re.sub(r"\(.*?\)|\[.*?\]", "", text)
-    # --- remove youtube junk ---
-    junk_patterns = [
-        r"official music video",
-        r"official video",
-        r"official audio",
-        r"official visualizer",
-        r"lyrics video",
-        r"lyrics",
-        r"video clip",
-        r"audio video",
-        r"audio",
-        r"hd",
-        r"hq",
-        r"4k",
-        r"remastered",
-        r"remix",
-    ]
-
-    for pattern in junk_patterns:
-        text = re.sub(pattern, "", text, flags=re.IGNORECASE)
-    # --- cleanup ---
-    text = re.sub(r"\s+", " ", text)
-    return text.strip(" -")
 
 def get_moode_volume():
     try:
@@ -845,7 +843,7 @@ def player_status_thread():
             time.sleep(5)
     first_run = True
     while True:
-        if is_sleeping and screensaver_mode == "blank":
+        if (is_sleeping and screensaver_mode == "blank") or is_bt_local_active():
             time.sleep(1)
             continue
         now = time.time()
@@ -868,7 +866,7 @@ def player_status_thread():
                     if path.startswith("https://rr"):
                         menu_context_flag = "local_stream"
                         artist_album = f"YT Stream | [Album: {album_yt}]" if album_yt else "YT Stream"
-                        title = clean_youtube_title(title)
+                        title = clean_metadata(title)
                         global_state["duration"] = float(status_extra.get("duration", 0.0))
                     else:
                         menu_context_flag = "radio"
@@ -896,6 +894,7 @@ def player_status_thread():
                 if screensaver_mode == "covers" and core.SCREEN_TIMEOUT > 0:
                     cover_img = None
                     try:
+                        ### Library covers
                         if path and not path.startswith("http"):
                             pic = client.readpicture(path)
                             raw = pic.get("binary")
@@ -907,46 +906,39 @@ def player_status_thread():
                                     cover_img = get_fallback_image()
                             else:
                                 cover_img = get_fallback_image()
-
-                        elif path and path.startswith("http"):
+                        ### http covers
+                        if path and path.startswith("http"):
                             cover_img = None
+                            # YT Covers
                             if path.startswith("https://rr"):
-                                cover_url = get_itunes_cover_url(title, artist_album)
-                                if cover_url:
-                                    new_cover = get_radio_track_cover(cover_url)
-                                    if new_cover:
-                                        cover_img = new_cover
-
-                            # Radio tracks covers
-                            global last_radio_path, ignore_next_radio_title
-                            if path != last_radio_path:
-                                last_radio_path = path
-                                ignore_next_radio_title = True
-                            if global_state.get("radio_track_covers"):
-                                if ignore_next_radio_title:
-                                    ignore_next_radio_title = False
-                                else:
+                                if global_state.get("radio_track_covers"):
                                     cover_url = get_itunes_cover_url(title, artist_album)
                                     if cover_url:
-                                        new_cover = get_radio_track_cover(cover_url)
-                                        if new_cover:
-                                            cover_img = new_cover
-                            # Fallback radio cover
-                            if not cover_img and album != "Unknown Radio":
-                                try:
-                                    radio_path_cover = f"/var/local/www/imagesw/radio-logos/{album}.jpg"
-                                    img = core.Image.open(radio_path_cover)
-                                    cover_img = convert_img_for_display(img)
-                                except:
-                                    cover_img = None
-                            # Fallback default cover
-                            if not cover_img:
-                                cover_img = get_fallback_image()
-
+                                        cover_img = get_radio_track_cover(cover_url)
+                            # Radio Covers
+                            else:
+                                global last_radio_path, ignore_next_radio_title
+                                if path != last_radio_path:
+                                    last_radio_path = path
+                                    ignore_next_radio_title = True
+                                if global_state.get("radio_track_covers"):
+                                    if ignore_next_radio_title:
+                                        ignore_next_radio_title = False
+                                    else:
+                                        cover_url = get_itunes_cover_url(title, artist_album)
+                                        if cover_url:
+                                            cover_img = get_radio_track_cover(cover_url)
+                                # Fallback radio logo
+                                if not cover_img and album != "Unknown Radio":
+                                    try:
+                                        radio_path_cover = f"/var/local/www/imagesw/radio-logos/{album}.jpg"
+                                        img = core.Image.open(radio_path_cover)
+                                        cover_img = convert_img_for_display(img)
+                                    except (OSError, ValueError) as e:
+                                        if core.DEBUG: print("Radio logo error:", e)
                     except Exception as e:
                         if core.DEBUG:
                             print(f"error: {e}")
-                        cover_img = get_fallback_image()
                     global_state["cover_img"] = cover_img
                     if core.DEBUG:
                         if global_state["cover_img"]:
@@ -979,6 +971,124 @@ def player_status_thread():
             except Exception:
                 time.sleep(5)
         time.sleep(0.1)
+
+def non_idle_status_thread():
+    last_fav_time = 0
+    last_clock_time = 0
+    last_renderer_check = 0
+    last_elapsed_update = 0
+    last_bt_meta = 0
+    client = MPDClient()
+    client.timeout = 10
+    while True:
+        try:
+            client.connect("localhost", 6600)
+            break
+        except Exception as e:
+            if core.DEBUG:
+                print("Player MPD connect error, retry in 5s:", e)
+            time.sleep(5)
+    while True:
+        if is_sleeping and screensaver_mode not in ("covers", "spectrum"):
+            time.sleep(1)
+            continue
+        now = time.time()
+
+        if is_bt_local_active() and now - last_bt_meta > 1:
+            global last_title_seen, last_artist_seen
+            last_bt_meta = now
+            if os.path.isfile(BTMeta_Path):
+                if os.path.getsize(BTMeta_Path) > 10:
+                    try:
+                        with open(BTMeta_Path, "r", encoding="utf-8") as f:
+                            BTMeta = json.load(f)
+                        if BTMeta and BTMeta.get("title") and BTMeta.get("artist"):
+                            artist_bt = BTMeta.get("artist", "")
+                            title_bt = BTMeta.get("title", "")
+                            album_bt = BTMeta.get("album", "")
+                            duration_bt = float(BTMeta.get("duration", 0.0))
+                            sformat_bt = BTMeta.get("sformat", "")
+                            playstate_bt = BTMeta.get("playstate", "").lower()
+                            artist_album_bt = f"{artist_bt} - {album_bt}" if BTMeta.get("album") else f"{artist_bt}"
+                            global_state["artist"] = artist_bt
+                            global_state["title"] = title_bt
+                            global_state["album"] = album_bt
+                            global_state["artist_album"] = artist_album_bt
+                            global_state["duration"] = duration_bt
+                            global_state["audio"] = sformat_bt
+                            if playstate_bt in ("resume", "playing", "play"):
+                                global_state["state"] = "play"
+                            elif playstate_bt in ("pause", "paused"):
+                                global_state["state"] = "pause"
+                            else:
+                                global_state["state"] = "unknown"
+                            cover_url_bt = BTMeta.get("cover_url", "")
+                            if title_bt != last_title_seen or artist_album_bt != last_artist_seen:
+                                core.reset_scroll("nowplaying_title")
+                                core.reset_scroll("nowplaying_artist")
+                                last_title_seen = title_bt
+                                last_artist_seen = artist_album_bt
+                                if screensaver_mode == "covers" and core.SCREEN_TIMEOUT > 0:
+                                    cover_img = None
+                                    try:
+                                        if global_state.get("radio_track_covers"):
+                                            artist_title = f"{artist_bt} - {title_bt}"
+                                            cover_url = cover_url_bt if cover_url_bt != "images/default-album-cover.jpg" else get_itunes_cover_url(artist_title, "")
+                                            if cover_url:
+                                                cover_img = get_radio_track_cover(cover_url)
+                                        else:
+                                            cover_img = get_fallback_image()
+                                    except Exception as e:
+                                        if core.DEBUG:
+                                            print(f"error cover Bluetooth: {e}")
+                                    global_state["cover_img"] = cover_img
+                                    if core.DEBUG:
+                                        if global_state["cover_img"]:
+                                                print("COVER OK :", global_state["cover_img"].size, global_state["cover_img"].mode)
+                    except Exception as e:
+                        if core.DEBUG: print("error help BTMeta: ", e)
+                else:
+                    global_state["artist"] = ""
+                    global_state["title"] = core.t("show_bt_input")
+                    global_state["album"] = ""
+                    global_state["artist_album"] = ""
+                    global_state["audio"] = "No Info"
+                    global_state["state"] = "unknown"
+                    #global_state["cover_img"] = None
+                    if core.DEBUG: print("No info: file '/var/local/www/btmeta.json' empty")
+            else:
+                if core.DEBUG: print("error '/var/local/www/btmeta.json' file not found!")
+
+        if now - last_elapsed_update > 1:
+            last_elapsed_update = now
+            try:
+                status_extra = client.status()
+                global_state["elapsed"] = float(status_extra.get("elapsed", 0.0))
+                global_state["bitrate"] = status_extra.get("bitrate", "")
+            except Exception as e:
+                if core.DEBUG:
+                    print("Non_idle_status error:", e)
+                try:
+                    client.disconnect()
+                except Exception:
+                    pass
+                time.sleep(1)
+                try:
+                    client.connect("localhost", 6600)
+                except Exception as e2:
+                    if core.DEBUG:
+                        print("MPD reconnect failed:", e2)
+                    time.sleep(2)
+        if now - last_renderer_check > 1.5:
+            last_renderer_check = now
+            load_renderer_states_from_db()
+        if now - last_fav_time > 1.5:
+            last_fav_time = now
+            global_state["favorite"] = is_current_song_favorite(global_state.get("path", ""))
+        if now - last_clock_time > 10:
+            last_clock_time = now
+            global_state["clock"] = time.strftime("%Hh%M")
+        time.sleep(0.5)
 
 def mixer_status_thread():
     client = MPDClient()
@@ -1053,57 +1163,6 @@ def options_status_thread():
                 client.connect("localhost", 6600)
             except Exception:
                 time.sleep(5)
-        time.sleep(0.5)
-
-def non_idle_status_thread():
-    last_fav_time = 0
-    last_clock_time = 0
-    last_renderer_check = 0
-    last_elapsed_update = 0
-    client = MPDClient()
-    client.timeout = 10
-    while True:
-        try:
-            client.connect("localhost", 6600)
-            break
-        except Exception as e:
-            if core.DEBUG:
-                print("Player MPD connect error, retry in 5s:", e)
-            time.sleep(5)
-    while True:
-        if is_sleeping and screensaver_mode != "spectrum":
-            time.sleep(1)
-            continue
-        now = time.time()
-        if now - last_elapsed_update > 1:
-            last_elapsed_update = now
-            try:
-                status_extra = client.status()
-                global_state["elapsed"] = float(status_extra.get("elapsed", 0.0))
-                global_state["bitrate"] = status_extra.get("bitrate", "")
-            except Exception as e:
-                if core.DEBUG:
-                    print("Non_idle_status error:", e)
-                try:
-                    client.disconnect()
-                except Exception:
-                    pass
-                time.sleep(1)
-                try:
-                    client.connect("localhost", 6600)
-                except Exception as e2:
-                    if core.DEBUG:
-                        print("MPD reconnect failed:", e2)
-                    time.sleep(2)
-        if now - last_renderer_check > 1.5:
-            last_renderer_check = now
-            load_renderer_states_from_db()
-        if now - last_fav_time > 1.5:
-            last_fav_time = now
-            global_state["favorite"] = is_current_song_favorite(global_state.get("path", ""))
-        if now - last_clock_time > 10:
-            last_clock_time = now
-            global_state["clock"] = time.strftime("%Hh%M")
         time.sleep(0.5)
 
 def update_hardware_info():
@@ -1844,8 +1903,8 @@ def resolve_stream_track(local_query):
     )
 
     title_ok = _soft_match(
-        clean_youtube_title(title_query),
-        clean_youtube_title(yt_track)
+        clean_metadata(title_query),
+        clean_metadata(yt_track)
     )
 
     if not artist_ok or not title_ok:
@@ -2722,13 +2781,9 @@ def draw_nowplaying():
         {"offset": 0, "last_update": time.time(), "phase": "pause_start", "pause_start_time": time.time()}
     )
 
-    if is_renderer_active():
-        if is_bt_local_active():
-            artist_album = core.t("show_bt_input")
-            title = core.t("show_bt_output_hint")
-        else:
-            artist_album = core.t("show_renderer_active")
-            title = core.t("show_renderer_hint")
+    if is_renderer_active() and not is_bt_local_active():
+        artist_album = core.t("show_renderer_active")
+        title = core.t("show_renderer_hint")
     else:
         artist = global_state.get("artist", "")
         artist_album = global_state.get("artist_album", "")
@@ -2787,7 +2842,7 @@ def draw_nowplaying():
         y = (core.height - text_h) // 2 - bbox[1]
 
         core.draw.text((x, y), clock_text, font=font_stop_clock, fill=core.COLOR_STOP_CLOCK)
-   
+
         # Volume barre
         vol_bar_h = font_vol_clock.getbbox("Vol: 100")[3]
         y_vol_bar = core.height - vol_bar_h - padding_y
@@ -2909,7 +2964,6 @@ def draw_nowplaying():
             y_extra_info = y_title + text_h + spacing
 
         # --- Extra Infos ---
-        
         if show_extra_infos:
             extra_info = global_state.get("audio", "")
             bitrate = global_state.get("bitrate", "")
