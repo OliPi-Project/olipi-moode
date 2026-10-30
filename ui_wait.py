@@ -11,7 +11,12 @@ os.environ.setdefault("OLIPI_DIR", str(OLIPIMOODE_DIR))
 
 from olipi_core import core_common as core
 
-font_large = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 14)
+if core.height < 64:
+    font_large = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 14)
+    spacing = 7
+else:
+    font_large = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 12)
+    spacing = 3
 
 def show_message_centered(text1, text2=""):
     core.draw.rectangle((0, 0, core.width, core.height), fill=core.COLOR_BG)
