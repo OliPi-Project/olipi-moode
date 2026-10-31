@@ -44,7 +44,6 @@ And follow instructions.
 
 Latest updates:
 
-    
     - Now support screen SSD1305 128x32 2.2"
     - Added 3 new options in the UI configuration menu or via config.ini:
       - "Show/Hide Volume Bar"
@@ -118,16 +117,18 @@ Latest updates:
   
   **Screens supported**:
   
-  | Screen      | Resolution | Diag (") | Color      | 
-  | ----------- | ---------- | -------- | ---------- |
-  | SSD1306 I2C | 128×64     | 0.96     | Monochrome |
-  | SSD1315 I2C | 128×64     | 0.96     | Monochrome |
-  | SSD1309 I2C | 128×64     | 2.49     | Monochrome |
-  | SSD1306/09/15 SPI | 128×64 | 0.96 - 2.49  | Monochrome |
-  | SSD1351     | 128×128    | 1.5      | RGB        |
-  | ST7735R     | 128×160    | 1.77     | RGB        |
-  | ST7789 1.9" | 170×320    | 1.9      | RGB        |
-  | ST7789 2" 2.4" 2.8" | 240×320 | 2.0 to 2.8   | RGB      |
+      | Screen      | Resolution | Diag (") | Color      | 
+      | ----------- | ---------- | -------- | ---------- |
+      | SSD1305 I2C | 128×32     | 2.2      | Monochrome |
+      | SSD1305 SPI | 128×32     | 2.2      | Monochrome |
+      | SSD1306 I2C | 128×64     | 0.96     | Monochrome |
+      | SSD1315 I2C | 128×64     | 0.96     | Monochrome |
+      | SSD1309 I2C | 128×64     | 2.49     | Monochrome |
+      | SSD1306/09/15 SPI | 128×64 | 0.96 - 2.49  | Monochrome |
+      | SSD1351     | 128×128    | 1.5      | RGB        |
+      | ST7735R     | 128×160    | 1.77     | RGB        |
+      | ST7789 1.9" | 170×320    | 1.9      | RGB        |
+      | ST7789 2" 2.4" 2.8" | 240×320 | 2.0 to 2.8   | RGB      |
     
   For SPI screen Plan your wiring carefully: OliPi-Moode uses several GPIOs for buttons, IR and audio control if you use I2s DAC and/or GPIOs buttons/rotary. 
   
