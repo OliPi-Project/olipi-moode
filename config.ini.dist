@@ -35,6 +35,11 @@ show_clock = True
 ### Spectrum need Loopback actived in Moode > configure > audio > alsa options
 show_spectrum = False
 show_peak = False
+### Uncomment and modify if needed to tweak fonts size:
+#font_size_artist = 14
+#font_size_vol_clock = 12
+#font_size_stop_clock = 24
+#font_size_extra_info = 9
 
 [spectrum]
 num_bars = 21

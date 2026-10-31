@@ -35,14 +35,6 @@ from media_key_actions import load_shortcuts, is_key_reserved, is_key_used, hand
 DB_PATH = "/var/local/www/db/moode-sqlite3.db"
 BTMeta_Path = "/var/local/www/btmeta.json"
 
-# --- Fonts ui_playing ---
-font_artist = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 14)
-font_vol_clock = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 12)
-font_stop_clock = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 24)
-font_extra_info = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 9)
-
-core.load_translations(Path(__file__).stem)
-
 show_icons = core.get_config("nowplaying", "show_icons", fallback=False, type=bool)
 show_one_line = core.get_config("nowplaying", "show_one_line", fallback=False, type=bool)
 show_extra_infos = core.get_config("nowplaying", "show_extra_infos", fallback=False, type=bool)
@@ -51,6 +43,23 @@ show_spectrum = core.get_config("nowplaying", "show_spectrum", fallback=False, t
 show_peak = core.get_config("nowplaying", "show_peak", fallback=False, type=bool)
 show_vol_bar = core.get_config("nowplaying", "show_vol_bar", fallback=True, type=bool)
 show_clock = core.get_config("nowplaying", "show_clock", fallback=True, type=bool)
+
+# --- Fonts ui_playing ---
+if core.height < 64 and core.diag_inch >= 2.0:
+    if show_one_line:
+        font_artist = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", core.get_config("nowplaying", "font_size_artist", fallback=15, type=int))
+    else:
+        font_artist = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", core.get_config("nowplaying", "font_size_artist", fallback=11, type=int))
+    font_vol_clock = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", core.get_config("nowplaying", "font_size_vol_clock", fallback=7, type=int))
+    font_stop_clock = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", core.get_config("nowplaying", "font_size_stop_clock", fallback=20, type=int))
+    font_extra_info = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", core.get_config("nowplaying", "font_size_extra_info", fallback=6, type=int))
+else:
+    font_artist = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", core.get_config("nowplaying", "font_size_artist", fallback=14, type=int))
+    font_vol_clock = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", core.get_config("nowplaying", "font_size_artist", fallback=12, type=int))
+    font_stop_clock = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", core.get_config("nowplaying", "font_size_vol_clock", fallback=24, type=int))
+    font_extra_info = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", core.get_config("nowplaying", "font_size_extra_info", fallback=9, type=int))
+
+core.load_translations(Path(__file__).stem)
 
 screensaver_mode = core.get_config("settings", "screensaver_mode", fallback="blank", type=str)
 if screensaver_mode == "covers":
@@ -2845,7 +2854,7 @@ def draw_nowplaying():
 
         # Volume barre
         vol_bar_h = font_vol_clock.getbbox("Vol: 100")[3]
-        y_vol_bar = core.height - vol_bar_h - padding_y
+        y_vol_bar = core.height - vol_bar_h - (padding_y if core.height > 64 else 0)
 
         core.draw.text((3, y_vol_bar), volume_display, font=font_vol_clock, fill=core.COLOR_VOL_CLOCK)
     else:
@@ -2929,7 +2938,10 @@ def draw_nowplaying():
                 x = (display_width - text_width) // 2
                 core.image.paste(render_img, (x, y))
 
-        if core.height <= 96:
+        if core.height < 64:
+            spacing = 1 if show_spectrum or show_peak else 2
+            top_bar_h = icon_width + 2 if show_spectrum or show_peak else icon_width + 2
+        elif core.height <= 96:
             spacing = 2 if show_spectrum or show_peak else 4
             top_bar_h = icon_width + 3 if show_spectrum or show_peak else icon_width + 4
         elif core.height <= 128:
@@ -2944,6 +2956,7 @@ def draw_nowplaying():
         else:
             spacing = 10 if show_spectrum or show_peak else 20
             top_bar_h = icon_width + 11 if show_spectrum or show_peak else icon_width + 22
+
         if not show_icons:
             top_bar_h = spacing if core.height > 64 else 0
 
@@ -2951,7 +2964,7 @@ def draw_nowplaying():
         if show_one_line:
             # --- Artist / Title oneline ---
             y_artist = top_bar_h
-            artist_title = f"{artist} - {title}"
+            artist_title = f"{artist} | {title}"
             draw_scrolling(artist_title, scroll_artist, y_artist, core.COLOR_ARTIST)
             y_extra_info = y_artist + text_h + spacing
         else:
