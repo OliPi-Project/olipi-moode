@@ -48,7 +48,7 @@ show_clock = core.get_config("nowplaying", "show_clock", fallback=True, type=boo
 # --- Fonts ui_playing ---
 if core.height < 64 and core.diag_inch >= 2.0:
     if show_one_line:
-        font_artist = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", core.get_config("nowplaying", "font_size_artist", fallback=15, type=int))
+        font_artist = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", core.get_config("nowplaying", "font_size_artist", fallback=14, type=int))
     else:
         font_artist = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", core.get_config("nowplaying", "font_size_artist", fallback=11, type=int))
     font_vol_clock = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", core.get_config("nowplaying", "font_size_vol_clock", fallback=7, type=int))
@@ -2954,8 +2954,8 @@ def draw_nowplaying():
                 core.image.paste(render_img, (x, y))
 
         if core.height < 64:
-            spacing = 1 if show_spectrum or show_peak else 2
-            top_bar_h = icon_width + 2 if show_spectrum or show_peak else icon_width + 2
+            spacing = 1
+            top_bar_h = icon_width + 2
         elif core.height <= 96:
             spacing = 2 if show_spectrum or show_peak else 4
             top_bar_h = icon_width + 3 if show_spectrum or show_peak else icon_width + 4
