@@ -31,9 +31,7 @@ Setting up custom shortcuts: [https://youtu.be/xP5Zl5nR0Qw](https://youtu.be/xP5
 
 ## ❔ What's new?
 
-### **<u>V0.5.6-pre</u>**
-
->With the Moode 10.3.6 update, a dependency conflict has arisen that prevents MPD from starting. You must update OliPi MoOde to version 0.5.6 to resolve this issue.
+>With the Moode 10.3.6 update, a dependency conflict has arisen that prevents MPD from starting. You must update OliPi MoOde to v0.5.6+ to resolve this issue.
 
 **<u>V0.5.0-pre</u> +** 
 
@@ -45,6 +43,16 @@ To update Olipy-Moode, simply run the following command: `python3 ~/olipi-moode/
 And follow instructions.
 
 Latest updates:
+
+    
+    - Now support screen SSD1305 128x32 2.2"
+    - Added 3 new options in the UI configuration menu or via config.ini:
+      - "Show/Hide Volume Bar"
+      - "Show one line" to display Radio/Artist/title in one line
+      - "Show meters alt" to display meters bottom between vol and time
+    - Now can change fonts size in config.ini
+    - Add Bluetooth metas & covers
+    ...
 
     - Playing Songlog entries via YT from playlist. 
     - Remove check for zram (Moode now use 4gb swap files).
