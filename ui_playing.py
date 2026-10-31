@@ -41,6 +41,7 @@ show_extra_infos = core.get_config("nowplaying", "show_extra_infos", fallback=Fa
 show_progress_barre = core.get_config("nowplaying", "show_progress_barre", fallback=False, type=bool)
 show_spectrum = core.get_config("nowplaying", "show_spectrum", fallback=False, type=bool)
 show_peak = core.get_config("nowplaying", "show_peak", fallback=False, type=bool)
+show_meters_alt = core.get_config("nowplaying", "show_meters_alt", fallback=False, type=bool)
 show_vol_bar = core.get_config("nowplaying", "show_vol_bar", fallback=True, type=bool)
 show_clock = core.get_config("nowplaying", "show_clock", fallback=True, type=bool)
 
@@ -51,7 +52,7 @@ if core.height < 64 and core.diag_inch >= 2.0:
     else:
         font_artist = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", core.get_config("nowplaying", "font_size_artist", fallback=11, type=int))
     font_vol_clock = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", core.get_config("nowplaying", "font_size_vol_clock", fallback=7, type=int))
-    font_stop_clock = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", core.get_config("nowplaying", "font_size_stop_clock", fallback=20, type=int))
+    font_stop_clock = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", core.get_config("nowplaying", "font_size_stop_clock", fallback=20, type=int))
     font_extra_info = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", core.get_config("nowplaying", "font_size_extra_info", fallback=6, type=int))
 else:
     font_artist = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", core.get_config("nowplaying", "font_size_artist", fallback=14, type=int))
@@ -188,6 +189,7 @@ ui_menu_options = [
     {"id": "progress", "label": core.t("menu_progress_bare")},
     {"id": "spectrum", "label": core.t("menu_spectrum")},
     {"id": "peak", "label": core.t("menu_peak")},
+    {"id": "meters_alt", "label": core.t("menu_meters_alt")},
     {"id": "vol_bar", "label": core.t("menu_vol_bar")},
     {"id": "clock_elapse", "label": core.t("menu_clock")},
     {"id": "apply", "label": core.t("menu_apply")}
@@ -2496,6 +2498,8 @@ def draw_ui_menu():
         ui_flags.add(core.t("menu_progress_bare"))
     if show_spectrum:
         ui_flags.add(core.t("menu_spectrum"))
+    if show_meters_alt:
+        ui_flags.add(core.t("menu_meters_alt"))
     if show_vol_bar:
         ui_flags.add(core.t("menu_vol_bar"))
     if show_clock:
@@ -2619,7 +2623,7 @@ def interpolate_palette(value, palette):
             return (r, g, b)
     return palette[-1][1]
 
-def draw_spectrum(y_top, height, levels, attack=1.0, release=0.80):
+def draw_spectrum(y_top, height, levels, attack=1.0, release=0.80, width_spec=core.width):
 
     palette = PALETTE_SPECTRUM
     num_bars = len(levels)
@@ -2634,10 +2638,14 @@ def draw_spectrum(y_top, height, levels, attack=1.0, release=0.80):
         draw_spectrum.vis_peak = 1e-6
     vis = draw_spectrum.vis_levels
     # layout: keep 1px spacing (pitch - 1)
-    total_width = core.width - 4
+    total_width = int(width_spec) - 4
     pitch = total_width // num_bars
     bar_width = max(1, pitch - 1)
     margin_left = (core.width - (pitch * num_bars)) // 2
+    draw_spectrum.bounds = (
+        margin_left,
+        margin_left + (num_bars - 1) * pitch + bar_width
+    )
     # Precompute gradient (top -> bottom)
     if height <= 1:
         global_gradient = [interpolate_palette(1.0, palette)]
@@ -2735,9 +2743,16 @@ def draw_peak_meters(y_top1, y_top2, pad_x, peak_bar_h, width, peak_info,
             s["right_peak"] = max(0.0, s.get("right_peak", 0.0) * 0.96)
 
     # Visual params
-    x0 = int(pad_x)
-    x1 = int(width) - int(pad_x)
-    bar_w = max(0, x1 - x0)
+    if show_meters_alt and show_spectrum and hasattr(draw_spectrum, "bounds"):
+        x0, x1 = draw_spectrum.bounds
+    elif show_meters_alt and not show_spectrum:
+        x0 = (core.width - int(width)) // 2 + int(pad_x) + 2
+        x1 = (core.width + int(width)) // 2 - int(pad_x) + 2
+    else:
+        x0 = int(pad_x)
+        x1 = int(width) - int(pad_x)
+
+    bar_w = max(0, int(x1) - int(x0))
 
     # build gradient of exactly bar_w colors (left->right)
     if bar_w <= 1:
@@ -2964,7 +2979,7 @@ def draw_nowplaying():
         if show_one_line:
             # --- Artist / Title oneline ---
             y_artist = top_bar_h
-            artist_title = f"{artist} | {title}"
+            artist_title = f"{artist} • {title}"
             draw_scrolling(artist_title, scroll_artist, y_artist, core.COLOR_ARTIST)
             y_extra_info = y_artist + text_h + spacing
         else:
@@ -3021,38 +3036,6 @@ def draw_nowplaying():
         # define avaible space for meters
         if show_vol_bar:
             vol_bar_h = font_vol_clock.getbbox("Vol: 100")[3] + (padding_y if core.height > 64 else 0)
-        else:
-            vol_bar_h = 0
-        y_vol_bar = core.height - vol_bar_h - (padding_y if core.height > 64 else 0)
-        # peak meter bars
-        peak_bar_h = max(2, min(8, core.height // 36))
-        padding = 2 if core.height <= 96 else 4
-        total_peak = (peak_bar_h * 2) + padding + spacing if show_peak else 0
-
-        # --- Spectrum ---
-        if show_spectrum and spectrum:
-            y_spectrum = max(core.height // 2 - total_peak, y_spectrum)
-            levels = spectrum.get_levels()
-            available_height = max(0, y_vol_bar - y_spectrum - spacing - total_peak)
-            spectrum_h = max(12, min((core.height // 2) - (core.height // 10), available_height))
-            #spectrum_h = available_height
-            draw_spectrum(y_top=y_spectrum, height=spectrum_h, levels=levels)
-            y_peak = y_spectrum + spectrum_h + spacing
-        else:
-            y_peak = y_spectrum + spacing * 2
-
-        # --- Peak meter ---
-        if show_peak and spectrum:
-            pad_x = 2
-            y_top1 = y_peak
-            width = core.width
-            y_top2 = y_top1 + peak_bar_h + padding
-            peaks = spectrum.get_channel_peaks(volume_state=global_state.get("volume"), mixer_type=global_state.get("mpdmixer"))
-            draw_peak_meters(y_top1, y_top2, pad_x, peak_bar_h, width, peaks)
-
-        # --- Bottom bar (Volume / Clock) ---
-        if show_vol_bar:
-            core.draw.text((padding_x, y_vol_bar), volume_display, font=font_vol_clock, fill=core.COLOR_VOL_CLOCK)
             if show_clock:
                 clock_text = global_state["clock"]
             else:
@@ -3062,7 +3045,51 @@ def draw_nowplaying():
                     clock_text = f"{elapsed_str}"
                 else:
                     clock_text = f"{elapsed_str}/{duration_str}"
+            vol_w = core.draw.textlength(volume_display, font=font_vol_clock)
             clock_w = core.draw.textlength(clock_text, font=font_vol_clock)
+            avaible_w = core.width - clock_w - vol_w
+        else:
+            vol_bar_h = 0
+            avaible_w = core.width
+        y_vol_bar = core.height - vol_bar_h - (padding_y if core.height > 64 else 0)
+        # peak meter bars
+        peak_bar_h = max(2, min(8, core.height // 36))
+        padding = 1 if core.height < 64 else 2 if core.height <= 96 else 4
+        total_peak = (peak_bar_h * 2) + padding + spacing if show_peak else 0
+
+        # --- Spectrum ---
+        if show_spectrum and spectrum:
+            if show_meters_alt:
+                levels = spectrum.get_levels()
+                spectrum_bottom = core.height - total_peak if show_peak else core.height
+                max_spectrum_h = (core.height // 2) - (core.height // 10)
+                available_height = spectrum_bottom - y_spectrum - total_peak
+                spectrum_h = max(8, min(max_spectrum_h, available_height))
+                y_spectrum = spectrum_bottom - spectrum_h
+                draw_spectrum(y_top=y_spectrum, height=spectrum_h, levels=levels, width_spec=avaible_w)
+                y_peak = y_spectrum + spectrum_h + spacing
+            else:
+                y_spectrum = max(core.height // 2 - total_peak, y_spectrum)
+                levels = spectrum.get_levels()
+                available_height = max(0, y_vol_bar - y_spectrum - spacing - total_peak)
+                spectrum_h = max(12, min((core.height // 2) - (core.height // 10), available_height))
+                draw_spectrum(y_top=y_spectrum, height=spectrum_h, levels=levels)
+                y_peak = y_spectrum + spectrum_h + spacing
+        else:
+            y_peak = y_spectrum + spacing * 2
+
+        # --- Peak meter ---
+        if show_peak and spectrum:
+            pad_x = 2
+            y_top1 = core.height - total_peak if show_meters_alt else y_peak
+            width = avaible_w if show_meters_alt else core.width
+            y_top2 = y_top1 + peak_bar_h + padding
+            peaks = spectrum.get_channel_peaks(volume_state=global_state.get("volume"), mixer_type=global_state.get("mpdmixer"))
+            draw_peak_meters(y_top1, y_top2, pad_x, peak_bar_h, width, peaks)
+
+        # --- Bottom bar (Volume / Clock) ---
+        if show_vol_bar:
+            core.draw.text((padding_x, y_vol_bar), volume_display, font=font_vol_clock, fill=core.COLOR_VOL_CLOCK)
             core.draw.text((core.width - clock_w - padding_x, y_vol_bar), clock_text, font=font_vol_clock, fill=core.COLOR_VOL_CLOCK)
 
 def build_shortcut_action(typ, val):
@@ -3887,7 +3914,7 @@ def finish_press(key):
         return
 
     if ui_menu_active:
-        global show_icons, show_one_line, show_extra_infos, show_progress_barre, show_spectrum, show_peak, show_vol_bar, show_clock
+        global show_icons, show_one_line, show_extra_infos, show_progress_barre, show_spectrum, show_peak, show_meters_alt, show_vol_bar, show_clock
         if key == "KEY_UP" and ui_menu_selection > 0:
             ui_menu_selection -= 1
             core.reset_scroll("menu_item")
@@ -3932,6 +3959,10 @@ def finish_press(key):
                 new_peak = not show_peak
                 core.save_config("show_peak", new_peak, section="nowplaying")
                 show_peak = new_peak
+            elif option_id == "meters_alt":
+                new_meters_alt = not show_meters_alt
+                core.save_config("show_meters_alt",new_meters_alt, section="nowplaying")
+                show_meters_alt = new_meters_alt
             elif option_id == "vol_bar":
                 new_vol_bar = not show_vol_bar
                 core.save_config("show_vol_bar", new_vol_bar, section="nowplaying")
