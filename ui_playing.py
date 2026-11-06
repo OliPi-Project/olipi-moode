@@ -39,18 +39,20 @@ show_icons = core.get_config("nowplaying", "show_icons", fallback=False, type=bo
 show_one_line = core.get_config("nowplaying", "show_one_line", fallback=False, type=bool)
 show_extra_infos = core.get_config("nowplaying", "show_extra_infos", fallback=False, type=bool)
 show_progress_barre = core.get_config("nowplaying", "show_progress_barre", fallback=False, type=bool)
+show_cover = core.get_config("nowplaying", "show_cover", fallback=False, type=bool)
+show_cover_alt = core.get_config("nowplaying", "show_cover_alt", fallback=False, type=bool)
+show_vol_bar = core.get_config("nowplaying", "show_vol_bar", fallback=True, type=bool)
+show_clock = core.get_config("nowplaying", "show_clock", fallback=True, type=bool)
 show_spectrum = core.get_config("nowplaying", "show_spectrum", fallback=False, type=bool)
 show_peak = core.get_config("nowplaying", "show_peak", fallback=False, type=bool)
 show_meters_alt = core.get_config("nowplaying", "show_meters_alt", fallback=False, type=bool)
-show_vol_bar = core.get_config("nowplaying", "show_vol_bar", fallback=True, type=bool)
-show_clock = core.get_config("nowplaying", "show_clock", fallback=True, type=bool)
 
 # --- Fonts ui_playing ---
 if core.height < 64 and core.diag_inch >= 2.0:
     if show_one_line:
         font_artist = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", core.get_config("nowplaying", "font_size_artist", fallback=14, type=int))
     else:
-        font_artist = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", core.get_config("nowplaying", "font_size_artist", fallback=11, type=int))
+        font_artist = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", core.get_config("nowplaying", "font_size_artist", fallback=10, type=int))
     font_vol_clock = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", core.get_config("nowplaying", "font_size_vol_clock", fallback=7, type=int))
     font_stop_clock = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", core.get_config("nowplaying", "font_size_stop_clock", fallback=20, type=int))
     font_extra_info = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", core.get_config("nowplaying", "font_size_extra_info", fallback=6, type=int))
@@ -63,7 +65,7 @@ else:
 core.load_translations(Path(__file__).stem)
 
 screensaver_mode = core.get_config("settings", "screensaver_mode", fallback="blank", type=str)
-if screensaver_mode == "covers":
+if screensaver_mode == "covers" or show_cover:
     from io import BytesIO
     if core.display_format == "MONO":
         from PIL import ImageEnhance, ImageOps, ImageFilter
@@ -71,6 +73,11 @@ DYNAMIC_SS = ("orbital", "spectrum")
 
 render_lock = threading.Lock()
 now_playing_mode = False
+
+cover_lock = threading.Lock()
+cover_event = threading.Event()
+cover_request_id = 0
+cover_pending = None
 
 idle_timer = time.time()
 last_wake_time = 0
@@ -187,6 +194,8 @@ ui_menu_options = [
     {"id": "oneline", "label": core.t("menu_oneline")},
     {"id": "extra", "label": core.t("menu_extra_infos")},
     {"id": "progress", "label": core.t("menu_progress_bare")},
+    {"id": "cover_bg", "label": core.t("menu_cover_bg")},
+    {"id": "cover_bg_alt", "label": core.t("menu_cover_bg_alt")},
     {"id": "spectrum", "label": core.t("menu_spectrum")},
     {"id": "peak", "label": core.t("menu_peak")},
     {"id": "meters_alt", "label": core.t("menu_meters_alt")},
@@ -349,6 +358,70 @@ def load_icons_from_theme():
         icon_width = 16
 load_icons_from_theme()
 
+def draw_mask(box, background, radius=3):
+    x0, y0, x1, y1 = map(int, box)
+    x0 = max(0, x0)
+    y0 = max(0, y0)
+    x1 = min(core.width, x1)
+    y1 = min(core.height, y1)
+    if x1 <= x0 or y1 <= y0:
+        return
+    # Solid background or monochrome screen
+    if len(background) == 3 or core.display_format == "MONO":
+        color = background[:3] if len(background) == 3 else core.COLOR_BG
+        core.draw.rounded_rectangle(
+            (x0, y0, x1, y1),
+            radius=radius,
+            fill=color
+        )
+        return
+    # Composition limited to the mask area
+    box = (x0, y0, x1, y1)
+    base = core.image.crop(box).convert("RGBA")
+    overlay = core.Image.new("RGBA", base.size, (0, 0, 0, 0))
+    overlay_draw = core.screen.ImageDraw.Draw(overlay)
+    overlay_draw.rounded_rectangle(
+        (0, 0, base.width - 1, base.height - 1),
+        radius=radius,
+        fill=background
+    )
+    result = core.Image.alpha_composite(base, overlay)
+    core.image.paste(result.convert(core.image.mode), (x0, y0))
+
+def draw_icon_with_mask(icon, position, background=None, padding=0, radius=0):
+    if icon is None:
+        return
+    x, y = position
+    w, h = icon.size
+    # Do not draw a mask for a fully transparent icon
+    if icon.mode == "RGBA" and icon.getbbox() is None:
+        return
+    if background is not None:
+        draw_mask(
+            (x - padding, y - padding, x + w + padding, y + h + padding),
+            background,
+            radius
+        )
+    if icon.mode == "RGBA":
+        core.image.paste(icon, (x, y), icon)
+    else:
+        core.image.paste(icon, (x, y))
+
+def draw_text_with_mask(position, text, font, fill, background=None, padding=3, radius=4):
+    if background is not None:
+        bbox = core.draw.textbbox(position, text, font=font)
+        draw_mask(
+            (
+                bbox[0] - padding,
+                bbox[1] - padding,
+                bbox[2] + padding,
+                bbox[3] + padding
+            ),
+            background,
+            radius
+        )
+    core.draw.text(position, text, font=font, fill=fill)
+
 spectrum = None
 PALETTE_SPECTRUM = []
 
@@ -363,6 +436,7 @@ load_spectrum_palette(core.THEME_NAME)
 last_title_seen = ""
 last_artist_seen = ""
 last_radio_path = None
+last_radio_title = None
 ignore_next_radio_title = False
 
 query = ""
@@ -387,12 +461,13 @@ def show_screensaver_cover():
     global last_displayed_cover
     cover = global_state.get("cover_img")
     if cover is None:
-        cover = get_fallback_image()
+        cover = get_fallback_image("Screensaver Cover")
         if cover is not None:
             global_state["cover_img"] = cover
     if cover and cover is not last_displayed_cover:
         core.draw.rectangle((0, 0, core.width, core.height), fill=core.COLOR_BG)
         img = cover.copy()
+
         margin = int(min(core.width, core.height) * 0.05)
         if core.height <= 64:
             margin = 0
@@ -402,6 +477,7 @@ def show_screensaver_cover():
         )
         x = (core.width - img.width) // 2
         y = (core.height - img.height) // 2
+
         core.image.paste(img, (x, y))
         core.refresh()
         last_displayed_cover = cover
@@ -581,7 +657,7 @@ RENDERER_PARAMS = [
 
 def load_renderer_states_from_db():
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = sqlite3.connect(DB_PATH, timeout=1)
         cursor = conn.cursor()
         placeholders = ",".join(["?"] * len(RENDERER_PARAMS))
         cursor.execute(f"SELECT param, value FROM cfg_system WHERE param IN ({placeholders})", RENDERER_PARAMS)
@@ -611,36 +687,91 @@ def is_renderer_active():
         )
     )
 
-RADIO_MAP = {}
-def build_radio_map(pls_directory="/var/lib/mpd/music/RADIO"):
-    global RADIO_MAP
-    radio_map = {}
-    for filename in os.listdir(pls_directory):
-        if filename.lower().endswith(".pls"):
-            full_path = os.path.join(pls_directory, filename)
-            try:
-                url = ""
-                title = ""
-                with open(full_path, "r", encoding="utf-8", errors="ignore") as f:
-                    for line in f:
-                        if line.startswith("File1="):
-                            url = line.split("=", 1)[1].strip()
-                        elif line.startswith("Title1="):
-                            title = line.split("=", 1)[1].strip()
-                if url and title:
-                    radio_map[url] = title
-            except Exception as e:
-                if core.DEBUG:
-                    print(f"Error reading {filename}: {e}")
-    RADIO_MAP = radio_map
-build_radio_map()
+def get_radio_info(path):
+    try:
+        with sqlite3.connect(DB_PATH, timeout=1) as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT name, bitrate, format
+                FROM cfg_radio
+                WHERE station = ?
+                LIMIT 1
+            """, (path,))
+            row = cursor.fetchone()
+            if row:
+                return {
+                    "name": row[0] or "Unknown Radio",
+                    "bitrate": row[1] or "",
+                    "format": row[2] or ""
+                }
+    except Exception as e:
+        if core.DEBUG:
+            print("Radio SQL error:", e)
+    return {
+        "name": "Unknown Radio",
+        "bitrate": "",
+        "format": ""
+    }
 
 def format_time(seconds: float) -> str:
     if seconds is None or seconds <= 0:
         return "0:00"
     h, m = divmod(int(seconds), 3600)
     m, s = divmod(m, 60)
-    return f"{h:d}:{m:02d}:{s:02d}" if h else f"{m:d}:{s:02d}"
+    return f"{h:d}:{m:02d}:{s:02d}" if h and not (show_meters_alt or show_cover_alt) else f"{h:d}:{m:02d}" if h and (show_meters_alt or show_cover_alt) else f"{m:d}:{s:02d}"
+
+def clean_metadata(text):
+    if not text:
+        return ""
+
+    # Fix common errors caused by misinterpreted UTF-8 encoding
+    if "Ã" in text or "Â" in text:
+        try:
+            text = text.encode("latin-1").decode("utf-8")
+        except (UnicodeEncodeError, UnicodeDecodeError):
+            pass
+
+    # Remove control characters and invisible characters
+    text = "".join(
+        char for char in text
+        if unicodedata.category(char) not in ("Cc", "Cf")
+    )
+
+    # Normalize spaces
+    text = text.replace("\u00a0", " ")
+    text = re.sub(r"\s+", " ", text).strip()
+
+    # Delete the information in parentheses and square brackets
+    text = re.sub(r"\([^)]*\)|\[[^]]*\]", "", text)
+
+    # Remove irrelevant information
+    junk_patterns = [
+        r"\bofficial\s+(?:music\s+)?video\b",
+        r"\bofficial\s+audio\b",
+        r"\bofficial\s+visualizer\b",
+        r"\bradio\s+edit\b",
+        r"\bremastered\b",
+        r"\bremix\b",
+        r"\blive\b",
+        r"\bversion\b",
+        r"\bmono\b",
+        r"\bstereo\b",
+    ]
+    for pattern in junk_patterns:
+        text = re.sub(pattern, "", text, flags=re.IGNORECASE)
+
+    # Standardize the separators between artists
+    text = re.sub(r"\s*[;&]\s*", ", ", text)
+
+    # Avoid duplicate commas and spaces
+    text = re.sub(r"\s*,\s*", ", ", text)
+    text = re.sub(r"(?:,\s*){2,}", ", ", text)
+
+    # Remove spaces and residual punctuation
+    text = re.sub(r"\s+", " ", text)
+    text = re.sub(r"\s*[.,;:!?]+\s*$", "", text)
+
+    return text.strip(" \t\r\n-–—;,:|,")
 
 def convert_img_for_display(img):
     img = img.copy()
@@ -672,14 +803,58 @@ def convert_img_for_display(img):
     # --- Final dithering ---
     return gray.convert("1", dither=core.Image.FLOYDSTEINBERG)
 
-def get_fallback_image():
+def draw_cover_background(x0, x1, y_top, y_bottom):
+    cover = global_state.get("cover_img")
+    if cover is None:
+        return
+    x0 = int(x0)
+    x1 = int(x1)
+    y_top = int(y_top)
+    y_bottom = int(y_bottom)
+    target_w = x1 - x0
+    target_h = y_bottom - y_top
+    if target_w <= 0 or target_h <= 0:
+        return
+    # Cache of the resized image
+    cache_key = (id(cover), target_w, target_h)
+    if getattr(draw_cover_background, "cache_key", None) != cache_key:
+        img = cover.copy()
+        w, h = img.size
+        # Resize to fill the entire area
+        scale = max(target_w / w, target_h / h)
+        new_w = max(target_w, int(w * scale))
+        new_h = max(target_h, int(h * scale))
+        img = img.resize((new_w, new_h), core.Image.LANCZOS)
+        # Centered crop
+        left = (new_w - target_w) // 2
+        top = (new_h - target_h) // 2
+        img = img.crop((left, top, left + target_w, top + target_h))
+        draw_cover_background.cache = img
+        draw_cover_background.cache_key = cache_key
+    core.image.paste(draw_cover_background.cache, (x0, y_top))
+
+def get_fallback_image(source):
     try:
         path = "/var/www/images/default-album-cover.jpg"
         img = core.Image.open(path)
+        if core.DEBUG:
+            print(f"No Cover found (source: {source}) => fallback to default cover ")
         return convert_img_for_display(img)
     except:
         print("error fallback cover")
         return None
+
+def get_radio_logo(name):
+    try:
+        radio_path = f"/var/local/www/imagesw/radio-logos/{name}.jpg"
+        img = core.Image.open(radio_path)
+        if img and core.DEBUG:
+            print(f"Fallback to radio cover logo => {radio_path}")
+        return convert_img_for_display(img)
+    except (OSError, ValueError) as e:
+        if core.DEBUG:
+            print("Radio logo error:", e)
+    return get_fallback_image("get_radio_logo(name)")
 
 def get_radio_track_covers_enabled():
     try:
@@ -691,10 +866,10 @@ def get_radio_track_covers_enabled():
         """)
         result = cursor.fetchone()
         conn.close()
-        if result[0] == "No":
-            global_state["radio_track_covers"] = False
-        else:
+        if result and result[0] == "Yes":
             global_state["radio_track_covers"] = "radiocover_plus"
+        else:
+            global_state["radio_track_covers"] = False
         return result and result[0] == "Yes"
     except Exception as e:
         if core.DEBUG:
@@ -702,55 +877,26 @@ def get_radio_track_covers_enabled():
         return False
 get_radio_track_covers_enabled()
 
-def clean_metadata(text):
-    if not text:
-        return ""
-    # Fix common errors caused by misinterpreted UTF-8 encoding
-    if "Ã" in text or "Â" in text:
-        try:
-            text = text.encode("latin-1").decode("utf-8")
-        except (UnicodeEncodeError, UnicodeDecodeError):
-            pass
-    # Remove control characters and invisible characters
-    text = "".join(
-        char for char in text
-        if unicodedata.category(char) not in ("Cc", "Cf")
-    )
-    # Normalize spaces
-    text = text.replace("\u00a0", " ")
-    text = re.sub(r"\s+", " ", text).strip()
-    # Delete the information in parentheses and square brackets
-    text = re.sub(r"\([^)]*\)|\[[^]]*\]", "", text)
-    # Remove irrelevant information
-    junk_patterns = [
-        r"\bofficial\s+(?:music\s+)?video\b",
-        r"\bofficial\s+audio\b",
-        r"\bofficial\s+visualizer\b",
-        r"\bradio\s+edit\b",
-        r"\bremastered\b",
-        r"\bremix\b",
-        r"\blive\b",
-        r"\bversion\b",
-        r"\bmono\b",
-        r"\bstereo\b",
-    ]
-    for pattern in junk_patterns:
-        text = re.sub(pattern, "", text, flags=re.IGNORECASE)
-    # Remove spaces and residual punctuation
-    text = re.sub(r"\s+", " ", text)
-    text = re.sub(r"\s*[.,;:!?]+\s*$", "", text)
-    return text.strip(" \t\r\n-–—;,:|")
+def get_cached_cover_url(title):
+    try:
+        with sqlite3.connect(DB_PATH) as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT cover_url FROM cfg_rcucache WHERE title = ? LIMIT 1",
+                (title,)
+            )
+            row = cursor.fetchone()
+            if row and row[0] and core.DEBUG:
+                print(f"Cover url found in sql cache => {row[0]}")
+            elif core.DEBUG:
+                print(f"Cover url NOT found in sql cache")
+            return row[0] if row and row[0] else None
+    except Exception as e:
+        if core.DEBUG:
+            print("error rcucache: ", e)
+        return None
 
-def normalize_cover_title(title):
-    title = clean_metadata(title)
-    # Standardize the separators between artists
-    title = re.sub(r"\s*[;&]\s*", ", ", title)
-    # Avoid duplicate commas and spaces
-    title = re.sub(r"\s*,\s*", ", ", title)
-    title = re.sub(r"(?:,\s*){2,}", ", ", title)
-    return title.strip(" ,")
-
-def get_radio_track_cover(url):
+def download_cover_image(url):
     if not url:
         return None
     try:
@@ -764,9 +910,9 @@ def get_radio_track_cover(url):
             print("cover download error:", e)
         return None
 
-def get_itunes_cover_url(title, artist_album=None):
+def search_radiocover_plus(title, artist_album=None):
     try:
-        title = normalize_cover_title(title)
+        title = clean_metadata(title)
         if not title:
             return None
         # --- parse "Artist - Track" ---
@@ -805,7 +951,7 @@ def get_itunes_cover_url(title, artist_album=None):
         else:
             return None
         if core.DEBUG:
-            print(f"Radio Covers + => title={title} | station={station}")
+            print(f"Search with Radio Covers + => title={title} | station={station}")
         result = subprocess.run(
             args,
             capture_output=True,
@@ -814,34 +960,153 @@ def get_itunes_cover_url(title, artist_album=None):
         )
         url = result.stdout.strip()
         if core.DEBUG:
-            print(f"cover_url={url}")
+            print(f"Cover url found with Radio Covers + => {url}")
         return url if url.startswith("http") else None
     except Exception as e:
         if core.DEBUG:
             print("Radio cover error:", e)
         return None
 
-def get_moode_volume():
-    try:
-        conn = sqlite3.connect(DB_PATH, timeout=1)
-        cursor = conn.cursor()
-        cursor.execute("""
-            SELECT param, value
-            FROM cfg_system
-            WHERE param IN ('volmute', 'volknob')
-        """)
-        data = dict(cursor.fetchall())
-        conn.close()
-        level = int(data.get("volknob", 0))
-        mute = data.get("volmute", "0") == "1"
-        return "Mute" if mute else str(level)
-    except Exception as e:
+def request_cover(placeholder=None, **kwargs):
+    global cover_request_id, cover_pending
+    with cover_lock:
+        cover_request_id += 1
+        request_id = cover_request_id
+        if placeholder is not None:
+            global_state["cover_img"] = placeholder
+        if kwargs:
+            cover_pending = (request_id, kwargs)
+            cover_event.set()
+        else:
+            cover_pending = None
+            cover_event.clear()
         if core.DEBUG:
-            print("get_moode_volume error:", e)
-        return 0
+            print(
+                f"[COVER REQUEST #{request_id}] "
+                f"path={kwargs.get('path', '')} "
+                f"title={kwargs.get('title', '')} "
+                f"placeholder={placeholder is not None}"
+            )
+
+def cover_worker():
+    global cover_pending
+    while True:
+        cover_event.wait()
+        with cover_lock:
+            request = cover_pending
+            cover_pending = None
+            cover_event.clear()
+        if not request:
+            continue
+        request_id, data = request
+        if core.DEBUG:
+            print(
+                f"[COVER WORKER #{request_id}] "
+                f"path={data.get('path', '')} "
+                f"title={data.get('title', '')}"
+            )
+        try:
+            source = data["source"]
+            path = data.get("path", "")
+            title = data.get("title", "")
+            artist = data.get("artist", "")
+            artist_album = data.get("artist_album", "")
+            album = data.get("album", "")
+            cover_url_bt = data.get("cover_url", "")
+            cover_img = None
+            radio_covers = data.get("radio_covers", False)
+
+            ### Library covers
+            if source == "mpd" and path and not path.startswith("http"):
+                client = MPDClient()
+                client.timeout = 10
+                try:
+                    client.connect("localhost", 6600)
+                    pic = client.readpicture(path)
+                    raw = pic.get("binary")
+
+                    if raw:
+                        img = core.Image.open(BytesIO(raw))
+                        cover_img = convert_img_for_display(img)
+                    if cover_img is None:
+                        cover_img = get_fallback_image("MPD Library")
+                finally:
+                    try:
+                        client.disconnect()
+                    except Exception:
+                        pass
+
+            ### HTTP covers
+            elif source == "mpd" and path.startswith("http"):
+                is_yt = path.startswith(("https://rr", "https://manifest"))
+                if radio_covers:
+                    # Wait for moOde to populate its SQL cache
+                    cover_url = None
+                    start_time = time.monotonic()
+                    timeout = 10
+                    while time.monotonic() - start_time < timeout:
+                        # Stop waiting if a newer cover request is pending
+                        with cover_lock:
+                            if request_id != cover_request_id:
+                                break
+                        cover_url = get_cached_cover_url(title)
+                        if cover_url:
+                            if core.DEBUG:
+                                print(
+                                    f"Cover found in moOde cache after "
+                                    f"{time.monotonic() - start_time:.1f}s"
+                                )
+                            break
+                        time.sleep(0.5)
+                    # Only search ourselves if this request is still current
+                    with cover_lock:
+                        is_current = request_id == cover_request_id
+                    if is_current and not cover_url:
+                        cover_url = search_radiocover_plus(
+                            title,
+                            "" if is_yt else artist_album
+                        )
+                    if is_current and cover_url:
+                        cover_img = download_cover_image(cover_url)
+                # Radio station logo fallback
+                if not cover_img and not is_yt and album != "Unknown Radio":
+                    cover_img = get_radio_logo(album)
+
+            ### Bluetooth covers
+            elif source == "bt":
+                if radio_covers:
+                    artist_title = f"{artist} - {title}"
+                    cover_url = (
+                        cover_url_bt
+                        if cover_url_bt and not cover_url_bt.endswith("images/default-album-cover.jpg")
+                        else search_radiocover_plus(artist_title, "")
+                    )
+                    if cover_url:
+                        cover_img = download_cover_image(cover_url)
+
+            if cover_img is None:
+                cover_img = get_fallback_image("Cover Worker found nothing")
+        except Exception as e:
+            if core.DEBUG:
+                print("Cover worker error:", e)
+            cover_img = get_fallback_image("Cover Worker Error")
+
+        # Only update the display if this is still the latest request
+        with cover_lock:
+            if request_id == cover_request_id:
+                global_state["cover_img"] = cover_img
+
+                if core.DEBUG and cover_img:
+                    print(
+                        f"[COVER OK #{request_id}] "
+                        f"title={title} size={cover_img.size}"
+                    )
+            elif core.DEBUG:
+                print(f"[COVER DISCARDED #{request_id}] title={title}")
 
 def player_status_thread():
     global last_title_seen, last_artist_seen, menu_context_flag
+    global last_radio_path, last_radio_title, ignore_next_radio_title
     client = MPDClient()
     client.timeout = 10
     while True:
@@ -853,6 +1118,8 @@ def player_status_thread():
                 print("Player MPD connect error, retry in 5s:", e)
             time.sleep(5)
     first_run = True
+    radio_changed = False
+    ignore_cover = False
     while True:
         if (is_sleeping and screensaver_mode == "blank") or is_bt_local_active():
             time.sleep(1)
@@ -865,6 +1132,8 @@ def player_status_thread():
                 events = []
             if "player" in events or first_run:
                 first_run = False
+                ignore_cover = False
+                radio_changed = False
                 song_data = client.currentsong()
                 status_extra = client.status()
                 path = song_data.get("file", "")
@@ -872,23 +1141,33 @@ def player_status_thread():
                 album = song_data.get("album", "")
                 title = song_data.get("title", "")
                 state = status_extra.get("state", "unknown")
+                radio_name = song_data.get("name", "")
+
                 if path.startswith("http"):
                     artist = "Radio station"
-                    if path.startswith("https://rr"):
+                    if path.startswith("https://rr") or path.startswith("https://manifest"):
                         menu_context_flag = "local_stream"
                         artist_album = f"YT Stream | [Album: {album_yt}]" if album_yt else "YT Stream"
                         title = clean_metadata(title)
-                        global_state["duration"] = float(status_extra.get("duration", 0.0))
                     else:
                         menu_context_flag = "radio"
-                        album = RADIO_MAP.get(path, "Unknown Radio")
-                        artist_album = album # Radio name
+                        if path != last_radio_path:
+                            last_radio_path = path
+                            last_radio_title = last_title_seen
+                            ignore_next_radio_title = True
+                            radio_changed = True
+                        radio_info = get_radio_info(path)
+                        album = radio_info["name"]
+                        artist_album = radio_name if album == "Unknown Radio" else album # Radio name
                         artist = album
-                        global_state["duration"] = float(status_extra.get("duration", 0.0))
+                        if ignore_next_radio_title:
+                            if not title or title == last_radio_title:
+                                ignore_cover = True
+                            else:
+                                ignore_next_radio_title = False
                 else:
                     menu_context_flag = "library"
                     artist_album = f"{artist} - {album}"
-                    global_state["duration"] = float(status_extra.get("duration", 0.0))
                 if title != last_title_seen:
                     core.reset_scroll("nowplaying_title")
                     last_title_seen = title
@@ -901,59 +1180,7 @@ def player_status_thread():
                 global_state["artist_album"] = artist_album
                 global_state["path"] = path
                 global_state["state"] = state
-
-                if screensaver_mode == "covers" and core.SCREEN_TIMEOUT > 0:
-                    cover_img = None
-                    try:
-                        ### Library covers
-                        if path and not path.startswith("http"):
-                            pic = client.readpicture(path)
-                            raw = pic.get("binary")
-                            if raw:
-                                try:
-                                    img = core.Image.open(BytesIO(raw))
-                                    cover_img = convert_img_for_display(img)
-                                except:
-                                    cover_img = get_fallback_image()
-                            else:
-                                cover_img = get_fallback_image()
-                        ### http covers
-                        if path and path.startswith("http"):
-                            cover_img = None
-                            # YT Covers
-                            if path.startswith("https://rr"):
-                                if global_state.get("radio_track_covers"):
-                                    cover_url = get_itunes_cover_url(title, artist_album)
-                                    if cover_url:
-                                        cover_img = get_radio_track_cover(cover_url)
-                            # Radio Covers
-                            else:
-                                global last_radio_path, ignore_next_radio_title
-                                if path != last_radio_path:
-                                    last_radio_path = path
-                                    ignore_next_radio_title = True
-                                if global_state.get("radio_track_covers"):
-                                    if ignore_next_radio_title:
-                                        ignore_next_radio_title = False
-                                    else:
-                                        cover_url = get_itunes_cover_url(title, artist_album)
-                                        if cover_url:
-                                            cover_img = get_radio_track_cover(cover_url)
-                                # Fallback radio logo
-                                if not cover_img and album != "Unknown Radio":
-                                    try:
-                                        radio_path_cover = f"/var/local/www/imagesw/radio-logos/{album}.jpg"
-                                        img = core.Image.open(radio_path_cover)
-                                        cover_img = convert_img_for_display(img)
-                                    except (OSError, ValueError) as e:
-                                        if core.DEBUG: print("Radio logo error:", e)
-                    except Exception as e:
-                        if core.DEBUG:
-                            print(f"error: {e}")
-                    global_state["cover_img"] = cover_img
-                    if core.DEBUG:
-                        if global_state["cover_img"]:
-                                print("COVER OK :", global_state["cover_img"].size, global_state["cover_img"].mode)
+                global_state["duration"] = float(status_extra.get("duration", 0.0))
 
                 audio_fmt = status_extra.get("audio", "")
                 if audio_fmt:
@@ -962,16 +1189,38 @@ def player_status_thread():
                         samplerate = round(int(samplerate)/1000, 1)
                         if samplerate.is_integer():
                             samplerate = int(samplerate)
-                        if path.startswith("https://rr"):
-                            global_state["audio"] = f"{samplerate} kHz / VBR"
-                        elif core.screen.width >= 160:
-                            global_state["audio"] = f"{samplerate} kHz / {bits} bit"
+                        if bits == "f":
+                            bits_label = "32b_F" if core.screen.width < 160 else "32-bit Float"
                         else:
-                            global_state["audio"] = f"{samplerate}k / {bits}b"
+                            bits_label = f"{bits}b" if core.screen.width < 160 else f"{bits}-bit"
+                        if core.screen.width >= 160:
+                            global_state["audio"] = f"{samplerate} kHz / {bits_label}"
+                        else:
+                            global_state["audio"] = f"{samplerate}k / {bits_label}"
                     except Exception:
                         global_state["audio"] = audio_fmt
                 else:
                     global_state["audio"] = "No Info"
+
+                if (screensaver_mode == "covers" and core.SCREEN_TIMEOUT > 0) or show_cover:
+                    cover_data = {}
+                    if not ignore_cover:
+                        cover_data = {
+                            "source": "mpd",
+                            "path": path,
+                            "title": title,
+                            "artist_album": artist_album,
+                            "album": album,
+                            "radio_covers": bool(global_state.get("radio_track_covers"))
+                        }
+                    if radio_changed:
+                        request_cover(
+                            placeholder=get_radio_logo(album),
+                            **cover_data
+                        )
+                    elif cover_data:
+                        request_cover(**cover_data)
+
         except Exception as e:
             if core.DEBUG:
                 print("Player idle error:", e)
@@ -1039,23 +1288,14 @@ def non_idle_status_thread():
                                 core.reset_scroll("nowplaying_artist")
                                 last_title_seen = title_bt
                                 last_artist_seen = artist_album_bt
-                                if screensaver_mode == "covers" and core.SCREEN_TIMEOUT > 0:
-                                    cover_img = None
-                                    try:
-                                        if global_state.get("radio_track_covers"):
-                                            artist_title = f"{artist_bt} - {title_bt}"
-                                            cover_url = cover_url_bt if cover_url_bt != "images/default-album-cover.jpg" else get_itunes_cover_url(artist_title, "")
-                                            if cover_url:
-                                                cover_img = get_radio_track_cover(cover_url)
-                                        else:
-                                            cover_img = get_fallback_image()
-                                    except Exception as e:
-                                        if core.DEBUG:
-                                            print(f"error cover Bluetooth: {e}")
-                                    global_state["cover_img"] = cover_img
-                                    if core.DEBUG:
-                                        if global_state["cover_img"]:
-                                                print("COVER OK :", global_state["cover_img"].size, global_state["cover_img"].mode)
+                                if (screensaver_mode == "covers" and core.SCREEN_TIMEOUT > 0) or show_cover:
+                                    request_cover(
+                                        source="bt",
+                                        artist=artist_bt,
+                                        title=title_bt,
+                                        cover_url=cover_url_bt,
+                                        radio_covers=bool(global_state.get("radio_track_covers"))
+                                    )
                     except Exception as e:
                         if core.DEBUG: print("error help BTMeta: ", e)
                 else:
@@ -1100,6 +1340,25 @@ def non_idle_status_thread():
             last_clock_time = now
             global_state["clock"] = time.strftime("%Hh%M")
         time.sleep(0.5)
+
+def get_moode_volume():
+    try:
+        conn = sqlite3.connect(DB_PATH, timeout=1)
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT param, value
+            FROM cfg_system
+            WHERE param IN ('volmute', 'volknob')
+        """)
+        data = dict(cursor.fetchall())
+        conn.close()
+        level = int(data.get("volknob", 0))
+        mute = data.get("volmute", "0") == "1"
+        return "Mute" if mute else str(level)
+    except Exception as e:
+        if core.DEBUG:
+            print("get_moode_volume error:", e)
+        return 0
 
 def mixer_status_thread():
     client = MPDClient()
@@ -1715,18 +1974,17 @@ def _save_yt_cache(yt_cache):
             json.dump(yt_cache, f, indent=2)
 
 
-def _extract_ytdlp_video(local_query):
+def _extract_ytdlp_videos(local_query):
     from yt_dlp import YoutubeDL
-
     ydl_opts = {
         "quiet": True,
         "default_search": "ytsearch2",
         "no-check-certificate": True,
         "noplaylist": True,
-        "format": "bestaudio[protocol!=m3u8]",
+        "format": "bestaudio[protocol=m3u8_native]",
         "no_warnings": True,
+        "ignoreerrors": True,
     }
-
     attempts_total = 2
     info = None
     last_exception = None
@@ -1740,26 +1998,55 @@ def _extract_ytdlp_video(local_query):
         except Exception as e:
             last_exception = e
             if core.DEBUG:
-                print(f"[yt-dlp] attempt {attempt + 1}/{attempts_total} failed: {e}")
+                print(
+                    f"[yt-dlp] attempt {attempt + 1}/"
+                    f"{attempts_total} failed: {e}"
+                )
             if attempt < attempts_total - 1:
                 time.sleep(1.0)
 
     if info is None:
-        raise last_exception if last_exception is not None else Exception("yt-dlp failed without exception")
+        raise last_exception or RuntimeError(
+            "yt-dlp failed without exception"
+        )
 
     if "_type" in info and "entries" in info:
-        entries = [v for v in info.get("entries", []) if v and v.get("url")]
+        entries = [
+            v for v in info.get("entries", [])
+            if v and v.get("url")
+        ]
         if not entries:
-            raise RuntimeError(f"No yt-dlp entries found for: {local_query}")
+            raise RuntimeError(
+                f"No yt-dlp entries found for: {local_query}"
+            )
+        # Prioritize long videos, preserving original order
+        long_entries = [
+            v for v in entries if (v.get("duration") or 0) > 60
+        ]
+        short_entries = [
+            v for v in entries if (v.get("duration") or 0) <= 60
+        ]
+        videos = long_entries + short_entries
 
-        entries_duration = [v for v in entries if (v.get("duration") or 0) > 60]
-        video = entries_duration[0] if entries_duration else entries[0]
     else:
         if not info.get("url"):
-            raise RuntimeError(f"No yt-dlp url found for: {local_query}")
-        video = info
+            raise RuntimeError(
+                f"No yt-dlp url found for: {local_query}"
+            )
+        videos = [info]
 
-    return video
+    if core.DEBUG:
+        for i, video in enumerate(videos, 1):
+            print(
+                f"[yt-dlp] result {i}: "
+                f"format={video.get('format_id')} "
+                f"protocol={video.get('protocol')} "
+                f"codec={video.get('acodec')} "
+                f"abr={video.get('abr')} "
+                f"ext={video.get('ext')}"
+            )
+
+    return videos
 
 def resolve_stream_track(local_query):
     global final_title_yt, album_yt, artist_yt
@@ -1810,8 +2097,10 @@ def resolve_stream_track(local_query):
         ratio = matched / len(q_tokens)
         return ratio >= min_ratio
 
+    original_query = local_query.strip()
+
     local_query = (
-        local_query
+        original_query
         .replace("–", "-")
         .replace("—", "-")
         .strip()
@@ -1834,8 +2123,8 @@ def resolve_stream_track(local_query):
     artist_final = artist_query
     title_final = f"{artist_query} - {title_query}"
 
-    # normalized cache key
-    cache_key = _norm(title_final)
+    # original cache key
+    cache_key = original_query
 
     # ---------------------------------------------------------
     # cache lookup
@@ -1878,66 +2167,103 @@ def resolve_stream_track(local_query):
     # yt-dlp resolve
     # ---------------------------------------------------------
 
-    video = _extract_ytdlp_video(local_query)
+    search_queries = [local_query]
 
-    if not video or not video.get("url"):
+    cleaned_query = clean_metadata(local_query)
+    if cleaned_query and cleaned_query != local_query:
+        search_queries.append(cleaned_query)
+
+    video = None
+    resolved_url = None
+
+    artist_match_query = clean_metadata(artist_query) or artist_query
+    title_match_query = clean_metadata(title_query) or title_query
+
+    for search_query in search_queries:
+
+        if core.DEBUG:
+            print(f"[yt] search: {search_query}")
+
+        try:
+            candidates = _extract_ytdlp_videos(search_query)
+
+        except Exception as e:
+            if core.DEBUG:
+                print(f"[resolve] search failed: {e}")
+            continue
+
+        for candidate in candidates:
+
+            if not candidate or not candidate.get("url"):
+                continue
+
+            candidate_artist = (
+                candidate.get("artist")
+                or candidate.get("album_artist")
+                or candidate.get("creator")
+                or ""
+            )
+
+            candidate_track = (
+                candidate.get("track")
+                or candidate.get("title")
+                or ""
+            )
+
+            candidate_artist_clean = (
+                clean_metadata(candidate_artist) or candidate_artist
+            )
+
+            candidate_track_clean = (
+                clean_metadata(candidate_track) or candidate_track
+            )
+
+            artist_ok = (
+                _soft_match(artist_match_query, candidate_artist_clean)
+                or _soft_match(artist_match_query, candidate_track_clean)
+            )
+
+            title_ok = _soft_match(
+                title_match_query,
+                candidate_track_clean
+            )
+
+            if artist_ok and title_ok:
+                video = candidate
+                resolved_url = candidate["url"]
+                break
+
+            if core.DEBUG:
+                print(
+                    "[yt] rejected result\n"
+                    f"   search query : {search_query}\n"
+                    f"   query artist : {artist_query}\n"
+                    f"   query title  : {title_query}\n"
+                    f"   yt artist    : {candidate_artist}\n"
+                    f"   yt track     : {candidate_track}"
+                )
+
+        if video:
+            break
+
+    if not video:
         if core.DEBUG:
             print(f"[resolve] no valid yt-dlp result: {local_query}")
         return None
-
-    resolved_url = video["url"]
-
-    yt_artist = (
-        video.get("artist")
-        or video.get("album_artist")
-        or video.get("creator")
-        or ""
-    )
-
-    yt_track = (
-        video.get("track")
-        or video.get("title")
-        or ""
-    )
 
     album = video.get("album")
     duration = video.get("duration")
     webpage_url = video.get("webpage_url")
 
-    # ---------------------------------------------------------
-    # validation
-    # ---------------------------------------------------------
-
-    artist_ok = (
-        _soft_match(artist_query, yt_artist)
-        or _soft_match(artist_query, yt_track)
-    )
-
-    title_ok = _soft_match(
-        clean_metadata(title_query),
-        clean_metadata(yt_track)
-    )
-
-    if not artist_ok or not title_ok:
-
-        if core.DEBUG:
-            print(
-                "[yt] rejected result\n"
-                f"   query artist : {artist_query}\n"
-                f"   query title  : {title_query}\n"
-                f"   yt artist    : {yt_artist}\n"
-                f"   yt track     : {yt_track}"
-            )
-
-        return None
+    yt_track = video.get("track") or video.get("title") or ""
 
     expire_ts = None
     expire_str = None
 
-    match = re.search(r"[?&]expire=(\d+)", resolved_url)
+    match = re.search(r"[?&]expire=(\d+)|/expire/(\d+)", resolved_url)
 
     if match:
-        expire_ts = int(match.group(1))
+        expire_ts = int(match.group(1) or match.group(2))
 
         expire_str = datetime.datetime.fromtimestamp(
             expire_ts
@@ -2496,6 +2822,10 @@ def draw_ui_menu():
         ui_flags.add(core.t("menu_extra_infos"))
     if show_progress_barre:
         ui_flags.add(core.t("menu_progress_bare"))
+    if show_cover:
+        ui_flags.add(core.t("menu_cover_bg"))
+    if show_cover_alt:
+        ui_flags.add(core.t("menu_cover_bg_alt"))
     if show_spectrum:
         ui_flags.add(core.t("menu_spectrum"))
     if show_meters_alt:
@@ -2565,13 +2895,36 @@ def stop_spectrum(timeout=2.0):
                 pass
             spectrum = None
 
-def monitor_spectrum():
+def monitor_bt_spectrum():
+    last_bt_active = is_bt_local_active()
+    while True:
+        try:
+            bt_active = is_bt_local_active()
+            if bt_active != last_bt_active:
+                if core.DEBUG:
+                    print(
+                        f"BT state change: "
+                        f"{last_bt_active} -> {bt_active}"
+                    )
+                stop_spectrum()
+                time.sleep(0.1)
+                start_spectrum()
+                last_bt_active = bt_active
+            time.sleep(0.5)
+
+        except Exception as e:
+            if core.DEBUG:
+                print(f"BT spectrum monitor error: {e}")
+            time.sleep(2)
+
+def monitor_mpd_spectrum():
     client = MPDClient()
     client.timeout = 10
     while True:
         while True:
             try:
                 client.connect("localhost", 6600)
+                last_path = client.currentsong().get("file", "")
                 break
             except Exception as e:
                 print("MPD monitor connect error, retry in 5s:", e)
@@ -2580,17 +2933,28 @@ def monitor_spectrum():
         while True:
             try:
                 events = client.idle()
-                if 'player' in events:
-                    if time.time() - last_toggle < 0.2:
-                        continue
-                    stop_spectrum()
-                    time.sleep(0.02)
-                    client.pause()
-                    time.sleep(0.01)
-                    client.pause()
-                    last_toggle = time.time()
-                    time.sleep(0.02)
-                    start_spectrum()
+                if 'player' not in events:
+                    continue
+                song_data = client.currentsong()
+                path = song_data.get("file", "")
+                path_changed = path != last_path
+                last_path = path
+                if not path_changed:
+                    if core.DEBUG:
+                        print("Skip spectro refresh (same path)")
+                    continue
+                if core.DEBUG:
+                    print(f"Path change => refresh spectro: {path}")
+                if time.time() - last_toggle < 0.2:
+                    continue
+                stop_spectrum()
+                time.sleep(0.02)
+                client.pause()
+                time.sleep(0.02)
+                client.pause()
+                last_toggle = time.time()
+                time.sleep(0.02)
+                start_spectrum()
             except Exception as e:
                 print("MPD monitor error:", e)
                 try:
@@ -2607,7 +2971,8 @@ def delayed_spectrum_start():
         core.show_message(core.t("error_spectrum"))
     else:
         start_spectrum()
-        threading.Thread(target=monitor_spectrum, daemon=True).start()
+        threading.Thread(target=monitor_mpd_spectrum, daemon=True).start()
+        threading.Thread(target=monitor_bt_spectrum, daemon=True).start()
 
 def interpolate_palette(value, palette):
     """Interpolate between colors in a palette (value ∈ [0,1])."""
@@ -2743,14 +3108,11 @@ def draw_peak_meters(y_top1, y_top2, pad_x, peak_bar_h, width, peak_info,
             s["right_peak"] = max(0.0, s.get("right_peak", 0.0) * 0.96)
 
     # Visual params
-    if show_meters_alt and show_spectrum and hasattr(draw_spectrum, "bounds"):
+    if show_spectrum and hasattr(draw_spectrum, "bounds"):
         x0, x1 = draw_spectrum.bounds
-    elif show_meters_alt and not show_spectrum:
+    else:
         x0 = (core.width - int(width)) // 2 + int(pad_x) + 2
         x1 = (core.width + int(width)) // 2 - int(pad_x) + 2
-    else:
-        x0 = int(pad_x)
-        x1 = int(width) - int(pad_x)
 
     bar_w = max(0, int(x1) - int(x0))
 
@@ -2763,7 +3125,8 @@ def draw_peak_meters(y_top1, y_top2, pad_x, peak_bar_h, width, peak_info,
     # --- LEFT BAR ---
     y0 = int(y_top1)
     # background
-    core.draw.rectangle((x0, y0, x1 - 1, y0 + peak_bar_h - 1), fill=core.COLOR_PROGRESS_BG)
+    if not show_cover:
+        core.draw.rectangle((x0, y0, x1 - 1, y0 + peak_bar_h - 1), fill=core.COLOR_PROGRESS_BG)
 
     # compute how many pixels to fill (0..bar_w)
     filled = int(round(s["left_vis"] * bar_w))
@@ -2782,7 +3145,8 @@ def draw_peak_meters(y_top1, y_top2, pad_x, peak_bar_h, width, peak_info,
 
     # --- RIGHT BAR ---
     y1 = int(y_top2)
-    core.draw.rectangle((x0, y1, x1 - 1, y1 + peak_bar_h - 1), fill=core.COLOR_PROGRESS_BG)
+    if not show_cover:
+        core.draw.rectangle((x0, y1, x1 - 1, y1 + peak_bar_h - 1), fill=core.COLOR_PROGRESS_BG)
 
     filled_r = int(round(s["right_vis"] * bar_w))
     filled_r = max(0, min(filled_r, bar_w))
@@ -2817,11 +3181,39 @@ def draw_nowplaying():
     volume = global_state.get("volume", "N/A")
     volume_display = "Vol: Bt" if is_bt_local_active() else f"Vol: {volume}"
 
-    # Background
-    core.draw.rectangle((0, 0, core.width, core.height), fill=core.COLOR_BG)
+    padding_x = max(2, int(core.width * 0.015)) if core.height > 64 else 0
+    padding_y = max(2, int(core.height * 0.01)) if core.height > 64 else 0
 
-    padding_x = max(2, int(core.width * 0.02))
-    padding_y = max(2, int(core.height * 0.01))
+    if core.height < 64:
+        spacing = 1
+        top_bar_h = icon_width + 2
+    elif core.height <= 96:
+        spacing = 2 if show_spectrum or show_peak or show_cover else 4
+        top_bar_h = icon_width + 3 if show_spectrum or show_peak else icon_width + 4
+    elif core.height <= 128:
+        spacing = 4 if show_spectrum or show_peak or show_cover else 10
+        top_bar_h = icon_width + 4 if show_spectrum or show_peak else icon_width + 10
+    elif core.height <= 160:
+        spacing = 6 if show_spectrum or show_peak or show_cover else 16
+        top_bar_h = icon_width + 8 if show_spectrum or show_peak else icon_width + 16
+    elif core.height == 170:
+        spacing = 4 if show_spectrum or show_peak or show_cover else 8
+        top_bar_h = icon_width + 5 if show_spectrum or show_peak else icon_width + 12
+    else:
+        spacing = 4 if show_cover and show_cover_alt else 10 if show_spectrum or show_peak else 20
+        top_bar_h = icon_width + 11 if show_spectrum or show_peak else icon_width + 22
+
+    if not show_icons:
+        top_bar_h = spacing if core.height > 64 else 0
+
+    # Text background mask
+    text_mask_bg = (0, 0, 0, 120) if show_cover and not show_cover_alt and state != "stop" else None
+
+    # Background
+    if text_mask_bg is not None:
+        draw_cover_background(0, core.width, 0, core.height)
+    else:
+        core.draw.rectangle((0, 0, core.width, core.height), fill=core.COLOR_BG)
 
     # Top barre
     if show_icons:
@@ -2846,15 +3238,16 @@ def draw_nowplaying():
         icon7 = icons["bluetooth"] if global_state.get("audioout") == "Bluetooth" else icons["empty"]
 
         spacing_icon = 2
-        core.image.paste(icon1, (0 * icon_width, -0), mask=icon1)
+        draw_icon_with_mask(icon1, (0, 0), background=text_mask_bg)
         if not is_renderer_active():
-            core.image.paste(icon2, (1 * (icon_width + spacing_icon), -0), mask=icon2)
-            core.image.paste(icon3, (2 * (icon_width + spacing_icon), -0), mask=icon3)
-            core.image.paste(icon4, (3 * (icon_width + spacing_icon), -0), mask=icon4)
-            core.image.paste(icon5, (4 * (icon_width + spacing_icon), -0), mask=icon5)
-            core.image.paste(icon6, (5 * (icon_width + spacing_icon), -0), mask=icon6)
+            draw_icon_with_mask(icon2, (1 * (icon_width + spacing_icon), 0), background=text_mask_bg)
+            draw_icon_with_mask(icon3, (2 * (icon_width + spacing_icon), 0), background=text_mask_bg)
+            draw_icon_with_mask(icon4, (3 * (icon_width + spacing_icon), 0), background=text_mask_bg)
+            draw_icon_with_mask(icon5, (4 * (icon_width + spacing_icon), 0), background=text_mask_bg)
+            draw_icon_with_mask(icon6, (5 * (icon_width + spacing_icon), 0), background=text_mask_bg)
+
         icon7_x = core.width - icon_width - padding_x
-        core.image.paste(icon7, (icon7_x, -0), mask=icon7)
+        draw_icon_with_mask(icon7, (icon7_x, 0), background=text_mask_bg)
 
     # Stop state
     if state == "stop" and not is_renderer_active():
@@ -2869,7 +3262,7 @@ def draw_nowplaying():
 
         # Volume barre
         vol_bar_h = font_vol_clock.getbbox("Vol: 100")[3]
-        y_vol_bar = core.height - vol_bar_h - (padding_y if core.height > 64 else 0)
+        y_vol_bar = core.height - vol_bar_h - padding_y
 
         core.draw.text((3, y_vol_bar), volume_display, font=font_vol_clock, fill=core.COLOR_VOL_CLOCK)
     else:
@@ -2894,8 +3287,10 @@ def draw_nowplaying():
             # Re-render cached image only when the text changes
             if scroll_state.get("cached_text") != text or "render" not in scroll_state:
                 # create image exactly sized to text; use bbox[1] as vertical baseline offset
-                mode = "RGB" if core.display_format != "MONO" else "1"
-                img = core.Image.new(mode, (text_width, text_h), core.COLOR_BG)
+                if core.display_format != "MONO":
+                    img = core.Image.new("RGBA", (text_width, text_h), (0, 0, 0, 0))
+                else:
+                    img = core.Image.new("1", (text_width, text_h), core.COLOR_BG)
                 d = core.screen.ImageDraw.Draw(img)
                 # vertical offset to align baseline; using -bbox[1] positions text correctly
                 d.text((0, -bbox[1]), text, font=font_artist, fill=fill_color)
@@ -2945,35 +3340,37 @@ def draw_nowplaying():
                         draw_text = False
 
                 if draw_text:
-                    # paste the pre-rendered image at the scrolled X position
-                    core.image.paste(render_img, (-scroll_state["offset"], y))
+                    offset = int(scroll_state.get("offset", 0))
+
+                    # Mask only if the cover is background
+                    if text_mask_bg is not None:
+                        draw_mask(
+                            (0, y - 3, display_width, y + text_h + 3),
+                            (0, 0, 0, 140),
+                            radius=2
+                        )
+
+                    # Pre-rendered text with transparency
+                    if render_img.mode == "RGBA":
+                        core.image.paste(render_img, (-offset, y), render_img)
+                    else:
+                        core.image.paste(render_img, (-offset, y))
 
             else:
-                # fits: center it by pasting the cached image
+                # Text is short enough: center alignment
                 x = (display_width - text_width) // 2
-                core.image.paste(render_img, (x, y))
 
-        if core.height < 64:
-            spacing = 1
-            top_bar_h = icon_width + 2
-        elif core.height <= 96:
-            spacing = 2 if show_spectrum or show_peak else 4
-            top_bar_h = icon_width + 3 if show_spectrum or show_peak else icon_width + 4
-        elif core.height <= 128:
-            spacing = 4 if show_spectrum or show_peak else 10
-            top_bar_h = icon_width + 4 if show_spectrum or show_peak else icon_width + 10
-        elif core.height <= 160:
-            spacing = 6 if show_spectrum or show_peak else 16
-            top_bar_h = icon_width + 8 if show_spectrum or show_peak else icon_width + 16
-        elif core.height == 170:
-            spacing = 4 if show_spectrum or show_peak else 8
-            top_bar_h = icon_width + 5 if show_spectrum or show_peak else icon_width + 12
-        else:
-            spacing = 10 if show_spectrum or show_peak else 20
-            top_bar_h = icon_width + 11 if show_spectrum or show_peak else icon_width + 22
+                if text_mask_bg is not None:
+                    draw_mask(
+                        (x - 3, y - 3, x + text_width + 3, y + text_h + 3),
+                        (0, 0, 0, 140),
+                        radius=4
+                    )
 
-        if not show_icons:
-            top_bar_h = spacing if core.height > 64 else 0
+                if render_img.mode == "RGBA":
+                    core.image.paste(render_img, (x, y), render_img)
+                else:
+                    core.image.paste(render_img, (x, y))
 
         # --- Artist / Album / Title---
         if show_one_line:
@@ -2995,7 +3392,7 @@ def draw_nowplaying():
         if show_extra_infos:
             extra_info = global_state.get("audio", "")
             bitrate = global_state.get("bitrate", "")
-            if bitrate and menu_context_flag != "local_stream":
+            if bitrate:
                 if extra_info:
                     extra_info += f" / {bitrate} kbps"
                 else:
@@ -3005,16 +3402,22 @@ def draw_nowplaying():
                 extra_info_h = bbox_info[3] - bbox_info[1]
                 text_w = bbox_info[2] - bbox_info[0]
                 x_extra_info = (core.width - text_w) // 2
-                core.draw.text((x_extra_info, y_extra_info), extra_info, font=font_extra_info, fill=core.COLOR_EXTRA_INFO)
+                draw_text_with_mask(
+                    (x_extra_info, y_extra_info),
+                    extra_info,
+                    font_extra_info,
+                    core.COLOR_EXTRA_INFO,
+                    background=text_mask_bg
+                )
                 y_progress = y_extra_info + extra_info_h + spacing
             else:
                 y_progress = y_extra_info
         else:
             y_progress = y_extra_info
 
+        # --- Progress Bar ---
         elapsed = float(global_state.get("elapsed", 0.0))
         duration = float(global_state.get("duration", 0.0))
-        # --- Progress Bar ---
         if show_progress_barre:
             progress_h = 2 if core.height > 160 else 1
             progress_w = int(core.width - (padding_x * 2))
@@ -3025,55 +3428,89 @@ def draw_nowplaying():
                 core.draw.line((progress_x, y_progress, progress_x + fill_w, y_progress), fill=core.COLOR_PROGRESS, width=progress_h)
             else:
                 # Background barre
-                core.draw.line((progress_x, y_progress, progress_x + progress_w, y_progress), fill=core.COLOR_PROGRESS_BG, width=progress_h)
+                if not show_cover or (show_cover and show_cover_alt):
+                    core.draw.line((progress_x, y_progress, progress_x + progress_w, y_progress), fill=core.COLOR_PROGRESS_BG, width=progress_h)
                 # Progress fill
                 if fill_w > 0:
                     core.draw.line((progress_x, y_progress, progress_x + fill_w, y_progress), fill=core.COLOR_PROGRESS, width=progress_h)
-            y_spectrum = y_progress + progress_h + spacing
+            y_spectrum = y_progress + progress_h + spacing + (2 if show_cover else 0)
         else:
-            y_spectrum = y_progress
+            y_spectrum = y_progress + (2 if show_cover else 0)
 
         # define avaible space for meters
         if show_vol_bar:
-            vol_bar_h = font_vol_clock.getbbox("Vol: 100")[3] + (padding_y if core.height > 64 else 0)
+            vol_bar_h = font_vol_clock.getbbox("Vol: 100")[3]
             if show_clock:
                 clock_text = global_state["clock"]
             else:
                 elapsed_str = format_time(elapsed)
                 duration_str = format_time(duration)
+                remaining_str = format_time(max(0, duration - elapsed))
                 if menu_context_flag == "radio":
                     clock_text = f"{elapsed_str}"
                 else:
-                    clock_text = f"{elapsed_str}/{duration_str}"
+                    clock_text = f"{remaining_str}" if show_meters_alt or (show_cover and show_cover_alt) else f"{elapsed_str}/{duration_str}"
             vol_w = core.draw.textlength(volume_display, font=font_vol_clock)
             clock_w = core.draw.textlength(clock_text, font=font_vol_clock)
-            avaible_w = core.width - clock_w - vol_w
+            avaible_w = core.width - clock_w - vol_w - (padding_x * 4)
         else:
             vol_bar_h = 0
             avaible_w = core.width
-        y_vol_bar = core.height - vol_bar_h - (padding_y if core.height > 64 else 0)
+        y_vol_bar = core.height - vol_bar_h - padding_y
+        meters_w = core.width - padding_x * 4 if not show_meters_alt else avaible_w
+
+        # --- Cover / Meters bounds ---
+        if show_spectrum and spectrum and show_meters_alt:
+            num_bars = len(spectrum.get_levels())
+            total_width = int(avaible_w) - 4
+            pitch = total_width // num_bars if num_bars else 0
+            bar_width = max(1, pitch - 1)
+
+            if show_cover_alt:
+                cover_x0 = (core.width - pitch * num_bars) // 2
+                cover_x1 = cover_x0 + (num_bars - 1) * pitch + bar_width
+        elif show_cover_alt:
+            cover_x0 = (core.width - int(avaible_w)) // 2 + 4
+            cover_x1 = (core.width + int(avaible_w)) // 2
+
         # peak meter bars
-        peak_bar_h = max(2, min(8, core.height // 36))
-        padding = 1 if core.height < 64 else 2 if core.height <= 96 else 4
-        total_peak = (peak_bar_h * 2) + padding + spacing if show_peak else 0
+        peak_bar_h = max(2, min(4, core.height // 36)) if show_meters_alt else max(2, min(8, core.height // 36))
+        padding_peak = 1 if core.height < 64 else 2 if core.height <= 96 or show_meters_alt else 4
+        total_peak = (peak_bar_h * 2) + padding_peak + (padding_y if show_meters_alt else spacing)
+
+        if show_cover and show_cover_alt:
+            draw_cover_background(cover_x0, cover_x1, y_spectrum, core.height - padding_y)
 
         # --- Spectrum ---
         if show_spectrum and spectrum:
+            levels = spectrum.get_levels()
             if show_meters_alt:
-                levels = spectrum.get_levels()
-                spectrum_bottom = core.height - total_peak if show_peak else core.height
-                max_spectrum_h = (core.height // 2) - (core.height // 10)
-                available_height = spectrum_bottom - y_spectrum - total_peak
-                spectrum_h = max(8, min(max_spectrum_h, available_height))
+                spectrum_bottom = core.height - total_peak - padding_y if show_peak else core.height - padding_y
+                available_height = max(0, spectrum_bottom - y_spectrum - (total_peak if show_peak else 0))
+                #max_spectrum_h = (core.height // 2) - (core.height // 10)
+                #max_spectrum_h = ((available_height + (total_peak if show_peak else 0)) // 2 if core.height > 64 else core.height // 2) - (core.height // 10)
+                if core.height < 32:
+                    max_spectrum_h = available_height
+                else:
+                    max_spectrum_h = available_height // 4 + (total_peak if show_peak else 0)
+                spectrum_h = max(10, min(60, max_spectrum_h))
                 y_spectrum = spectrum_bottom - spectrum_h
-                draw_spectrum(y_top=y_spectrum, height=spectrum_h, levels=levels, width_spec=avaible_w)
+                draw_spectrum(y_top=y_spectrum, height=spectrum_h, levels=levels, width_spec=meters_w)
                 y_peak = y_spectrum + spectrum_h + spacing
             else:
-                y_spectrum = max(core.height // 2 - total_peak, y_spectrum)
-                levels = spectrum.get_levels()
-                available_height = max(0, y_vol_bar - y_spectrum - spacing - total_peak)
-                spectrum_h = max(12, min((core.height // 2) - (core.height // 10), available_height))
-                draw_spectrum(y_top=y_spectrum, height=spectrum_h, levels=levels)
+                spectrum_bottom = y_vol_bar - spacing - (total_peak if show_peak else 0)
+                available_height = max(0, spectrum_bottom - y_spectrum - (total_peak if show_peak else 0))
+                max_spectrum_h = available_height // 2 + (total_peak if show_peak else 0)
+                spectrum_h = max(10, min(60, max_spectrum_h))
+                y_spectrum = spectrum_bottom - spectrum_h
+                if text_mask_bg is not None and hasattr(draw_spectrum, "bounds"):
+                    x0, x1 = draw_spectrum.bounds
+                    draw_mask(
+                        (x0 - 4, y_spectrum - 4, x1 + 4, y_spectrum + spectrum_h + 4),
+                        (0, 0, 0, 60),
+                        radius=2
+                    )
+                draw_spectrum(y_top=y_spectrum, height=spectrum_h, levels=levels, width_spec=meters_w)
                 y_peak = y_spectrum + spectrum_h + spacing
         else:
             y_peak = y_spectrum + spacing * 2
@@ -3081,16 +3518,42 @@ def draw_nowplaying():
         # --- Peak meter ---
         if show_peak and spectrum:
             pad_x = 2
-            y_top1 = core.height - total_peak if show_meters_alt else y_peak
-            width = avaible_w if show_meters_alt else core.width
-            y_top2 = y_top1 + peak_bar_h + padding
-            peaks = spectrum.get_channel_peaks(volume_state=global_state.get("volume"), mixer_type=global_state.get("mpdmixer"))
-            draw_peak_meters(y_top1, y_top2, pad_x, peak_bar_h, width, peaks)
+            y_top1 = core.height - total_peak if show_meters_alt else y_vol_bar - total_peak
+            y_top2 = y_top1 + peak_bar_h + padding_peak
+            peaks = spectrum.get_channel_peaks(volume_state=global_state.get("volume"), mixer_type=global_state.get("mpdmixer"), bt_active=is_bt_local_active())
+            if show_spectrum and hasattr(draw_spectrum, "bounds"):
+                x0, x1 = draw_spectrum.bounds
+            else:
+                x0 = (core.width - int(meters_w)) // 2 + pad_x + 2
+                x1 = (core.width + int(meters_w)) // 2 - pad_x + 2
+
+            if text_mask_bg is not None:
+                draw_mask(
+                    (x0 - 4, y_top1 - 4, x1 + 4, y_top2 + peak_bar_h + 4),
+                    (0, 0, 0, 60),
+                    radius=2
+                )
+            draw_peak_meters(y_top1, y_top2, pad_x, peak_bar_h, meters_w, peaks)
 
         # --- Bottom bar (Volume / Clock) ---
         if show_vol_bar:
-            core.draw.text((padding_x, y_vol_bar), volume_display, font=font_vol_clock, fill=core.COLOR_VOL_CLOCK)
-            core.draw.text((core.width - clock_w - padding_x, y_vol_bar), clock_text, font=font_vol_clock, fill=core.COLOR_VOL_CLOCK)
+            draw_text_with_mask(
+                (padding_x, y_vol_bar),
+                volume_display,
+                font_vol_clock,
+                core.COLOR_VOL_CLOCK,
+                background=text_mask_bg
+            )
+
+            draw_text_with_mask(
+                (core.width - clock_w - padding_x, y_vol_bar),
+                clock_text,
+                font_vol_clock,
+                core.COLOR_VOL_CLOCK,
+                background=text_mask_bg
+            )
+
+        #core.draw.line((0, core.height + 1, core.width, core.height + 1), fill=core.COLOR_PROGRESS, width=1)
 
 def build_shortcut_action(typ, val):
     if typ == "parametric":
@@ -3914,7 +4377,7 @@ def finish_press(key):
         return
 
     if ui_menu_active:
-        global show_icons, show_one_line, show_extra_infos, show_progress_barre, show_spectrum, show_peak, show_meters_alt, show_vol_bar, show_clock
+        global show_icons, show_one_line, show_extra_infos, show_progress_barre, show_cover, show_cover_alt, show_spectrum, show_peak, show_meters_alt, show_vol_bar, show_clock
         if key == "KEY_UP" and ui_menu_selection > 0:
             ui_menu_selection -= 1
             core.reset_scroll("menu_item")
@@ -3943,6 +4406,14 @@ def finish_press(key):
                 new_progress = not show_progress_barre
                 core.save_config("show_progress_barre", new_progress, section="nowplaying")
                 show_progress_barre = new_progress
+            elif option_id == "cover_bg":
+                new_cover_bg = not show_cover
+                core.save_config("show_cover", new_cover_bg, section="nowplaying")
+                show_cover = new_cover_bg
+            elif option_id == "cover_bg_alt":
+                new_cover_bg_alt = not show_cover_alt
+                core.save_config("show_cover_alt", new_cover_bg_alt, section="nowplaying")
+                show_cover_alt = new_cover_bg_alt
             elif option_id == "spectrum":
                 if not is_spectrum_available():
                     core.show_message(core.t("error_spectrum"))
@@ -4065,6 +4536,7 @@ def main():
     threading.Thread(target=mixer_status_thread, daemon=True).start()
     threading.Thread(target=options_status_thread, daemon=True).start()
     threading.Thread(target=non_idle_status_thread, daemon=True).start()
+    threading.Thread(target=cover_worker, daemon=True).start()
     if show_spectrum or show_peak or screensaver_mode in DYNAMIC_SS:
         threading.Thread(target=lambda: (time.sleep(0.5), delayed_spectrum_start()), daemon=True).start()
     try:
