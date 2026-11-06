@@ -169,7 +169,7 @@ class SpectrumCapture(threading.Thread):
         try: self.rec.close()
         except: pass
 
-    def get_channel_peaks(self, volume_state=None, mixer_type=None):
+    def get_channel_peaks(self, volume_state=None, mixer_type=None, bt_active=False):
         # --- linear -> dB ---
         def lin2db(x): return -999.0 if x<=0 else 20*np.log10(x)
 
@@ -319,7 +319,12 @@ class SpectrumCapture(threading.Thread):
         def get_softvol_factor(volume):
             return SOFTVOL_MAP.get(volume, 1.0)
 
-        if mixer_type == "software" and vol_step and vol_step > 0:
+        if (
+            not bt_active
+            and mixer_type == "software"
+            and vol_step
+            and vol_step > 0
+        ):
             factor = get_softvol_factor(vol_step)
             lp_norm = min(lp_norm * factor, 1.0)
             rp_norm = min(rp_norm * factor, 1.0)
@@ -368,9 +373,24 @@ class SpectrumCapture(threading.Thread):
             fn = str(getattr(self, "format_name", "")).upper()
 
             # helper debug header once per format switch
-            if getattr(self, "_last_debug_fmt", None) != (fn, self.channels, bytes_per_sample):
-                self._last_debug_fmt = (fn, self.channels, bytes_per_sample)
-                print(f"[SPECTRO DBG] format_name={fn!r} channels={self.channels} bytes={len(data)} frames={n} bytes_per_sample={bytes_per_sample}")
+            if getattr(self, "_last_debug_fmt", None) != (fn, self.channels, bytes_per_sample, self.samplerate):
+                self._last_debug_fmt = (fn, self.channels, bytes_per_sample, self.samplerate)
+
+                if "FLOAT" in fn:
+                    bits_info = "32-bit float"
+                elif fn.startswith("S") and fn[1:3].isdigit():
+                    bits_info = f"{fn[1:3]}-bit integer"
+                else:
+                    bits_info = "unknown"
+
+                print(
+                    f"[SPECTRO DBG] format={fn} "
+                    f"rate={self.samplerate} Hz "
+                    f"bits={bits_info} "
+                    f"channels={self.channels} "
+                    f"bytes_per_sample={bytes_per_sample} "
+                    f"frames={n} bytes={len(data)}"
+                )
 
             # decode raw bytes into numeric arrays (float32 for further processing)
             if bytes_per_sample == 4:
@@ -378,6 +398,7 @@ class SpectrumCapture(threading.Thread):
                 if "FLOAT" in fn:
                     samples = np.frombuffer(data, dtype=np.float32)
                     full_scale = 1.0
+
                 else:
                     # read as int32
                     samples = np.frombuffer(data, dtype=np.int32).astype(np.float32)
@@ -456,8 +477,16 @@ class SpectrumCapture(threading.Thread):
             #################
             # Spectrum
             ##############
+
             # stereo > mono
             samples = np.sqrt((stereo[:,0]**2 + stereo[:,1]**2) * 0.5)
+            #samples = (stereo[:, 0] + stereo[:, 1]) * 0.5
+
+            """stereo_mix = 0.3 * (stereo[:, 0] + stereo[:, 1]) * 0.5
+            stereo_energy = 0.7 * np.sqrt(
+                (stereo[:, 0]**2 + stereo[:, 1]**2) * 0.5
+            )
+            samples = stereo_mix + stereo_energy"""
 
             sr = self.samplerate
             while sr >= 88200:
@@ -482,9 +511,14 @@ class SpectrumCapture(threading.Thread):
                 band_energy = self.filters @ power
 
                 # warmup baseline handling
-                if self._warmup_count < self._warmup_frames:
+                if self._warmup_count == 0:
+                    self.baseline = np.maximum(band_energy, EPS)
+                    self._warmup_count = 1
+
+                elif self._warmup_count < self._warmup_frames:
                     self.baseline = 0.85 * self.baseline + 0.15 * (band_energy + EPS)
                     self._warmup_count += 1
+
                 else:
                     self.baseline = 0.997 * self.baseline + 0.003 * band_energy
 
