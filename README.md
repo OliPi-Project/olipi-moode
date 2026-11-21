@@ -45,12 +45,19 @@ And follow instructions.
 Latest updates:
 
     - Now support screen SSD1305 128x32 2.2"
-    - Added 3 new options in the UI configuration menu or via config.ini:
-      - "Show/Hide Volume Bar"
-      - "Show one line" to display Radio/Artist/title in one line
-      - "Show meters alt" to display meters bottom between vol and time
-    - Now can change fonts size in config.ini
+    - Add a VU meter in addition to the existing peak meter
+    - Add new options in the UI configuration menu or via config.ini:
+      - Show/Hide Volume Bar 
+      - Display Radio/Artist/title in one line
+      - Display covers on full background or resized
+      - Display Peak, Vu, nothing, or both
+      - Show/Hide scale & label for Peak/Vu meters
+      - Display meters horizontally inline/separate or vertically
+      - Display horizontal meters bottom between vol and time
+    - "peak_soft_correct" in config.ini to enable/disable software volume correction (Peak & Vu use mpd vol or not)
+    - Can change fonts size in config.ini
     - Add Bluetooth metas & covers
+    - Some improvements to audio analysis
     ...
 
     - Playing Songlog entries via YT from playlist. 
