@@ -39,13 +39,15 @@ show_icons = core.get_config("nowplaying", "show_icons", fallback=False, type=bo
 show_one_line = core.get_config("nowplaying", "show_one_line", fallback=False, type=bool)
 show_extra_infos = core.get_config("nowplaying", "show_extra_infos", fallback=False, type=bool)
 show_progress_barre = core.get_config("nowplaying", "show_progress_barre", fallback=False, type=bool)
-show_cover = core.get_config("nowplaying", "show_cover", fallback=False, type=bool)
-show_cover_alt = core.get_config("nowplaying", "show_cover_alt", fallback=False, type=bool)
+show_cover_bg = core.get_config("nowplaying", "show_cover_bg", fallback="off", type=str)
 show_vol_bar = core.get_config("nowplaying", "show_vol_bar", fallback=True, type=bool)
 show_clock = core.get_config("nowplaying", "show_clock", fallback=True, type=bool)
 show_spectrum = core.get_config("nowplaying", "show_spectrum", fallback=False, type=bool)
-show_peak = core.get_config("nowplaying", "show_peak", fallback=False, type=bool)
+show_peak_vu = core.get_config("nowplaying", "show_peak_vu", fallback="off", type=str)
+peak_vu_style = core.get_config("nowplaying", "peak_vu_style", fallback="horizontal_inline", type=str)
 show_meters_alt = core.get_config("nowplaying", "show_meters_alt", fallback=False, type=bool)
+show_scale_labels = core.get_config("nowplaying", "show_scale_labels", fallback=False, type=bool)
+peak_correct = core.get_config("spectrum","peak_soft_correct", fallback=False, type=bool)
 
 # --- Fonts ui_playing ---
 if core.height < 64 and core.diag_inch >= 2.0:
@@ -56,20 +58,15 @@ if core.height < 64 and core.diag_inch >= 2.0:
     font_vol_clock = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", core.get_config("nowplaying", "font_size_vol_clock", fallback=7, type=int))
     font_stop_clock = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", core.get_config("nowplaying", "font_size_stop_clock", fallback=20, type=int))
     font_extra_info = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", core.get_config("nowplaying", "font_size_extra_info", fallback=6, type=int))
+    font_meters_label = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", core.get_config("nowplaying", "font_meters_label", fallback=6, type=int))
 else:
     font_artist = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", core.get_config("nowplaying", "font_size_artist", fallback=14, type=int))
-    font_vol_clock = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", core.get_config("nowplaying", "font_size_artist", fallback=12, type=int))
+    font_vol_clock = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", core.get_config("nowplaying", "font_size_artist", fallback=10, type=int))
     font_stop_clock = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", core.get_config("nowplaying", "font_size_vol_clock", fallback=24, type=int))
     font_extra_info = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", core.get_config("nowplaying", "font_size_extra_info", fallback=9, type=int))
+    font_meters_label = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", core.get_config("nowplaying", "font_meters_label", fallback=7, type=int))
 
 core.load_translations(Path(__file__).stem)
-
-screensaver_mode = core.get_config("settings", "screensaver_mode", fallback="blank", type=str)
-if screensaver_mode == "covers" or show_cover:
-    from io import BytesIO
-    if core.display_format == "MONO":
-        from PIL import ImageEnhance, ImageOps, ImageFilter
-DYNAMIC_SS = ("orbital", "spectrum")
 
 render_lock = threading.Lock()
 now_playing_mode = False
@@ -194,16 +191,34 @@ ui_menu_options = [
     {"id": "oneline", "label": core.t("menu_oneline")},
     {"id": "extra", "label": core.t("menu_extra_infos")},
     {"id": "progress", "label": core.t("menu_progress_bare")},
-    {"id": "cover_bg", "label": core.t("menu_cover_bg")},
-    {"id": "cover_bg_alt", "label": core.t("menu_cover_bg_alt")},
+    {"id": "cover_bg", "label": None},
     {"id": "spectrum", "label": core.t("menu_spectrum")},
-    {"id": "peak", "label": core.t("menu_peak")},
+    {"id": "peak_vu", "label": None},
+    {"id": "peak_vu_style", "label": None},
     {"id": "meters_alt", "label": core.t("menu_meters_alt")},
     {"id": "vol_bar", "label": core.t("menu_vol_bar")},
     {"id": "clock_elapse", "label": core.t("menu_clock")},
     {"id": "apply", "label": core.t("menu_apply")}
 ]
-
+cover_bg_options = ["off", "background", "resized"]
+cover_bg_labels = {
+    "off": core.t("menu_cover_off"),
+    "background": core.t("menu_cover_bg"),
+    "resized": core.t("menu_cover_alt"),
+}
+peak_vu_options = ["off", "peak", "vu", "both"]
+peak_vu_labels = {
+    "off": core.t("menu_peak_vu_off"),
+    "peak": core.t("menu_peak_vu_peak"),
+    "vu": core.t("menu_peak_vu_vu"),
+    "both": core.t("menu_peak_vu_both"),
+}
+peak_vu_style_options = ["horizontal_inline", "horizontal_separate", "vertical"]
+peak_vu_style_labels = {
+    "horizontal_inline": core.t("menu_peak_vu_style_inline"),
+    "horizontal_separate": core.t("menu_peak_vu_style_separate"),
+    "vertical": core.t("menu_peak_vu_style_vertical"),
+}
 screensaver_menu_active = False
 screensaver_menu_selection = 0
 screensaver_menu_options = [
@@ -283,6 +298,17 @@ ICON_PATHS = {
     "empty": OLIPIMOODE_DIR / "assets/icons/empty.png",
 }
 
+show_peak = show_peak_vu != "off"
+show_cover = show_cover_bg != "off"
+show_cover_alt = show_cover_bg == "resized"
+
+screensaver_mode = core.get_config("settings", "screensaver_mode", fallback="blank", type=str)
+if screensaver_mode == "covers" or show_cover:
+    from io import BytesIO
+    if core.display_format == "MONO":
+        from PIL import ImageEnhance, ImageOps, ImageFilter
+DYNAMIC_SS = ("orbital", "spectrum")
+
 # runtime cache of loaded (and possibly tinted) icons
 icons = {}
 icon_width = 16
@@ -294,20 +320,17 @@ def _tint_icon(img, color):
     """
     img = img.convert("RGBA")
     r_t, g_t, b_t = color
-
     pixels = img.load()
     for y in range(img.height):
         for x in range(img.width):
             pr, pg, pb, pa = pixels[x, y]
             if pa == 0:
                 continue
-
             alpha_ratio = pa / 255.0
             new_r = int(r_t * alpha_ratio)
             new_g = int(g_t * alpha_ratio)
             new_b = int(b_t * alpha_ratio)
             pixels[x, y] = (new_r, new_g, new_b, pa)
-
     return img
 
 def _resize_icon(img, base_size=16):
@@ -318,16 +341,12 @@ def _resize_icon(img, base_size=16):
     """
     if img is None:
         return None
-
     if core.height <= 64:
         return img.resize((15, 15), core.Image.Resampling.LANCZOS)
-
     if core.ppi <= 150:
         return img
-
     scale = min(core.ppi / core.BASE_PPI, 1.6)
     size = int(base_size * scale)
-
     return img.resize((size, size), core.Image.Resampling.LANCZOS)
 
 def load_icons_from_theme():
@@ -407,15 +426,18 @@ def draw_icon_with_mask(icon, position, background=None, padding=0, radius=0):
     else:
         core.image.paste(icon, (x, y))
 
-def draw_text_with_mask(position, text, font, fill, background=None, padding=3, radius=4):
+def draw_text_with_mask(position, text, font, fill, background=None, padding=2, radius=2):
     if background is not None:
         bbox = core.draw.textbbox(position, text, font=font)
+        ref_bbox = font.getbbox(text)
+        height = ref_bbox[3] - ref_bbox[1]
+        top = position[1] + ref_bbox[1]
         draw_mask(
             (
                 bbox[0] - padding,
-                bbox[1] - padding,
+                top - padding,
                 bbox[2] + padding,
-                bbox[3] + padding
+                top + height + padding
             ),
             background,
             radius
@@ -718,32 +740,27 @@ def format_time(seconds: float) -> str:
         return "0:00"
     h, m = divmod(int(seconds), 3600)
     m, s = divmod(m, 60)
-    return f"{h:d}:{m:02d}:{s:02d}" if h and not (show_meters_alt or show_cover_alt) else f"{h:d}:{m:02d}" if h and (show_meters_alt or show_cover_alt) else f"{m:d}:{s:02d}"
+    return f"{h:d}:{m:02d}:{s:02d}" if h and not (show_meters_alt or show_cover_alt) else f"{h:02d}h{m:02d}" if h and (show_meters_alt or show_cover_alt) else f"{m:02d}:{s:02d}"
 
 def clean_metadata(text):
     if not text:
         return ""
-
     # Fix common errors caused by misinterpreted UTF-8 encoding
     if "Ã" in text or "Â" in text:
         try:
             text = text.encode("latin-1").decode("utf-8")
         except (UnicodeEncodeError, UnicodeDecodeError):
             pass
-
     # Remove control characters and invisible characters
     text = "".join(
         char for char in text
         if unicodedata.category(char) not in ("Cc", "Cf")
     )
-
     # Normalize spaces
     text = text.replace("\u00a0", " ")
     text = re.sub(r"\s+", " ", text).strip()
-
     # Delete the information in parentheses and square brackets
     text = re.sub(r"\([^)]*\)|\[[^]]*\]", "", text)
-
     # Remove irrelevant information
     junk_patterns = [
         r"\bofficial\s+(?:music\s+)?video\b",
@@ -759,18 +776,14 @@ def clean_metadata(text):
     ]
     for pattern in junk_patterns:
         text = re.sub(pattern, "", text, flags=re.IGNORECASE)
-
     # Standardize the separators between artists
     text = re.sub(r"\s*[;&]\s*", ", ", text)
-
     # Avoid duplicate commas and spaces
     text = re.sub(r"\s*,\s*", ", ", text)
     text = re.sub(r"(?:,\s*){2,}", ", ", text)
-
     # Remove spaces and residual punctuation
     text = re.sub(r"\s+", " ", text)
     text = re.sub(r"\s*[.,;:!?]+\s*$", "", text)
-
     return text.strip(" \t\r\n-–—;,:|,")
 
 def convert_img_for_display(img):
@@ -886,10 +899,6 @@ def get_cached_cover_url(title):
                 (title,)
             )
             row = cursor.fetchone()
-            if row and row[0] and core.DEBUG:
-                print(f"Cover url found in sql cache => {row[0]}")
-            elif core.DEBUG:
-                print(f"Cover url NOT found in sql cache")
             return row[0] if row and row[0] else None
     except Exception as e:
         if core.DEBUG:
@@ -1052,20 +1061,17 @@ def cover_worker():
                         cover_url = get_cached_cover_url(title)
                         if cover_url:
                             if core.DEBUG:
-                                print(
-                                    f"Cover found in moOde cache after "
-                                    f"{time.monotonic() - start_time:.1f}s"
-                                )
+                                print(f"Cover found in moOde cache after {time.monotonic() - start_time:.1f}s")
                             break
                         time.sleep(0.5)
-                    # Only search ourselves if this request is still current
+                    if not cover_url:
+                        if core.DEBUG:
+                            print(f"Cover url NOT found in sql cache after {timeout}s")
+                    # Only search if this request is still current
                     with cover_lock:
                         is_current = request_id == cover_request_id
                     if is_current and not cover_url:
-                        cover_url = search_radiocover_plus(
-                            title,
-                            "" if is_yt else artist_album
-                        )
+                        cover_url = search_radiocover_plus(title, "" if is_yt else artist_album)
                     if is_current and cover_url:
                         cover_img = download_cover_image(cover_url)
                 # Radio station logo fallback
@@ -2822,20 +2828,22 @@ def draw_ui_menu():
         ui_flags.add(core.t("menu_extra_infos"))
     if show_progress_barre:
         ui_flags.add(core.t("menu_progress_bare"))
-    if show_cover:
-        ui_flags.add(core.t("menu_cover_bg"))
-    if show_cover_alt:
-        ui_flags.add(core.t("menu_cover_bg_alt"))
+    for item in ui_menu_options:
+        if item["id"] == "cover_bg":
+            item["label"] = (core.t("menu_cover") + f": {cover_bg_labels.get(show_cover_bg, cover_bg_labels['off'])}")
     if show_spectrum:
         ui_flags.add(core.t("menu_spectrum"))
+    for item in ui_menu_options:
+        if item["id"] == "peak_vu":
+            item["label"] = (core.t("menu_peak_vu") + f": {peak_vu_labels.get(show_peak_vu, peak_vu_labels['off'])}")
+        elif item["id"] == "peak_vu_style":
+            item["label"] = (core.t("menu_peak_vu_style") + f": {peak_vu_style_labels.get(peak_vu_style, peak_vu_style_labels['horizontal_inline'])}")
     if show_meters_alt:
         ui_flags.add(core.t("menu_meters_alt"))
     if show_vol_bar:
         ui_flags.add(core.t("menu_vol_bar"))
     if show_clock:
         ui_flags.add(core.t("menu_clock"))
-    if show_peak:
-        ui_flags.add(core.t("menu_peak"))
     core.draw_custom_menu([item["label"] for item in ui_menu_options], ui_menu_selection, title=core.t("title_ui"), multi=ui_flags)
 
 def draw_screensaver_menu():
@@ -2935,25 +2943,22 @@ def monitor_mpd_spectrum():
                 events = client.idle()
                 if 'player' not in events:
                     continue
-                song_data = client.currentsong()
-                path = song_data.get("file", "")
-                path_changed = path != last_path
-                last_path = path
-                if not path_changed:
-                    if core.DEBUG:
-                        print("Skip spectro refresh (same path)")
-                    continue
-                if core.DEBUG:
-                    print(f"Path change => refresh spectro: {path}")
-                if time.time() - last_toggle < 0.2:
+                if menu_context_flag == "radio":
+                    song_data = client.currentsong()
+                    path = song_data.get("file", "")
+                    path_changed = path != last_path
+                    last_path = path
+                    if not path_changed:
+                        continue
+                if time.time() - last_toggle < 0.4:
                     continue
                 stop_spectrum()
-                time.sleep(0.02)
+                time.sleep(0.03)
                 client.pause()
                 time.sleep(0.02)
                 client.pause()
                 last_toggle = time.time()
-                time.sleep(0.02)
+                time.sleep(0.03)
                 start_spectrum()
             except Exception as e:
                 print("MPD monitor error:", e)
@@ -2988,8 +2993,19 @@ def interpolate_palette(value, palette):
             return (r, g, b)
     return palette[-1][1]
 
-def draw_spectrum(y_top, height, levels, attack=1.0, release=0.80, width_spec=core.width):
+def get_spectrum_geometry(width_spec, num_bars):
+    # layout: keep 1px spacing (pitch - 1)
+    if num_bars <= 0:
+        return 0, 0, 0, 0, 0
+    total_width = int(width_spec)
+    pitch = total_width // num_bars
+    bar_width = max(1, pitch - 1)
+    margin_left = (core.width - pitch * num_bars) // 2
+    x0 = margin_left
+    x1 = margin_left + (num_bars - 1) * pitch + bar_width
+    return margin_left, pitch, bar_width, x0, x1
 
+def draw_spectrum(y_top, height, levels, attack=0.9, release=0.80, width_spec=core.width):
     palette = PALETTE_SPECTRUM
     num_bars = len(levels)
     if num_bars <= 0:
@@ -3003,14 +3019,8 @@ def draw_spectrum(y_top, height, levels, attack=1.0, release=0.80, width_spec=co
         draw_spectrum.vis_peak = 1e-6
     vis = draw_spectrum.vis_levels
     # layout: keep 1px spacing (pitch - 1)
-    total_width = int(width_spec) - 4
-    pitch = total_width // num_bars
-    bar_width = max(1, pitch - 1)
-    margin_left = (core.width - (pitch * num_bars)) // 2
-    draw_spectrum.bounds = (
-        margin_left,
-        margin_left + (num_bars - 1) * pitch + bar_width
-    )
+    margin_left, pitch, bar_width, x0, x1 = get_spectrum_geometry(width_spec, num_bars)
+    draw_spectrum.bounds = (x0, x1)
     # Precompute gradient (top -> bottom)
     if height <= 1:
         global_gradient = [interpolate_palette(1.0, palette)]
@@ -3053,110 +3063,373 @@ def draw_spectrum(y_top, height, levels, attack=1.0, release=0.80, width_spec=co
             color = global_gradient[idx]
             core.draw.rectangle((x0, y_start + y, x1, y_start + y), fill=color)
 
-def draw_peak_meters(y_top1, y_top2, pad_x, peak_bar_h, width, peak_info,
-                     attack=0.9, release=0.9, peak_hold_time=0.5):
-    default_state = {
-        "left_vis": 0.0,
-        "right_vis": 0.0,
-        "left_peak": 0.0,
-        "right_peak": 0.0,
-        "left_peak_ts": 0.0,
-        "right_peak_ts": 0.0,
-    }
-    if not hasattr(draw_peak_meters, "state"):
-        draw_peak_meters.state = default_state.copy()
-    else:
-        for k, v in default_state.items():
-            if k not in draw_peak_meters.state:
-                draw_peak_meters.state[k] = v
+METER_DB_MIN = -42.0
+METER_DB_GAMMA = 1.4
+METER_DB_STEPS = (3, 6, 8, 10, 12, 18)
+marker_color = tuple(int(c * 0.65) for c in core.COLOR_ARTIST)
 
-    s = draw_peak_meters.state
+def get_meter_db_marks(length_px, font, min_label_gap=4, label_axis="x", start_padding=0,):
+    if length_px <= 0:
+        return (0.0,)
+    def label_extent(db):
+        label = f"{int(db):+d}" if db < 0 else " 0"
+        bbox = font.getbbox(label)
+        if label_axis == "y":
+            return bbox[3] - bbox[1]
+        return bbox[2] - bbox[0]
+    for step in METER_DB_STEPS:
+        marks = sorted(range(0, int(METER_DB_MIN), -step))
+        # Remove markers that are too close to the edge
+        while marks:
+            first_pos = meter_db_to_ratio(marks[0]) * (length_px - 1)
+            if first_pos >= start_padding:
+                break
+            marks.pop(0)
+        if not marks:
+            continue
+        positions = [meter_db_to_ratio(db) * (length_px - 1) for db in marks]
+        # Checking the Actual Spacing Between Labels
+        spacing_ok = all(
+            positions[i + 1] - positions[i]
+            >= max(
+                label_extent(marks[i]),
+                label_extent(marks[i + 1])
+            ) + min_label_gap
+            for i in range(len(marks) - 1)
+        )
+        if spacing_ok:
+            return tuple(marks)
+    return (0.0,)
+
+def meter_db_to_ratio(db):
+    ratio = max(0.0, min(1.0, (db - METER_DB_MIN) / (0.0 - METER_DB_MIN)))
+    return ratio ** METER_DB_GAMMA
+
+def level_to_vis(value):
+    if value <= 0:
+        return 0.0
+    db = 20.0 * math.log10(value)
+    ratio = max(0.0, min(1.0, (db - METER_DB_MIN) / (0.0 - METER_DB_MIN)))
+    return ratio ** METER_DB_GAMMA
+
+def get_vis(s, kind, channel, value, attack=0.99, release=0.99):
+    key = f"{kind}_{channel}_vis"
+    previous = s.get(key, 0.0)
+    target = level_to_vis(value)
+    if kind == "peak":
+        factor = attack if target >= previous else release
+        current = previous * (1.0 - factor) + target * factor
+    else:
+        current = target
+    s[key] = current
+    return current
+
+def get_gradient(length):
     palette = PALETTE_SPECTRUM
+    if length <= 1:
+        return [interpolate_palette(1.0, palette)]
+    return [
+        interpolate_palette(i / (length - 1), palette)
+        for i in range(length)
+    ]
 
-    left_lin = peak_info.get("left_peak", 0.0)
-    right_lin = peak_info.get("right_peak", 0.0)
-    # small power curve for better visibility
-    left_vis_target = left_lin ** 0.8
-    right_vis_target = right_lin ** 0.8
+def get_bar_color(i, gradient, over=False, over_start=0):
+    normal_color = gradient[min(i, len(gradient) - 1)]
+    if not over or i < over_start:
+        return normal_color
+    if core.display_format != "MONO":
+        return (255, 0, 0)
+    # Monochrome Hatching
+    return core.COLOR_PROGRESS_BG if i % 2 == 0 else normal_color
 
-    # smoothing (attack/release)
-    def smooth(prev, tgt):
-        if tgt >= prev:
-            a = attack
-            return prev * (1.0 - a) + tgt * a
+def update_peak_hold(s, channel, vis, now, peak_hold_time=0.5):
+    key = f"peak_{channel}"
+    ts_key = f"{key}_ts"
+    if vis > s.get(key, 0.0):
+        s[key] = vis
+        s[ts_key] = now
+    elif now - s.get(ts_key, 0.0) > peak_hold_time:
+        s[key] = max(0.0, s.get(key, 0.0) * 0.96)
+    return s.get(key, 0.0)
+
+def draw_meters_horizontal(y_top, bar_h, x0, x1, peak_info, mode="peak", layout="horizontal_inline", row_gap=2, scale_extra_h=0):
+    if not hasattr(draw_meters_horizontal, "state"):
+        draw_meters_horizontal.state = {}
+    s = draw_meters_horizontal.state
+
+    values = {
+        "peak": {
+            "left": max(0.0, peak_info.get("left_peak", 0.0)),
+            "right": max(0.0, peak_info.get("right_peak", 0.0)),
+        },
+        "vu": {
+            "left": max(0.0, peak_info.get("left_vu", 0.0)),
+            "right": max(0.0, peak_info.get("right_vu", 0.0)),
+        },
+    }
+
+    modes = ("peak", "vu") if mode == "both" else (mode,)
+    channels = ("left", "right")
+
+    def draw_bar(y, length, gradient, over=False):
+        over_start = max(0, length - max(1, round(length * 0.05))) if over else length
+        for i in range(length):
+            color = get_bar_color(i, gradient, over, over_start)
+            core.draw.line((x0 + i, y, x0 + i, y + bar_h - 1), fill=color)
+
+    def draw_peak_hold(y, position):
+        if x0 <= position < x1:
+            core.draw.line((position, y, position, y + bar_h - 1), fill=core.COLOR_ARTIST)
+
+    # Geometry
+    width = max(0, x1 - x0)
+    if width <= 0:
+        return
+    center_gap = min(4, max(2, width // 20))
+    center = (x0 + x1) // 2
+
+    # --- dBFS scale markers ---
+    if scale_extra_h > 0:
+        max_label_w = font_meters_label.getlength(str(METER_DB_MIN))
+        if layout == "horizontal_separate":
+            rows_count = 4 if mode == "both" else 2
+            db_marks = get_meter_db_marks(width, font_meters_label, min_label_gap=4, label_axis="x", start_padding=round(max_label_w) + 2,)
         else:
-            r = release
-            return prev * (1.0 - r) + tgt * r
+            rows_count = 2 if mode == "both" else 1
+            left_width = max(0, center - x0 - center_gap // 2)
+            right_width = max(0, x1 - center - (center_gap - center_gap // 2))
+            # Width of the largest label that can be merged
+            merge_label = f"{int(METER_DB_MIN):+d}"
+            bbox = font_meters_label.getbbox(merge_label)
+            merge_label_w = bbox[2] - bbox[0]
+            # Required space between the first two markers
+            marker_gap = center_gap + 1
+            merge_margin = 2
+            start_padding = max(0, math.ceil((merge_label_w + 2 * merge_margin - marker_gap) / 2))
+            db_marks = get_meter_db_marks(min(left_width, right_width), font_meters_label, min_label_gap=4, label_axis="x", start_padding=start_padding,)
 
-    s["left_vis"] = smooth(s.get("left_vis", 0.0), left_vis_target)
-    s["right_vis"] = smooth(s.get("right_vis", 0.0), right_vis_target)
+        bars_height = (rows_count * bar_h + max(0, rows_count - 1) * row_gap)
+        scale_y = y_top + bars_height
+        for db in db_marks:
+            ratio = meter_db_to_ratio(db)
+            label = f"{int(db):+d}" if db < 0 else " 0"
+            bbox = font_meters_label.getbbox(label)
+            label_w = bbox[2] - bbox[0]
+            if layout == "horizontal_separate":
+                # Guides Spaced Across the Entire Width
+                x = x0 + round(ratio * (width - 1))
+                core.draw.line((x, y_top, x, scale_y + scale_extra_h), fill=marker_color)
+                # Labels to the left of the markers
+                core.draw.text((x - label_w - 2, scale_y + 2), label, font=font_meters_label, fill=core.COLOR_TRACK_TITLE)
+            else:  # Horizontal Inline
+                # Symmetric reference points around the center
+                left_width = max(0, center - x0 - center_gap // 2)
+                right_width = max(0, x1 - center - (center_gap - center_gap // 2))
+                left_start = center - center_gap // 2 - 1
+                right_start = center + (center_gap - center_gap // 2)
+                left_x = left_start - round(ratio * (left_width - 1))
+                right_x = right_start + round(ratio * (right_width - 1))
+                # Vertical reference marks
+                if left_width > 0:
+                    core.draw.line((left_x, y_top, left_x, scale_y + scale_extra_h), fill=marker_color)
+                if right_width > 0:
+                    core.draw.line((right_x, y_top, right_x, scale_y + scale_extra_h), fill=marker_color)
+                # Labels
+                label = f"{int(db):+d}" if db < 0 else " 0"
+                bbox = font_meters_label.getbbox(label)
+                label_w = bbox[2] - bbox[0]
+                left_label_x = left_x + 2
+                right_label_x = right_x - label_w - 2
+                # Check whether the two labels overlap
+                merge_label = left_label_x + label_w > right_label_x
+                if merge_label:
+                    # Check that the merged label fits between the guides
+                    available_width = right_x - left_x - 2 * 2
+                    if available_width >= label_w:
+                        label_x = (left_x + right_x - label_w) // 2
+                        core.draw.text((label_x, scale_y + 2), label, font=font_meters_label, fill=core.COLOR_TRACK_TITLE)
+                else:
+                    core.draw.text((left_label_x, scale_y + 2), label, font=font_meters_label, fill=core.COLOR_TRACK_TITLE)
+                    core.draw.text((right_label_x, scale_y + 2), label, font=font_meters_label, fill=core.COLOR_TRACK_TITLE)
 
-    # peak hold updates
-    now_ts = time.time()
-    if s["left_vis"] > s.get("left_peak", 0.0):
-        s["left_peak"] = s["left_vis"]
-        s["left_peak_ts"] = now_ts
-    else:
-        if now_ts - s.get("left_peak_ts", 0.0) > peak_hold_time:
-            s["left_peak"] = max(0.0, s.get("left_peak", 0.0) * 0.96)
+    # Display order: Peak, then VU
+    now = time.time()
+    row = 0
+    for kind in modes:
+        levels = {}
+        for channel in channels: levels[channel] = get_vis(s, kind, channel, values[kind][channel])
+        if kind == "peak":
+            holds = {channel: update_peak_hold(s, channel, levels[channel], now) for channel in channels}
+        if layout == "horizontal_separate":
+            gradient = get_gradient(width)
+            for channel in channels:
+                y = int(y_top + row * (bar_h + row_gap))
+                # Background
+                if not show_cover:
+                    core.draw.rectangle((x0, y, x1 - 1, y + bar_h - 1), fill=core.COLOR_PROGRESS_BG)
+                over = kind == "peak" and values[kind][channel] > 1.0
+                filled = width if over else min(width, int(round(levels[channel] * width)))
+                draw_bar(y, filled, gradient, over=over)
+                if kind == "peak":
+                    # Peak hold
+                    hold_x = x0 + min(width - 1, int(round(holds[channel] * (width - 1))))
+                    draw_peak_hold(y, hold_x)
+                row += 1
+        else:  # horizontal_inline
+            y = int(y_top + row * (bar_h + row_gap))
+            # Background
+            if not show_cover:
+                core.draw.rectangle((x0, y, center - center_gap, y + bar_h - 1), fill=core.COLOR_PROGRESS_BG)
+                core.draw.rectangle((center + center_gap, y, x1 - 1, y + bar_h - 1), fill=core.COLOR_PROGRESS_BG)
+            left_width = max(0, center - x0 - center_gap // 2)
+            right_width = max(0, x1 - center - (center_gap - center_gap // 2))
+            left_gradient = get_gradient(left_width)
+            right_gradient = get_gradient(right_width)
+            for channel, start, capacity, gradient, direction in (
+                ("left", center - center_gap // 2 - 1,
+                 left_width, left_gradient, -1),
+                ("right", center + (center_gap - center_gap // 2),
+                 right_width, right_gradient, 1),
+            ):
+                over = kind == "peak" and values[kind][channel] > 1.0
+                filled = capacity if over else min(capacity, int(round(levels[channel] * capacity)))
+                over_start = max(0, filled - max(1, round(filled * 0.05))) if over else filled
+                for i in range(filled):
+                    x = start + direction * i
+                    color = get_bar_color(i, gradient, over, over_start)
+                    core.draw.line((x, y, x, y + bar_h - 1), fill=color)
+                if kind == "peak":
+                    # Peak hold
+                    if capacity:
+                        hold_pos = int(round(holds[channel] * (capacity - 1)))
+                        draw_peak_hold(y, start + direction * hold_pos)
+            row += 1
 
-    if s["right_vis"] > s.get("right_peak", 0.0):
-        s["right_peak"] = s["right_vis"]
-        s["right_peak_ts"] = now_ts
-    else:
-        if now_ts - s.get("right_peak_ts", 0.0) > peak_hold_time:
-            s["right_peak"] = max(0.0, s.get("right_peak", 0.0) * 0.96)
+def draw_meters_vertical(left_x0, left_x1, right_x0, right_x1, y0, y1, vbar_w, vbar_gap, peak_info, mode="peak", scale_extra_w=0):
+    if not hasattr(draw_meters_vertical, "state"):
+        draw_meters_vertical.state = {}
+    s = draw_meters_vertical.state
+    height = max(0, y1 - y0)
+    if height <= 0:
+        return
 
-    # Visual params
-    if show_spectrum and hasattr(draw_spectrum, "bounds"):
-        x0, x1 = draw_spectrum.bounds
-    else:
-        x0 = (core.width - int(width)) // 2 + int(pad_x) + 2
-        x1 = (core.width + int(width)) // 2 - int(pad_x) + 2
+    values = {
+        "peak": {
+            "left": max(0.0, peak_info.get("left_peak", 0.0)),
+            "right": max(0.0, peak_info.get("right_peak", 0.0)),
+        },
+        "vu": {
+            "left": max(0.0, peak_info.get("left_vu", 0.0)),
+            "right": max(0.0, peak_info.get("right_vu", 0.0)),
+        },
+    }
 
-    bar_w = max(0, int(x1) - int(x0))
+    modes = ("peak", "vu") if mode == "both" else (mode,)
+    if mode not in ("peak", "vu", "both"):
+        return
+    # Single mode: double width compared to both mode
+    bar_w = vbar_w if mode == "both" else vbar_w * 2
+    gradient = get_gradient(height)
 
-    # build gradient of exactly bar_w colors (left->right)
-    if bar_w <= 1:
-        global_gradient = [interpolate_palette(1.0, palette)]
-    else:
-        global_gradient = [interpolate_palette(xx / (bar_w - 1), palette) for xx in range(bar_w)]
+    def draw_bar(x0, x1, kind, level, hold=None, over=False):
+        if x1 <= x0:
+            return
+        # Background
+        if not show_cover or show_cover_alt:
+            core.draw.rectangle((x0, y0, x1 - 1, y1 - 1), fill=core.COLOR_PROGRESS_BG)
+        filled = min(height, int(round(level * height)))
+        over_start = max(0, filled - max(1, round(filled * 0.05))) if over else filled
+        # Bar grows from bottom to top
+        for i in range(filled):
+            color = get_bar_color(i, gradient, over, over_start)
+            y = y1 - 1 - i
+            core.draw.line((x0, y, x1 - 1, y), fill=color)
+        if kind == "peak":
+            # Peak hold
+            if hold is not None:
+                hold_pos = min(height - 1, int(round(hold * (height - 1))))
+                hold_y = y1 - 1 - hold_pos
+                core.draw.line((x0, hold_y, x1 - 1, hold_y), fill=core.COLOR_ARTIST)
 
-    # --- LEFT BAR ---
-    y0 = int(y_top1)
-    # background
-    if not show_cover:
-        core.draw.rectangle((x0, y0, x1 - 1, y0 + peak_bar_h - 1), fill=core.COLOR_PROGRESS_BG)
+    now = time.time()
 
-    # compute how many pixels to fill (0..bar_w)
-    filled = int(round(s["left_vis"] * bar_w))
-    filled = max(0, min(filled, bar_w))
+    for channel, zone_x0, zone_x1 in (("left", left_x0, left_x1), ("right", right_x0, right_x1),):
+        zone_width = zone_x1 - zone_x0
+        if zone_width <= 0:
+            continue
+        # Space reserved for labels, outside the group
+        if scale_extra_w > 0:
+            if channel == "left":
+                group_zone_x0 = zone_x0 + scale_extra_w
+                group_zone_x1 = zone_x1
+            else:
+                group_zone_x0 = zone_x0
+                group_zone_x1 = zone_x1 - scale_extra_w
+        else:
+            group_zone_x0 = zone_x0
+            group_zone_x1 = zone_x1
+        group_zone_width = group_zone_x1 - group_zone_x0
+        if group_zone_width <= 0:
+            continue
 
-    # draw per-column gradient so gradient maps to full width
-    for ix in range(filled):
-        color = global_gradient[ix]
-        # draw single-pixel wide vertical strip
-        core.draw.rectangle((x0 + ix, y0, x0 + ix, y0 + peak_bar_h - 1), fill=color)
+        if mode == "both":
+            group_width = bar_w * 2 + vbar_gap
+            group_x0 = (group_zone_x0 + group_zone_x1 - group_width) // 2
+            if channel == "left":
+                positions = {"peak": group_x0, "vu": group_x0 + bar_w + vbar_gap,}
+            else:
+                positions = {"vu": group_x0, "peak": group_x0 + bar_w + vbar_gap,}
+        else:
+            # Single mode: one centered, double-width bar
+            group_width = bar_w
+            center_x = (group_zone_x0 + group_zone_x1) // 2
+            start_x = center_x - group_width // 2
+            group_x0 = start_x
+            positions = {mode: start_x}
 
-    # peak marker (cap to last pixel)
-    if bar_w > 0:
-        pkx = x0 + min(bar_w - 1, int(round(s.get("left_peak", 0.0) * (bar_w - 1))))
-        core.draw.rectangle((pkx, y0, pkx, y0 + peak_bar_h - 1), fill=core.COLOR_ARTIST)
+        if group_width > group_zone_width:
+            continue
 
-    # --- RIGHT BAR ---
-    y1 = int(y_top2)
-    if not show_cover:
-        core.draw.rectangle((x0, y1, x1 - 1, y1 + peak_bar_h - 1), fill=core.COLOR_PROGRESS_BG)
+        # dBFS Reference Points and Labels
+        if scale_extra_w > 0:
+            bbox = font_meters_label.getbbox(str(METER_DB_MIN))
+            label_h = bbox[3] - bbox[1]
+            db_marks = get_meter_db_marks(height, font_meters_label, min_label_gap=8, label_axis="y", start_padding=label_h + 4,)
+            label_width = scale_extra_w - 2 - 2
+            for db in db_marks:
+                ratio = meter_db_to_ratio(db)
+                y = y1 - 1 - int(round(ratio * (height - 1)))
+                if channel == "left":
+                    marker_x0 = group_x0 - scale_extra_w
+                    marker_x1 = group_x0 + group_width - 1
+                    label_x = marker_x0
+                else:
+                    marker_x0 = group_x0
+                    marker_x1 = group_x0 + group_width + scale_extra_w - 1
+                    label_x = marker_x1 - label_width + 1
+                core.draw.line((marker_x0, y, marker_x1, y), fill=marker_color)
 
-    filled_r = int(round(s["right_vis"] * bar_w))
-    filled_r = max(0, min(filled_r, bar_w))
-    for ix in range(filled_r):
-        color = global_gradient[ix]
-        core.draw.rectangle((x0 + ix, y1, x0 + ix, y1 + peak_bar_h - 1), fill=color)
+                label = f"{int(db):+d}" if db < 0 else f" {int(db)}"
+                bbox = font_meters_label.getbbox(label)
+                text_w = bbox[2] - bbox[0]
+                text_h = bbox[3] - bbox[1]
+                # Center the text within the allocated width
+                text_x = label_x + (label_width - text_w) // 2
+                text_y = y + 2
+                core.draw.text((text_x, text_y), label, font=font_meters_label, fill=core.COLOR_TRACK_TITLE)
 
-    if bar_w > 0:
-        pkx_r = x0 + min(bar_w - 1, int(round(s.get("right_peak", 0.0) * (bar_w - 1))))
-        core.draw.rectangle((pkx_r, y1, pkx_r, y1 + peak_bar_h - 1), fill=core.COLOR_ARTIST)
+        for kind in modes:
+            x0 = positions[kind]
+            x1 = x0 + bar_w
+            # Keep the bar inside its zone
+            x0 = max(group_zone_x0, x0)
+            x1 = min(group_zone_x1, x1)
+            value = values[kind][channel]
+            level = get_vis(s, kind, channel, value)
+            hold = update_peak_hold(s, channel, level, now) if kind == "peak" else None
+            over = kind == "peak" and value > 1.0
+
+            draw_bar(x0, x1, kind, level, hold, over)
 
 def draw_nowplaying():
     now = time.time()
@@ -3179,29 +3452,36 @@ def draw_nowplaying():
 
     state = global_state.get("state", "unknown")
     volume = global_state.get("volume", "N/A")
-    volume_display = "Vol: Bt" if is_bt_local_active() else f"Vol: {volume}"
+    volume_display = "vol Bt" if is_bt_local_active() else f"vol {volume}"
 
-    padding_x = max(2, int(core.width * 0.015)) if core.height > 64 else 0
-    padding_y = max(2, int(core.height * 0.01)) if core.height > 64 else 0
+    has_spectrum = show_spectrum and spectrum is not None
+    vertical_meters = show_peak and peak_vu_style == "vertical"
+    horizontal_meters = show_peak and peak_vu_style != "vertical"
+
+    padding_x = max(2, int(round(core.width * 0.012))) if core.height > 64 else 0
+    padding_y = max(2, int(round(core.height * 0.010))) if core.height > 64 else 0
+
+    padding_mask = 2
+    radius_mask = 2
 
     if core.height < 64:
         spacing = 1
         top_bar_h = icon_width + 2
     elif core.height <= 96:
-        spacing = 2 if show_spectrum or show_peak or show_cover else 4
+        spacing = 2 if show_spectrum or show_peak or show_cover_alt else 4
         top_bar_h = icon_width + 3 if show_spectrum or show_peak else icon_width + 4
     elif core.height <= 128:
-        spacing = 4 if show_spectrum or show_peak or show_cover else 10
+        spacing = 4 if show_spectrum or show_peak or show_cover_alt else 10
         top_bar_h = icon_width + 4 if show_spectrum or show_peak else icon_width + 10
     elif core.height <= 160:
-        spacing = 6 if show_spectrum or show_peak or show_cover else 16
+        spacing = 6 if show_spectrum or show_peak or show_cover_alt else 16
         top_bar_h = icon_width + 8 if show_spectrum or show_peak else icon_width + 16
     elif core.height == 170:
-        spacing = 4 if show_spectrum or show_peak or show_cover else 8
+        spacing = 4 if show_spectrum or show_peak or show_cover_alt else 8
         top_bar_h = icon_width + 5 if show_spectrum or show_peak else icon_width + 12
     else:
-        spacing = 4 if show_cover and show_cover_alt else 10 if show_spectrum or show_peak else 20
-        top_bar_h = icon_width + 11 if show_spectrum or show_peak else icon_width + 22
+        spacing = 4 if show_cover_alt else 8 if show_spectrum or show_peak else 20
+        top_bar_h = icon_width + 10 if show_spectrum or show_peak or show_cover_alt else icon_width + 22
 
     if not show_icons:
         top_bar_h = spacing if core.height > 64 else 0
@@ -3261,7 +3541,7 @@ def draw_nowplaying():
         core.draw.text((x, y), clock_text, font=font_stop_clock, fill=core.COLOR_STOP_CLOCK)
 
         # Volume barre
-        vol_bar_h = font_vol_clock.getbbox("Vol: 100")[3]
+        vol_bar_h = font_vol_clock.getbbox("vol 100")[3]
         y_vol_bar = core.height - vol_bar_h - padding_y
 
         core.draw.text((3, y_vol_bar), volume_display, font=font_vol_clock, fill=core.COLOR_VOL_CLOCK)
@@ -3346,7 +3626,7 @@ def draw_nowplaying():
                     if text_mask_bg is not None:
                         draw_mask(
                             (0, y - 3, display_width, y + text_h + 3),
-                            (0, 0, 0, 140),
+                            text_mask_bg,
                             radius=2
                         )
 
@@ -3363,8 +3643,8 @@ def draw_nowplaying():
                 if text_mask_bg is not None:
                     draw_mask(
                         (x - 3, y - 3, x + text_width + 3, y + text_h + 3),
-                        (0, 0, 0, 140),
-                        radius=4
+                        text_mask_bg,
+                        radius=2
                     )
 
                 if render_img.mode == "RGBA":
@@ -3409,7 +3689,7 @@ def draw_nowplaying():
                     core.COLOR_EXTRA_INFO,
                     background=text_mask_bg
                 )
-                y_progress = y_extra_info + extra_info_h + spacing
+                y_progress = y_extra_info + extra_info_h + spacing + (padding_mask if text_mask_bg is not None else 0)
             else:
                 y_progress = y_extra_info
         else:
@@ -3428,18 +3708,33 @@ def draw_nowplaying():
                 core.draw.line((progress_x, y_progress, progress_x + fill_w, y_progress), fill=core.COLOR_PROGRESS, width=progress_h)
             else:
                 # Background barre
-                if not show_cover or (show_cover and show_cover_alt):
+                if not show_cover or show_cover_alt:
                     core.draw.line((progress_x, y_progress, progress_x + progress_w, y_progress), fill=core.COLOR_PROGRESS_BG, width=progress_h)
                 # Progress fill
                 if fill_w > 0:
                     core.draw.line((progress_x, y_progress, progress_x + fill_w, y_progress), fill=core.COLOR_PROGRESS, width=progress_h)
-            y_spectrum = y_progress + progress_h + spacing + (2 if show_cover else 0)
+            y_spectrum = y_progress + progress_h + spacing + (2 if show_cover_alt else 0)
         else:
-            y_spectrum = y_progress + (2 if show_cover else 0)
+            y_spectrum = y_progress + (2 if show_cover_alt else 0)
+
+        # Top vertical Meters
+        y_meters_v = y_spectrum
+        if not show_vol_bar and show_cover and (not show_cover_alt or show_meters_alt):
+            pad_meters_v = padding_y
+        elif not show_vol_bar and show_cover and (show_cover_alt or not show_meters_alt):
+            pad_meters_v = 0
+        else:
+            pad_meters_v = spacing
+
+        # Width vertical meters proportional to screen resolution
+        vbar_w = max(2, min(8, core.width // 36))
+        vbar_gap = max(1, min(4, core.width // 80))
 
         # define avaible space for meters
         if show_vol_bar:
-            vol_bar_h = font_vol_clock.getbbox("Vol: 100")[3]
+            vol_bbox = font_vol_clock.getbbox(volume_display)
+            vol_txt_h = vol_bbox[3] - vol_bbox[1] if text_mask_bg is not None else font_vol_clock.getbbox("vol 100")[3]
+            vol_bar_h = vol_txt_h + padding_y + ((padding_mask * 2) if text_mask_bg is not None else 0)
             if show_clock:
                 clock_text = global_state["clock"]
             else:
@@ -3449,91 +3744,212 @@ def draw_nowplaying():
                 if menu_context_flag == "radio":
                     clock_text = f"{elapsed_str}"
                 else:
-                    clock_text = f"{remaining_str}" if show_meters_alt or (show_cover and show_cover_alt) else f"{elapsed_str}/{duration_str}"
-            vol_w = core.draw.textlength(volume_display, font=font_vol_clock)
+                    clock_text = f"{remaining_str}" if show_meters_alt or show_cover_alt else f"{elapsed_str}/{duration_str}"
+            vol_w = core.draw.textlength("vol 100", font=font_vol_clock)
             clock_w = core.draw.textlength(clock_text, font=font_vol_clock)
-            avaible_w = core.width - clock_w - vol_w - (padding_x * 4)
+            avaible_w = core.width - vol_w - clock_w - (padding_x * 4) - (padding_x * 2) - (padding_mask * 4 if text_mask_bg is not None else 0)
         else:
             vol_bar_h = 0
             avaible_w = core.width
-        y_vol_bar = core.height - vol_bar_h - padding_y
-        meters_w = core.width - padding_x * 4 if not show_meters_alt else avaible_w
+        y_vol_bar = core.height - vol_bar_h
+
+        # Reserve horizontal space for vertical meters
+        scale_extra_w = 0
+        if show_scale_labels and vertical_meters:
+            bbox_scale = font_meters_label.getbbox("-36")
+            scale_label_w = max(1, bbox_scale[2] - bbox_scale[0])
+            scale_extra_w = 2 + scale_label_w + 2
+
+        if vertical_meters and (not show_meters_alt or not show_vol_bar):
+            if show_peak_vu == "both":
+                vertical_group_w = vbar_w * 2 + vbar_gap
+            else:
+                vertical_group_w = vbar_w * 2
+
+            avaible_w = core.width - 2 * (vertical_group_w + scale_extra_w) - (4 * padding_x) - (padding_mask * 4 if text_mask_bg is not None else 0)
+            avaible_w = max(0, avaible_w)
+
+        meters_w = core.width - padding_x * 4 if (not show_meters_alt and show_vol_bar and horizontal_meters) or (show_meters_alt and not show_vol_bar and show_cover_alt and horizontal_meters) else avaible_w
 
         # --- Cover / Meters bounds ---
-        if show_spectrum and spectrum and show_meters_alt:
+        if has_spectrum:
             num_bars = len(spectrum.get_levels())
-            total_width = int(avaible_w) - 4
-            pitch = total_width // num_bars if num_bars else 0
-            bar_width = max(1, pitch - 1)
-
             if show_cover_alt:
-                cover_x0 = (core.width - pitch * num_bars) // 2
-                cover_x1 = cover_x0 + (num_bars - 1) * pitch + bar_width
-        elif show_cover_alt:
-            cover_x0 = (core.width - int(avaible_w)) // 2 + 4
-            cover_x1 = (core.width + int(avaible_w)) // 2
+                _, _, _, cover_x0, cover_x1 = get_spectrum_geometry(meters_w, num_bars)
+        elif show_cover_alt or not show_vol_bar:
+            cover_x0 = (core.width - int(meters_w)) // 2 + padding_x
+            cover_x1 = (core.width + int(meters_w)) // 2 - padding_x
 
-        # peak meter bars
-        peak_bar_h = max(2, min(4, core.height // 36)) if show_meters_alt else max(2, min(8, core.height // 36))
-        padding_peak = 1 if core.height < 64 else 2 if core.height <= 96 or show_meters_alt else 4
-        total_peak = (peak_bar_h * 2) + padding_peak + (padding_y if show_meters_alt else spacing)
+        # Horizontal meter dimensions
+        meter_bar_h = (max(2, min(6, core.height // 36)) if show_meters_alt else max(2, min(8, core.height // 36)))
+        padding_peak = (1 if core.height < 64 else 2 if core.height <= 96 or show_meters_alt else 4)
+        meter_count = 1 if peak_vu_style == "horizontal_inline" else 2
+        if show_peak_vu == "both":
+            meter_count *= 2
 
-        if show_cover and show_cover_alt:
-            draw_cover_background(cover_x0, cover_x1, y_spectrum, core.height - padding_y)
+        scale_extra_h = 0
+        if show_scale_labels:
+            bbox_scale = font_meters_label.getbbox("-36")
+            scale_label_h = max(1, bbox_scale[3] - bbox_scale[1])
+            scale_extra_h = 2 + scale_label_h + 2
+
+        meter_height = (meter_count * meter_bar_h + scale_extra_h + max(0, meter_count - 1) * padding_peak)
+
+        total_peak = meter_height + (padding_y if show_meters_alt else spacing) + (padding_mask * 2 if text_mask_bg is not None or show_cover_alt else 0)
+
+        if show_cover_alt:
+            if horizontal_meters:
+                draw_cover_background(cover_x0, cover_x1, y_spectrum, (core.height - padding_y) if show_meters_alt else y_vol_bar - spacing)
+            else:
+                draw_cover_background(cover_x0, cover_x1, y_spectrum, (core.height - padding_y) if show_meters_alt else y_vol_bar - pad_meters_v)
 
         # --- Spectrum ---
-        if show_spectrum and spectrum:
+        if has_spectrum:
             levels = spectrum.get_levels()
             if show_meters_alt:
-                spectrum_bottom = core.height - total_peak - padding_y if show_peak else core.height - padding_y
-                available_height = max(0, spectrum_bottom - y_spectrum - (total_peak if show_peak else 0))
-                #max_spectrum_h = (core.height // 2) - (core.height // 10)
-                #max_spectrum_h = ((available_height + (total_peak if show_peak else 0)) // 2 if core.height > 64 else core.height // 2) - (core.height // 10)
-                if core.height < 32:
-                    max_spectrum_h = available_height
-                else:
-                    max_spectrum_h = available_height // 4 + (total_peak if show_peak else 0)
-                spectrum_h = max(10, min(60, max_spectrum_h))
-                y_spectrum = spectrum_bottom - spectrum_h
-                draw_spectrum(y_top=y_spectrum, height=spectrum_h, levels=levels, width_spec=meters_w)
-                y_peak = y_spectrum + spectrum_h + spacing
+                spectrum_bottom = (
+                    (core.height - total_peak - padding_y)
+                    if horizontal_meters
+                    else core.height - (pad_meters_v if not show_vol_bar else padding_y)
+                ) - (padding_mask if text_mask_bg is not None else 0)
             else:
-                spectrum_bottom = y_vol_bar - spacing - (total_peak if show_peak else 0)
-                available_height = max(0, spectrum_bottom - y_spectrum - (total_peak if show_peak else 0))
-                max_spectrum_h = available_height // 2 + (total_peak if show_peak else 0)
-                spectrum_h = max(10, min(60, max_spectrum_h))
-                y_spectrum = spectrum_bottom - spectrum_h
-                if text_mask_bg is not None and hasattr(draw_spectrum, "bounds"):
-                    x0, x1 = draw_spectrum.bounds
-                    draw_mask(
-                        (x0 - 4, y_spectrum - 4, x1 + 4, y_spectrum + spectrum_h + 4),
-                        (0, 0, 0, 60),
-                        radius=2
-                    )
-                draw_spectrum(y_top=y_spectrum, height=spectrum_h, levels=levels, width_spec=meters_w)
-                y_peak = y_spectrum + spectrum_h + spacing
+                spectrum_bottom = (
+                    y_vol_bar - (total_peak + padding_y)
+                    if horizontal_meters
+                    else y_vol_bar - pad_meters_v
+                ) - (padding_mask if text_mask_bg is not None else 0)
+
+            available_height = max(0, spectrum_bottom - y_spectrum)
+            target_spectrum_h = int(meters_w * 0.25)
+            spectrum_h = min(target_spectrum_h, available_height)
+            y_spectrum = spectrum_bottom - spectrum_h
+
+            if text_mask_bg is not None and hasattr(draw_spectrum, "bounds"):
+                x0, x1 = draw_spectrum.bounds
+                draw_mask(
+                    (x0 - padding_mask, y_spectrum - padding_mask, x1 + padding_mask, y_spectrum + spectrum_h + padding_mask),
+                    (0, 0, 0, 90),
+                    radius=2
+                )
+            draw_spectrum(y_top=y_spectrum, height=spectrum_h, levels=levels, width_spec=meters_w)
+            y_peak = y_spectrum + spectrum_h + spacing
         else:
             y_peak = y_spectrum + spacing * 2
 
-        # --- Peak meter ---
+        # --- Peak/VU Meters ---
         if show_peak and spectrum:
-            pad_x = 2
-            y_top1 = core.height - total_peak if show_meters_alt else y_vol_bar - total_peak
-            y_top2 = y_top1 + peak_bar_h + padding_peak
-            peaks = spectrum.get_channel_peaks(volume_state=global_state.get("volume"), mixer_type=global_state.get("mpdmixer"), bt_active=is_bt_local_active())
-            if show_spectrum and hasattr(draw_spectrum, "bounds"):
+            pad_x = padding_x
+            # Vertical Range of the VU Meters
+            vertical_y0 = y_meters_v + pad_meters_v + (padding_mask if text_mask_bg is not None else 0)
+            vertical_y1 = y_vol_bar - pad_meters_v - (padding_mask if text_mask_bg is not None else 0)
+
+            if has_spectrum and hasattr(draw_spectrum, "bounds"):
+                spectrum_x0, spectrum_x1 = draw_spectrum.bounds
+            elif show_cover_alt:
+                spectrum_x0 = cover_x0
+                spectrum_x1 = cover_x1
+            else:
+                spectrum_x0 = (core.width - int(meters_w)) // 2 + padding_x
+                spectrum_x1 = (core.width + int(meters_w)) // 2 - padding_x
+
+            left_x0 = padding_x
+            left_x1 = spectrum_x0 - padding_x
+
+            right_x0 = spectrum_x1 + padding_x
+            right_x1 = core.width - padding_x
+
+            y_meter_h = (core.height - meter_height - padding_y if show_meters_alt else y_vol_bar - meter_height - spacing) - (padding_mask if text_mask_bg is not None or show_cover_alt else 0)
+
+            peaks = spectrum.get_channel_peaks(
+                volume_state=global_state.get("volume"),
+                mixer_type=global_state.get("mpdmixer"),
+                bt_active=is_bt_local_active(),
+                soft_correct=peak_correct
+            )
+
+            if has_spectrum and hasattr(draw_spectrum, "bounds"):
                 x0, x1 = draw_spectrum.bounds
             else:
-                x0 = (core.width - int(meters_w)) // 2 + pad_x + 2
-                x1 = (core.width + int(meters_w)) // 2 - pad_x + 2
+                x0 = (core.width - int(meters_w)) // 2 + pad_x
+                x1 = (core.width + int(meters_w)) // 2 - pad_x
 
-            if text_mask_bg is not None:
-                draw_mask(
-                    (x0 - 4, y_top1 - 4, x1 + 4, y_top2 + peak_bar_h + 4),
-                    (0, 0, 0, 60),
-                    radius=2
+            if text_mask_bg is not None or show_cover_alt:
+                if horizontal_meters:
+                    draw_mask(
+                        (x0 - padding_mask, y_meter_h - padding_mask,
+                        x1 + padding_mask, y_meter_h + meter_height + padding_mask),
+                        (0, 0, 0, 90),
+                        radius=2
+                    )
+                else:
+                    # Width of the bar group
+                    if show_peak_vu == "both":
+                        group_w = vbar_w * 2 + vbar_gap
+                    else:
+                        group_w = vbar_w * 2
+
+                    # Available zones after label reservations
+                    left_group_zone_x0 = left_x0 + scale_extra_w
+                    left_group_zone_x1 = left_x1
+                    right_group_zone_x0 = right_x0
+                    right_group_zone_x1 = right_x1 - scale_extra_w
+
+                    # Alignment is the same as in draw_meters_vertical()
+                    left_center = (left_group_zone_x0 + left_group_zone_x1) // 2
+                    right_center = (right_group_zone_x0 + right_group_zone_x1) // 2
+                    left_group_x0 = left_center - group_w // 2
+                    right_group_x0 = right_center - group_w // 2
+
+                    # Mask with labels and bars
+                    left_mask_x0 = left_group_x0 - scale_extra_w - padding_mask
+                    left_mask_x1 = left_group_x0 + group_w + padding_mask
+                    right_mask_x0 = right_group_x0 - padding_mask
+                    right_mask_x1 = right_group_x0 + group_w + scale_extra_w + padding_mask
+
+                    draw_mask(
+                        (
+                            left_mask_x0,
+                            vertical_y0 - padding_mask,
+                            left_mask_x1,
+                            vertical_y1 + padding_mask
+                        ),
+                        (0, 0, 0, 90),
+                        radius=2
+                    )
+
+                    draw_mask(
+                        (
+                            right_mask_x0,
+                            vertical_y0 - padding_mask,
+                            right_mask_x1,
+                            vertical_y1 + padding_mask
+                        ),
+                        (0, 0, 0, 90),
+                        radius=2
+                    )
+
+            if vertical_meters:
+                draw_meters_vertical(
+                    left_x0, left_x1,
+                    right_x0, right_x1,
+                    vertical_y0, vertical_y1,
+                    vbar_w, vbar_gap,
+                    peaks,
+                    mode=show_peak_vu,
+                    scale_extra_w=scale_extra_w
                 )
-            draw_peak_meters(y_top1, y_top2, pad_x, peak_bar_h, meters_w, peaks)
+            else:
+                draw_meters_horizontal(
+                    y_meter_h,
+                    meter_bar_h,
+                    x0,
+                    x1,
+                    peaks,
+                    mode=show_peak_vu,
+                    layout=peak_vu_style,
+                    row_gap=padding_peak,
+                    scale_extra_h=scale_extra_h
+                )
 
         # --- Bottom bar (Volume / Clock) ---
         if show_vol_bar:
@@ -3542,7 +3958,8 @@ def draw_nowplaying():
                 volume_display,
                 font_vol_clock,
                 core.COLOR_VOL_CLOCK,
-                background=text_mask_bg
+                background=text_mask_bg,
+                padding=padding_mask
             )
 
             draw_text_with_mask(
@@ -3550,7 +3967,8 @@ def draw_nowplaying():
                 clock_text,
                 font_vol_clock,
                 core.COLOR_VOL_CLOCK,
-                background=text_mask_bg
+                background=text_mask_bg,
+                padding=padding_mask
             )
 
         #core.draw.line((0, core.height + 1, core.width, core.height + 1), fill=core.COLOR_PROGRESS, width=1)
@@ -4377,7 +4795,8 @@ def finish_press(key):
         return
 
     if ui_menu_active:
-        global show_icons, show_one_line, show_extra_infos, show_progress_barre, show_cover, show_cover_alt, show_spectrum, show_peak, show_meters_alt, show_vol_bar, show_clock
+        global show_icons, show_one_line, show_extra_infos, show_progress_barre, show_cover_bg, show_cover, show_cover_alt, show_vol_bar, show_clock
+        global show_spectrum, show_peak_vu, show_peak, peak_vu_style, show_meters_alt
         if key == "KEY_UP" and ui_menu_selection > 0:
             ui_menu_selection -= 1
             core.reset_scroll("menu_item")
@@ -4407,13 +4826,12 @@ def finish_press(key):
                 core.save_config("show_progress_barre", new_progress, section="nowplaying")
                 show_progress_barre = new_progress
             elif option_id == "cover_bg":
-                new_cover_bg = not show_cover
-                core.save_config("show_cover", new_cover_bg, section="nowplaying")
-                show_cover = new_cover_bg
-            elif option_id == "cover_bg_alt":
-                new_cover_bg_alt = not show_cover_alt
-                core.save_config("show_cover_alt", new_cover_bg_alt, section="nowplaying")
-                show_cover_alt = new_cover_bg_alt
+                idx = cover_bg_options.index(show_cover_bg)
+                new_cover_bg = cover_bg_options[(idx + 1) % len(cover_bg_options)]
+                show_cover_bg = new_cover_bg
+                core.save_config("show_cover_bg", show_cover_bg, section="nowplaying")
+                show_cover = show_cover_bg != "off"
+                show_cover_alt = show_cover_bg == "resized"
             elif option_id == "spectrum":
                 if not is_spectrum_available():
                     core.show_message(core.t("error_spectrum"))
@@ -4422,14 +4840,21 @@ def finish_press(key):
                 new_spectrum = not show_spectrum
                 core.save_config("show_spectrum", new_spectrum, section="nowplaying")
                 show_spectrum = new_spectrum
-            elif option_id == "peak":
-                if not is_spectrum_available():
+            elif option_id == "peak_vu":
+                idx = peak_vu_options.index(show_peak_vu)
+                new_peak_vu = peak_vu_options[(idx + 1) % len(peak_vu_options)]
+                if new_peak_vu != "off" and not is_spectrum_available():
                     core.show_message(core.t("error_spectrum"))
                     time.sleep(1)
                     return
-                new_peak = not show_peak
-                core.save_config("show_peak", new_peak, section="nowplaying")
-                show_peak = new_peak
+                show_peak_vu = new_peak_vu
+                core.save_config("show_peak_vu", show_peak_vu, section="nowplaying")
+                show_peak = show_peak_vu != "off"
+            elif option_id == "peak_vu_style":
+                idx = peak_vu_style_options.index(peak_vu_style)
+                idx = (idx + 1) % len(peak_vu_style_options)
+                peak_vu_style = peak_vu_style_options[idx]
+                core.save_config("peak_vu_style", peak_vu_style, section="nowplaying")
             elif option_id == "meters_alt":
                 new_meters_alt = not show_meters_alt
                 core.save_config("show_meters_alt",new_meters_alt, section="nowplaying")
