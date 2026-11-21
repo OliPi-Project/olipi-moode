@@ -124,7 +124,12 @@ class SpectrumCapture(threading.Thread):
         self.win_s = int(max(64, int(self.win_s) * factor))
         self.hop_s = int(max(32, int(self.hop_s) * factor))
 
-        try: self.rec.setperiodsize(self.hop_s)
+        period_size = int(
+            round(self.hop_s * self.samplerate / self.effective_sr)
+        )
+
+        try:
+            self.rec.setperiodsize(period_size)
         except:
             pass
 
@@ -136,13 +141,18 @@ class SpectrumCapture(threading.Thread):
         # Build filters
         self.filters = build_mel_filterbank(self.win_s, self.effective_sr, self.n_bars, self.fmin, self.fmax)
 
-        # avoid tiny baseline that explodes log1p(band/baseline)
-        init_level = 3.0     # <-- arbitrary log-unit target (bars ~ medium)
-        init_rel = np.expm1(init_level)  # inverse log1p
-
         self.baseline = np.ones(self.n_bars, dtype=np.float32)
         self.levels = np.zeros(self.n_bars, dtype=np.float32)
         self.stream_buf = np.zeros(self.win_s, dtype=np.float32)
+
+        self.vu_left = 0.0
+        self.vu_right = 0.0
+
+        self.rms_window = 2048
+        self.rms_ring = np.zeros((self.rms_window, 2), dtype=np.float32)
+        self.rms_pos = 0
+        self.rms_count = 0
+        self.rms_sum_sq = np.zeros(2, dtype=np.float64)
 
         if self.debug:
             self.debug_filterbank(show=self.n_bars)
@@ -169,7 +179,7 @@ class SpectrumCapture(threading.Thread):
         try: self.rec.close()
         except: pass
 
-    def get_channel_peaks(self, volume_state=None, mixer_type=None, bt_active=False):
+    def get_channel_peaks(self, volume_state=None, mixer_type=None, bt_active=False, soft_correct=True):
         # --- linear -> dB ---
         def lin2db(x): return -999.0 if x<=0 else 20*np.log10(x)
 
@@ -178,6 +188,9 @@ class SpectrumCapture(threading.Thread):
         rp = float(getattr(self, "peak_right", 0.0))
         lr = float(getattr(self, "rms_left", 0.0))
         rr = float(getattr(self, "rms_right", 0.0))
+
+        lv = float(getattr(self, "vu_left", 0.0))
+        rv = float(getattr(self, "vu_right", 0.0))
 
         # --- determine nominal full-scale ---
         fn = str(getattr(self, "format_name","")).upper()
@@ -200,6 +213,9 @@ class SpectrumCapture(threading.Thread):
         rp_norm = rp_sample / nominal_full_scale
         lr_norm = lr_sample / nominal_full_scale
         rr_norm = rr_sample / nominal_full_scale
+
+        lv_norm = lv * used_full_scale / nominal_full_scale
+        rv_norm = rv * used_full_scale / nominal_full_scale
 
         # --- parse volume ---
         vol_step = None
@@ -319,23 +335,44 @@ class SpectrumCapture(threading.Thread):
         def get_softvol_factor(volume):
             return SOFTVOL_MAP.get(volume, 1.0)
 
+        raw_lp_norm = lp_norm
+        raw_rp_norm = rp_norm
+        factor = 1.0
+
         if (
             not bt_active
+            and soft_correct == True
             and mixer_type == "software"
             and vol_step
             and vol_step > 0
         ):
             factor = get_softvol_factor(vol_step)
-            lp_norm = min(lp_norm * factor, 1.0)
-            rp_norm = min(rp_norm * factor, 1.0)
-            lr_norm = min(lr_norm * factor, 1.0)
-            rr_norm = min(rr_norm * factor, 1.0)
+            lp_norm *= factor
+            rp_norm *= factor
+            lr_norm *= factor
+            rr_norm *= factor
+
+            lv_norm *= factor
+            rv_norm *= factor
+
+        if self.debug:
+            now = time.monotonic()
+            last = getattr(self, "_softvol_debug_ts", 0)
+
+            if now - last >= 1.0:
+                print(
+                    f"[SOFTVOL] volume={vol_step} factor={factor:.3f} | "
+                    f"raw L/R={raw_lp_norm:.4f}/{raw_rp_norm:.4f} | "
+                    f"corrected L/R={lp_norm:.4f}/{rp_norm:.4f}"
+                )
+                self._softvol_debug_ts = now
 
         out = {
             "left_peak":lp_norm, "right_peak":rp_norm,
             "left_rms":lr_norm, "right_rms":rr_norm,
             "left_peak_db":lin2db(lp_norm), "right_peak_db":lin2db(rp_norm),
             "left_rms_db":lin2db(lr_norm), "right_rms_db":lin2db(rr_norm),
+            "left_vu": lv_norm, "right_vu": rv_norm,
         }
 
         return out
@@ -345,11 +382,89 @@ class SpectrumCapture(threading.Thread):
             return np.zeros(self.n_bars,dtype=np.float32)
         return self.levels.copy()
 
+    def update_vu(self, rms_left, rms_right, dt):
+        # RMS level targets
+        target_rms_left = rms_left
+        target_rms_right = rms_right
+        attack = 0.300
+        release = 0.300
+        # Left
+        tau_left = attack if target_rms_left > self.vu_left else release
+        alpha_left = 1.0 - np.exp(-dt / tau_left)
+        self.vu_left += alpha_left * (target_rms_left - self.vu_left)
+        # Right
+        tau_right = attack if target_rms_right > self.vu_right else release
+        alpha_right = 1.0 - np.exp(-dt / tau_right)
+        self.vu_right += alpha_right * (target_rms_right - self.vu_right)
+
+    def update_rms_window(self, stereo):
+        n = stereo.shape[0]
+        if n >= self.rms_window:
+            # The block is at least as large as the window:
+            # only the most recent samples are retained.
+            stereo = stereo[-self.rms_window:]
+            n = self.rms_window
+            self.rms_ring[:] = stereo
+            self.rms_sum_sq[:] = np.sum(
+                stereo.astype(np.float64) ** 2,
+                axis=0
+            )
+            self.rms_pos = 0
+            self.rms_count = self.rms_window
+        else:
+            end = self.rms_pos + n
+            if end <= self.rms_window:
+                # No wrap
+                old = self.rms_ring[self.rms_pos:end]
+                self.rms_sum_sq -= np.sum(
+                    old.astype(np.float64) ** 2,
+                    axis=0
+                )
+                self.rms_ring[self.rms_pos:end] = stereo
+                self.rms_sum_sq += np.sum(
+                    stereo.astype(np.float64) ** 2,
+                    axis=0
+                )
+            else:
+                # Wrap around the ring
+                first = self.rms_window - self.rms_pos
+                second = n - first
+                old1 = self.rms_ring[self.rms_pos:]
+                old2 = self.rms_ring[:second]
+                self.rms_sum_sq -= np.sum(
+                    old1.astype(np.float64) ** 2,
+                    axis=0
+                )
+                self.rms_sum_sq -= np.sum(
+                    old2.astype(np.float64) ** 2,
+                    axis=0
+                )
+                self.rms_ring[self.rms_pos:] = stereo[:first]
+                self.rms_ring[:second] = stereo[first:]
+                self.rms_sum_sq += np.sum(
+                    stereo[:first].astype(np.float64) ** 2,
+                    axis=0
+                )
+                self.rms_sum_sq += np.sum(
+                    stereo[first:].astype(np.float64) ** 2,
+                    axis=0
+                )
+            self.rms_pos = (self.rms_pos + n) % self.rms_window
+            self.rms_count = min(
+                self.rms_count + n,
+                self.rms_window
+            )
+        count = max(1, self.rms_count)
+        return (
+            float(np.sqrt(self.rms_sum_sq[0] / count)),
+            float(np.sqrt(self.rms_sum_sq[1] / count))
+        )
+
     def run(self):
         if not self.available:
             return
 
-        self.stream_buf = np.zeros(0, dtype=np.float32)
+        self.stream_buf = np.empty((0, 2), dtype=np.float32)
 
         while self.running:
             try:
@@ -361,6 +476,7 @@ class SpectrumCapture(threading.Thread):
             # avoid corner-case
             if n <= 0 or not data:
                 self.levels *= 0.92
+                self.update_vu(0.0, 0.0, 0.01)
                 time.sleep(0.01)
                 continue
 
@@ -372,33 +488,13 @@ class SpectrumCapture(threading.Thread):
 
             fn = str(getattr(self, "format_name", "")).upper()
 
-            # helper debug header once per format switch
-            if getattr(self, "_last_debug_fmt", None) != (fn, self.channels, bytes_per_sample, self.samplerate):
-                self._last_debug_fmt = (fn, self.channels, bytes_per_sample, self.samplerate)
-
-                if "FLOAT" in fn:
-                    bits_info = "32-bit float"
-                elif fn.startswith("S") and fn[1:3].isdigit():
-                    bits_info = f"{fn[1:3]}-bit integer"
-                else:
-                    bits_info = "unknown"
-
-                print(
-                    f"[SPECTRO DBG] format={fn} "
-                    f"rate={self.samplerate} Hz "
-                    f"bits={bits_info} "
-                    f"channels={self.channels} "
-                    f"bytes_per_sample={bytes_per_sample} "
-                    f"frames={n} bytes={len(data)}"
-                )
-
             # decode raw bytes into numeric arrays (float32 for further processing)
-            if bytes_per_sample == 4:
+            """if bytes_per_sample == 4:
                 # could be int32 or float32; prefer float if format_name mentions FLOAT
                 if "FLOAT" in fn:
                     samples = np.frombuffer(data, dtype=np.float32)
                     full_scale = 1.0
-
+                    scale_name = "full scale 1"
                 else:
                     # read as int32
                     samples = np.frombuffer(data, dtype=np.int32).astype(np.float32)
@@ -407,11 +503,30 @@ class SpectrumCapture(threading.Thread):
                     # otherwise -> probably 32-bit container left-justified -> full_scale = 2**31
                     absmax = float(np.max(np.abs(samples))) if samples.size else 0.0
                     if absmax < (1 << 24):
-                        # samples are in 24-bit range -> normalize on 2**23
+                        # samples are in 24-bit range
                         full_scale = float(2 ** 23)
+                        scale_name = "2^23 (24-bit range)"
                     else:
-                        # likely full 32-bit values (or left-justified 24->32) -> normalize on 2**31
+                        # likely full 32-bit values
                         full_scale = float(2 ** 31)
+                        scale_name = "2^31 (32-bit range)"""
+            if bytes_per_sample == 4:
+                if "FLOAT" in fn:
+                    samples = np.frombuffer(data, dtype=np.float32)
+                    full_scale = 1.0
+                    scale_name = "full scale 1"
+                elif "S24" in fn:
+                    samples = np.frombuffer(data, dtype=np.int32).astype(np.float32)
+                    full_scale = float(2 ** 23)
+                    scale_name = "2^23 (24-bit range)"
+                elif "S32" in fn:
+                    samples = np.frombuffer(data, dtype=np.int32).astype(np.float32)
+                    full_scale = float(2 ** 31)
+                    scale_name = "2^31 (32-bit range)"
+                else:
+                    samples = np.frombuffer(data, dtype=np.int32).astype(np.float32)
+                    full_scale = float(2 ** 31)
+                    scale_name = "2^31 (32-bit fallback)"
             elif bytes_per_sample == 3:
                 # packed 24-bit little-endian: decode to int32 with sign extension
                 b = np.frombuffer(data, dtype=np.uint8)
@@ -442,6 +557,28 @@ class SpectrumCapture(threading.Thread):
 
             self._full_scale = full_scale
 
+            # helper debug header once per format switch
+            if getattr(self, "_last_debug_fmt", None) != (fn, self.channels, bytes_per_sample, self.samplerate):
+                self._last_debug_fmt = (fn, self.channels, bytes_per_sample, self.samplerate)
+
+                if "FLOAT" in fn:
+                    bits_info = "32-bit float"
+                elif fn.startswith("S") and fn[1:3].isdigit():
+                    bits_info = f"{fn[1:3]}-bit integer"
+                else:
+                    bits_info = "unknown"
+
+                print(
+                    f"[SPECTRO DBG] format={fn} "
+                    f"rate={self.samplerate} Hz "
+                    f"bits={bits_info} "
+                    f"channels={self.channels} "
+                    f"bytes_per_sample={bytes_per_sample} "
+                    f"frames={n} bytes={len(data)}"
+                )
+                if bytes_per_sample == 4:
+                    print(f"[SPECTRO DBG] scale= {scale_name}")
+
             # ensure we have whole frames: trim if necessary
             if self.channels and samples.size % self.channels != 0:
                 valid = (samples.size // self.channels) * self.channels
@@ -461,51 +598,60 @@ class SpectrumCapture(threading.Thread):
             left = stereo[:, 0]
             right = stereo[:, 1]
 
-            # compute peak and RMS normalized to 0..1 using chosen full_scale
-            EPS_local = 1e-12
-            peak_left = float(np.max(np.abs(left))) / (full_scale + EPS_local)
-            peak_right = float(np.max(np.abs(right))) / (full_scale + EPS_local)
-            rms_left = float(np.sqrt(np.mean(left.astype(np.float32) ** 2))) / (full_scale + EPS_local)
-            rms_right = float(np.sqrt(np.mean(right.astype(np.float32) ** 2))) / (full_scale + EPS_local)
+            # Compute peak and RMS
+            peak_left = float(np.max(np.abs(left))) / full_scale
+            peak_right = float(np.max(np.abs(right))) / full_scale
 
-            # clamp & store
-            self.peak_left = min(1.0, peak_left)
-            self.peak_right = min(1.0, peak_right)
-            self.rms_left = min(1.0, rms_left)
-            self.rms_right = min(1.0, rms_right)
+            #rms_left = float(np.sqrt(np.mean(left * left, dtype=np.float64))) / full_scale
+            #rms_right = float(np.sqrt(np.mean(right * right, dtype=np.float64))) / full_scale
+            rms_left, rms_right = self.update_rms_window(stereo)
+            rms_left /= full_scale
+            rms_right /= full_scale
+
+            # Store raw measurements
+            self.peak_left = peak_left
+            self.peak_right = peak_right
+            self.rms_left = rms_left
+            self.rms_right = rms_right
+
+            # Update smoothed RMS level
+            dt = left.size / float(self.samplerate)
+            self.update_vu(rms_left, rms_right, dt)
 
             #################
             # Spectrum
             ##############
 
             # stereo > mono
-            samples = np.sqrt((stereo[:,0]**2 + stereo[:,1]**2) * 0.5)
+
+            #samples = np.sqrt((stereo[:,0]**2 + stereo[:,1]**2) * 0.5)
             #samples = (stereo[:, 0] + stereo[:, 1]) * 0.5
 
-            """stereo_mix = 0.3 * (stereo[:, 0] + stereo[:, 1]) * 0.5
-            stereo_energy = 0.7 * np.sqrt(
-                (stereo[:, 0]**2 + stereo[:, 1]**2) * 0.5
-            )
-            samples = stereo_mix + stereo_energy"""
-
+            # Keep left and right channels separate for spectrum analysis
             sr = self.samplerate
             while sr >= 88200:
-                samples = samples[::2]
+                stereo = stereo[::2]
                 sr //= 2
 
-            # append to stream buffer
+            # Append stereo data to stream buffer
             if self.stream_buf.size == 0:
-                self.stream_buf = samples
+                self.stream_buf = stereo
             else:
-                self.stream_buf = np.concatenate((self.stream_buf, samples))
+                self.stream_buf = np.concatenate((self.stream_buf, stereo), axis=0)
 
             # process as many frames as possible (win_s window, hop_s step)
-            while self.stream_buf.size >= self.win_s and self.running:
-                frame = self.stream_buf[:self.win_s]
+            while self.stream_buf.shape[0] >= self.win_s and self.running:
+                frame_left = self.stream_buf[:self.win_s, 0]
+                frame_right = self.stream_buf[:self.win_s, 1]
 
-                # FFT & power
-                spec = rfft(frame * self.window, self.win_s)
-                power = (spec.real ** 2 + spec.imag ** 2).astype(np.float32)
+                # FFT & average stereo power
+                spec_left = rfft(frame_left * self.window, self.win_s)
+                spec_right = rfft(frame_right * self.window, self.win_s)
+
+                power_left = spec_left.real**2 + spec_left.imag**2
+                power_right = spec_right.real**2 + spec_right.imag**2
+
+                power = ((power_left + power_right) * 0.5).astype(np.float32)
 
                 # band energies already computed
                 band_energy = self.filters @ power
@@ -526,7 +672,7 @@ class SpectrumCapture(threading.Thread):
                 ratio = band_energy / (self.baseline + EPS)
                 # clamp upper ratio to avoid huge log1p results on weird inputs
                 ratio = np.minimum(ratio, 1e3)   # tune 1e3 -> 1e4 if you want more headroom
-                
+
                 gate = 0.06 + 0.02 * (np.arange(self.n_bars) / self.n_bars)
                 ratio = np.maximum(0.0, ratio - gate)
 
@@ -544,7 +690,7 @@ class SpectrumCapture(threading.Thread):
                 self.stream_buf = self.stream_buf[self.hop_s:]
 
                 # safety: if buffer grew huge, keep only tail
-                if self.stream_buf.size > self.win_s * 8:
+                if self.stream_buf.shape[0] > self.win_s * 8:
                     self.stream_buf = self.stream_buf[-self.win_s:]
 
             time.sleep(0.002)
