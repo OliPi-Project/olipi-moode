@@ -999,116 +999,117 @@ def request_cover(placeholder=None, **kwargs):
 
 def cover_worker():
     global cover_pending
-    while True:
-        cover_event.wait()
-        with cover_lock:
-            request = cover_pending
-            cover_pending = None
-            cover_event.clear()
-        if not request:
-            continue
-        request_id, data = request
-        if core.DEBUG:
-            print(
-                f"[COVER WORKER #{request_id}] "
-                f"path={data.get('path', '')} "
-                f"title={data.get('title', '')}"
-            )
-        try:
-            source = data["source"]
-            path = data.get("path", "")
-            title = data.get("title", "")
-            artist = data.get("artist", "")
-            artist_album = data.get("artist_album", "")
-            album = data.get("album", "")
-            cover_url_bt = data.get("cover_url", "")
-            cover_img = None
-            radio_covers = data.get("radio_covers", False)
-
-            ### Library covers
-            if source == "mpd" and path and not path.startswith("http"):
-                client = MPDClient()
-                client.timeout = 10
-                try:
-                    client.connect("localhost", 6600)
-                    pic = client.readpicture(path)
-                    raw = pic.get("binary")
-
-                    if raw:
-                        img = core.Image.open(BytesIO(raw))
-                        cover_img = convert_img_for_display(img)
-                    if cover_img is None:
-                        cover_img = get_fallback_image("MPD Library")
-                finally:
-                    try:
-                        client.disconnect()
-                    except Exception:
-                        pass
-
-            ### HTTP covers
-            elif source == "mpd" and path.startswith("http"):
-                is_yt = path.startswith(("https://rr", "https://manifest"))
-                if radio_covers:
-                    # Wait for moOde to populate its SQL cache
-                    cover_url = None
-                    start_time = time.monotonic()
-                    timeout = 10
-                    while time.monotonic() - start_time < timeout:
-                        # Stop waiting if a newer cover request is pending
-                        with cover_lock:
-                            if request_id != cover_request_id:
-                                break
-                        cover_url = get_cached_cover_url(title)
-                        if cover_url:
-                            if core.DEBUG:
-                                print(f"Cover found in moOde cache after {time.monotonic() - start_time:.1f}s")
-                            break
-                        time.sleep(0.5)
-                    if not cover_url:
-                        if core.DEBUG:
-                            print(f"Cover url NOT found in sql cache after {timeout}s")
-                    # Only search if this request is still current
-                    with cover_lock:
-                        is_current = request_id == cover_request_id
-                    if is_current and not cover_url:
-                        cover_url = search_radiocover_plus(title, "" if is_yt else artist_album)
-                    if is_current and cover_url:
-                        cover_img = download_cover_image(cover_url)
-                # Radio station logo fallback
-                if not cover_img and not is_yt and album != "Unknown Radio":
-                    cover_img = get_radio_logo(album)
-
-            ### Bluetooth covers
-            elif source == "bt":
-                if radio_covers:
-                    artist_title = f"{artist} - {title}"
-                    cover_url = (
-                        cover_url_bt
-                        if cover_url_bt and not cover_url_bt.endswith("images/default-album-cover.jpg")
-                        else search_radiocover_plus(artist_title, "")
-                    )
-                    if cover_url:
-                        cover_img = download_cover_image(cover_url)
-
-            if cover_img is None:
-                cover_img = get_fallback_image("Cover Worker found nothing")
-        except Exception as e:
+    if screensaver_mode == "covers" or show_cover:
+        while True:
+            cover_event.wait()
+            with cover_lock:
+                request = cover_pending
+                cover_pending = None
+                cover_event.clear()
+            if not request:
+                continue
+            request_id, data = request
             if core.DEBUG:
-                print("Cover worker error:", e)
-            cover_img = get_fallback_image("Cover Worker Error")
+                print(
+                    f"[COVER WORKER #{request_id}] "
+                    f"path={data.get('path', '')} "
+                    f"title={data.get('title', '')}"
+                )
+            try:
+                source = data["source"]
+                path = data.get("path", "")
+                title = data.get("title", "")
+                artist = data.get("artist", "")
+                artist_album = data.get("artist_album", "")
+                album = data.get("album", "")
+                cover_url_bt = data.get("cover_url", "")
+                cover_img = None
+                radio_covers = data.get("radio_covers", False)
 
-        # Only update the display if this is still the latest request
-        with cover_lock:
-            if request_id == cover_request_id:
-                global_state["cover_img"] = cover_img
+                ### Library covers
+                if source == "mpd" and path and not path.startswith("http"):
+                    client = MPDClient()
+                    client.timeout = 10
+                    try:
+                        client.connect("localhost", 6600)
+                        pic = client.readpicture(path)
+                        raw = pic.get("binary")
 
-                if core.DEBUG and cover_img:
-                    print(
-                        f"[COVER OK #{request_id}] "
-                        f"title={title} size={cover_img.size}"
-                    )
-            elif core.DEBUG:
-                print(f"[COVER DISCARDED #{request_id}] title={title}")
+                        if raw:
+                            img = core.Image.open(BytesIO(raw))
+                            cover_img = convert_img_for_display(img)
+                        if cover_img is None:
+                            cover_img = get_fallback_image("MPD Library")
+                    finally:
+                        try:
+                            client.disconnect()
+                        except Exception:
+                            pass
+
+                ### HTTP covers
+                elif source == "mpd" and path.startswith("http"):
+                    is_yt = path.startswith(("https://rr", "https://manifest"))
+                    if radio_covers:
+                        # Wait for moOde to populate its SQL cache
+                        cover_url = None
+                        start_time = time.monotonic()
+                        timeout = 10
+                        while time.monotonic() - start_time < timeout:
+                            # Stop waiting if a newer cover request is pending
+                            with cover_lock:
+                                if request_id != cover_request_id:
+                                    break
+                            cover_url = get_cached_cover_url(title)
+                            if cover_url:
+                                if core.DEBUG:
+                                    print(f"Cover found in moOde cache after {time.monotonic() - start_time:.1f}s")
+                                break
+                            time.sleep(0.5)
+                        if not cover_url:
+                            if core.DEBUG:
+                                print(f"Cover url NOT found in sql cache after {timeout}s")
+                        # Only search if this request is still current
+                        with cover_lock:
+                            is_current = request_id == cover_request_id
+                        if is_current and not cover_url:
+                            cover_url = search_radiocover_plus(title, "" if is_yt else artist_album)
+                        if is_current and cover_url:
+                            cover_img = download_cover_image(cover_url)
+                    # Radio station logo fallback
+                    if not cover_img and not is_yt and album != "Unknown Radio":
+                        cover_img = get_radio_logo(album)
+
+                ### Bluetooth covers
+                elif source == "bt":
+                    if radio_covers:
+                        artist_title = f"{artist} - {title}"
+                        cover_url = (
+                            cover_url_bt
+                            if cover_url_bt and not cover_url_bt.endswith("images/default-album-cover.jpg")
+                            else search_radiocover_plus(artist_title, "")
+                        )
+                        if cover_url:
+                            cover_img = download_cover_image(cover_url)
+
+                if cover_img is None:
+                    cover_img = get_fallback_image("Cover Worker found nothing")
+            except Exception as e:
+                if core.DEBUG:
+                    print("Cover worker error:", e)
+                cover_img = get_fallback_image("Cover Worker Error")
+
+            # Only update the display if this is still the latest request
+            with cover_lock:
+                if request_id == cover_request_id:
+                    global_state["cover_img"] = cover_img
+
+                    if core.DEBUG and cover_img:
+                        print(
+                            f"[COVER OK #{request_id}] "
+                            f"title={title} size={cover_img.size}"
+                        )
+                elif core.DEBUG:
+                    print(f"[COVER DISCARDED #{request_id}] title={title}")
 
 def player_status_thread():
     global last_title_seen, last_artist_seen, menu_context_flag
@@ -1220,10 +1221,7 @@ def player_status_thread():
                             "radio_covers": bool(global_state.get("radio_track_covers"))
                         }
                     if radio_changed:
-                        request_cover(
-                            placeholder=get_radio_logo(album),
-                            **cover_data
-                        )
+                        request_cover(placeholder=get_radio_logo(album), **cover_data)
                     elif cover_data:
                         request_cover(**cover_data)
 
@@ -4832,6 +4830,8 @@ def finish_press(key):
                 core.save_config("show_cover_bg", show_cover_bg, section="nowplaying")
                 show_cover = show_cover_bg != "off"
                 show_cover_alt = show_cover_bg == "resized"
+                if new_cover_bg != "off":
+                    global_state["cover_img"] = get_fallback_image("Cover turned ON")
             elif option_id == "spectrum":
                 if not is_spectrum_available():
                     core.show_message(core.t("error_spectrum"))
