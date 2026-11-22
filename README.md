@@ -50,7 +50,7 @@ Latest updates:
       - Show/Hide Volume Bar 
       - Display Radio/Artist/title in one line
       - Display covers on full background or resized
-      - Display Peak, Vu, nothing, or both
+      - Display Peak, Vu, both or nothing
       - Show/Hide scale & label for Peak/Vu meters
       - Display meters horizontally inline/separate or vertically
       - Display horizontal meters bottom between vol and time
@@ -112,7 +112,7 @@ Latest updates:
 
 ## 📦 System requirements
 
-- **Operating system**: Moode Audio Player ≥ 10.2.0 required.
+- **Operating system**: Moode Audio Player ≥ 10.3.6 required.
 
 - **Hardware**: 
   
@@ -144,7 +144,7 @@ Latest updates:
 - **APT dependencies** (installed automatically if needed):
   
   ```
-  git python3-pil python3-venv python3-pip python3-tk libasound2-dev libopenblas-dev libopenblas-pthread-dev libblas-dev liblapack-dev libgfortran5 i2c-tools python3-rpi-lgpio python3-setuptools smbus2
+  git python3-pil python3-venv python3-pip python3-tk libasound2-dev i2c-tools python3-rpi-lgpio python3-setuptools smbus2
   ```
 
 - **Python dependencies (PIP)** (installed automatically with the virtual environment):
@@ -388,7 +388,7 @@ A small on-screen menu allows you to change:
     Menu:
     - Add to Favorites/SongLog.
     - Remove track from queue.
-    - Toggle playback modes (Random, repeat etc..) and can set as shortcut key.
+    - Toggle playback modes (Random, repeat etc..) and can set as shortcut key (long press OK).
     - Menu Power:
       - Shutdown
       - Reboot
@@ -397,15 +397,18 @@ A small on-screen menu allows you to change:
 
     Tools Menu:
     - Perform some actions on certain renderers (Bluetooth, Airplay, UPnP).
-    - Turn On/Off EQ curves (Parametric EQ and Graphic EQ) and can set as shortcut key.
-    - Display SongLog and allows to search logged tracks and listen to YT.
+    - Turn On/Off EQ curves and can set as shortcut key (long press OK).
+    - Display SongLog & search logged tracks to listen from YT audio link in MPD playlist.
     - Display hardware stats.
     - Config Menu:
       - Language (currently English and French).
       - Change color theme.
       - Configure UI:
-        - Show/hide: icons barre, audio infos, progress bare, spectrum, peak-meter.
-        - Display clock or elapsed time.
+        - Show/hide icons bar, audio infos, progress bar, volume bar.
+        - Show/hide spectrum, peak/vu-meter, covers.
+        - Display Peak/Vu meters vertically/horizontally.
+        - Display clock or elapsed time, Radio/Artist/title in one line.
+        - ...
       - Configure screensaver:
         - Screen sleep delay.
         - Choose: blank, LCD clock, covers, spectrum, orbital.
@@ -444,7 +447,7 @@ You can contribute in several ways:
 Possible future improvements:  
 
   - Support for additional displays.  
-  - Show other infos on display according to project (covers, screensaver with picture from web/local or animation, meteo, etc...)  
+  - Show other infos on display according to project (screensaver with picture from web/local or animation, meteo, etc...)  
 
 If you want to help you can take a look on [issues](https://github.com/OliPi-Project/olipi-moode/issues) or [discussions](https://github.com/OliPi-Project/olipi-moode/discussions), open a new [issue](https://github.com/OliPi-Project/olipi-moode/issues/new/choose), or come tchat on [Discord](https://discord.gg/pku67XsFEE)!  
 Also you can make a [donation](https://www.paypal.com/donate/?business=QN7HL6CB2H3QJ&no_recurring=0&item_name=Thanks+for+supporting+OliPi+Project%21+%0A&currency_code=EUR) that could be used to acquire new equipment to test/integrate into the project.  
