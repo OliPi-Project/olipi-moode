@@ -18,7 +18,7 @@ OLIPIMOODE_DIR = Path(__file__).resolve().parent
 os.environ.setdefault("OLIPI_DIR", str(OLIPIMOODE_DIR))
 
 from olipi_core import core_common as core
-from olipi_core.input_manager import start_inputs, debounce_data, process_key
+from olipi_core.input_manager import start_inputs, press_data, process_key
 from media_key_actions import load_shortcuts, is_key_reserved, is_key_used, handle_audio_keys, handle_custom_key, USED_MEDIA_KEYS, set_hooks as set_custom_hooks
 
 font_title = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 10)
@@ -1721,11 +1721,11 @@ def finish_press(key):
     global copy_action_menu_active, copy_action_menu_selection, copy_confirm_target
     global screen_on, idle_timer, is_sleeping, last_wake_time, learning_mode, learning_callback
 
-    data = debounce_data.get(key)
+    data = press_data.get(key)
     if data is None:
         return
 
-    final_code = data.get("max_code", 0)
+    final_code = data.get("max_repeat_code", 0)
     if core.DEBUG:
         print(f"End pressure {key} with final code {final_code}.")
 
@@ -2082,7 +2082,7 @@ def finish_press(key):
             if core.DEBUG:
                 print(f"key {key} not used in this script")
 
-    debounce_data.pop(key, None)
+    press_data.pop(key, None)
 
 override_path = OLIPIMOODE_DIR / ".search_artist"
 if os.path.exists(override_path):
