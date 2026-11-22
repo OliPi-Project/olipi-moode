@@ -196,6 +196,7 @@ ui_menu_options = [
     {"id": "peak_vu", "label": None},
     {"id": "peak_vu_style", "label": None},
     {"id": "meters_alt", "label": core.t("menu_meters_alt")},
+    {"id": "scale_label", "label": core.t("menu_scale_label")},
     {"id": "vol_bar", "label": core.t("menu_vol_bar")},
     {"id": "clock_elapse", "label": core.t("menu_clock")},
     {"id": "apply", "label": core.t("menu_apply")}
@@ -2838,6 +2839,8 @@ def draw_ui_menu():
             item["label"] = (core.t("menu_peak_vu_style") + f": {peak_vu_style_labels.get(peak_vu_style, peak_vu_style_labels['horizontal_inline'])}")
     if show_meters_alt:
         ui_flags.add(core.t("menu_meters_alt"))
+    if show_scale_labels:
+        ui_flags.add(core.t("menu_scale_label"))
     if show_vol_bar:
         ui_flags.add(core.t("menu_vol_bar"))
     if show_clock:
@@ -4794,7 +4797,7 @@ def finish_press(key):
 
     if ui_menu_active:
         global show_icons, show_one_line, show_extra_infos, show_progress_barre, show_cover_bg, show_cover, show_cover_alt, show_vol_bar, show_clock
-        global show_spectrum, show_peak_vu, show_peak, peak_vu_style, show_meters_alt
+        global show_spectrum, show_peak_vu, show_peak, peak_vu_style, show_meters_alt, show_scale_labels
         if key == "KEY_UP" and ui_menu_selection > 0:
             ui_menu_selection -= 1
             core.reset_scroll("menu_item")
@@ -4859,6 +4862,10 @@ def finish_press(key):
                 new_meters_alt = not show_meters_alt
                 core.save_config("show_meters_alt",new_meters_alt, section="nowplaying")
                 show_meters_alt = new_meters_alt
+            elif option_id == "scale_label":
+                new_scale_label = not show_scale_labels
+                core.save_config("show_scale_labels",new_scale_label, section="nowplaying")
+                show_scale_labels = new_scale_label
             elif option_id == "vol_bar":
                 new_vol_bar = not show_vol_bar
                 core.save_config("show_vol_bar", new_vol_bar, section="nowplaying")
