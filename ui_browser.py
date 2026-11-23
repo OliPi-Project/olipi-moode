@@ -18,7 +18,7 @@ OLIPIMOODE_DIR = Path(__file__).resolve().parent
 os.environ.setdefault("OLIPI_DIR", str(OLIPIMOODE_DIR))
 
 from olipi_core import core_common as core
-from olipi_core.input_manager import start_inputs, press_data, process_key
+from olipi_core.input_manager import start_inputs, press_data, process_key, set_keyboard_context
 from media_key_actions import load_shortcuts, is_key_reserved, is_key_used, handle_audio_keys, handle_custom_key, USED_MEDIA_KEYS, set_hooks as set_custom_hooks
 
 font_title = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 10)
@@ -152,6 +152,33 @@ accent_variants = {
     "u": ["u", "ù", "û", "ü"],
     "c": ["c", "ç"],
 }
+
+def set_search_mode(active):
+    global search_mode
+    search_mode = active
+    if active:
+        set_keyboard_context("text", search_text_input)
+    else:
+        set_keyboard_context(None)
+
+def search_text_input(value):
+    global search_input, search_cursor
+    if value == "KEY_BACKSPACE":
+        if search_cursor > 0:
+            search_input = (
+                search_input[:search_cursor - 1]
+                + search_input[search_cursor:]
+            )
+            search_cursor -= 1
+    elif value == "KEY_ESC":
+        nav_left_long()
+    elif isinstance(value, str) and value and value.isprintable():
+        search_input = (
+            search_input[:search_cursor]
+            + value
+            + search_input[search_cursor:]
+        )
+        search_cursor += len(value)
 
 mpd_results_cache = []
 radio_results_cache = []
@@ -760,7 +787,7 @@ def run_mpd_search(input_text, grouping_mode):
         client.disconnect()
 
         if not results and not radio_matches:
-            search_mode = True
+            set_search_mode(True)
             search_results_active = False
             search_input = input_text
             selected_grouping_mode = grouping_mode
@@ -790,7 +817,7 @@ def run_mpd_search(input_text, grouping_mode):
         return True
 
     except Exception as e:
-        search_mode = True
+        set_search_mode(True)
         search_results_active = False
         search_input = input_text
         selected_grouping_mode = grouping_mode
@@ -1490,7 +1517,7 @@ def nav_left_short():
             if multi_selection:
                 core.show_message(core.t("error_cannot_modify_selection"))
                 return
-            search_mode = True
+            set_search_mode(True)
             search_input = search_input_last
             selected_grouping_mode = grouping_mode_last
             search_cursor = max(0, len(search_input) - 1)
@@ -1552,7 +1579,7 @@ def nav_left_long():
     selected_items.clear()
     core.message_text = None
     menu_active = False
-    search_mode = False
+    set_search_mode(False)
     search_results_active = False
     sort_menu_active = False
     grouping_mode_active = False
@@ -1867,7 +1894,7 @@ def finish_press(key):
             elif selected_id == "rescan":
                 rescan_library()
             elif selected_id == "search":
-                search_mode = True
+                set_search_mode(True)
                 search_cursor = 0
                 search_input = ""
             elif selected_id == "save":
@@ -1886,7 +1913,7 @@ def finish_press(key):
                 search_input = search_input_last or ""
                 selected_grouping_mode = grouping_mode_last or "Titles"
                 search_cursor = max(0, len(search_input) - 1)
-                search_mode = True
+                set_search_mode(True)
             elif selected_id == "previous":
                 if multi_selection:
                     core.show_message(core.t("error_cannot_modify_selection"))
@@ -1945,13 +1972,13 @@ def finish_press(key):
                 mode, value = selected.split("|", 1)
                 success = run_mpd_search(value.strip(), mode.strip())
                 previous_search_menu_active = False
-                search_mode = not success
+                set_search_mode(not success)
             except Exception as e:
                 core.show_message(core.t("error_previous_search"))
                 if core.DEBUG:
                     print(f"Error handling previous search: {e}")
                 previous_search_menu_active = False
-                search_mode = True
+                set_search_mode(True)
         core.reset_scroll("menu_item")
         return
 
@@ -2096,7 +2123,7 @@ if os.path.exists(override_path):
             search_input = artist_override
             selected_grouping_mode = "Artists"
             if run_mpd_search(search_input, selected_grouping_mode):
-                search_mode = False
+                set_search_mode(False)
     except Exception as e:
         core.show_message(core.t("error_loading_artist_override"))
         if core.DEBUG:
