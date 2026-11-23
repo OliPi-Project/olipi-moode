@@ -154,6 +154,29 @@ KEY_VOLUMEDOWN = —
 KEY_MUTE = —
 KEY_POWER = —
 
+[keyboard_mapping]
+### You can change the keyboard keys associated with the OliPi controls. (One or Multiple keys are possible.)
+KEY_UP = KEY_UP, KEY_KP8
+KEY_DOWN = KEY_DOWN, KEY_KP2
+KEY_LEFT = KEY_LEFT, KEY_KP4
+KEY_RIGHT = KEY_RIGHT, KEY_KP6
+KEY_OK = KEY_ENTER, KEY_KPENTER
+KEY_BACK = KEY_HOME, KEY_LEFTMETA, KEY_TAB
+KEY_CHANNELUP = KEY_PAGEUP, KEY_KP9
+KEY_CHANNELDOWN = KEY_PAGEDOWN, KEY_KP3
+KEY_PLAY = KEY_PLAYPAUSE, KEY_SPACE
+KEY_INFO = KEY_INFO, KEY_I
+### Optional keys (additional multimedia controls)
+KEY_STOP = KEY_STOP, KEY_STOPCD, KEY_X, KEY_S
+KEY_NEXT = KEY_NEXTSONG, KEY_N
+KEY_PREVIOUS = KEY_PREVIOUSSONG, KEY_P
+KEY_FORWARD = KEY_FORWARD, KEY_F
+KEY_REWIND = KEY_REWIND, KEY_R
+KEY_VOLUMEUP = KEY_VOLUMEUP, KEY_KPPLUS
+KEY_VOLUMEDOWN = KEY_VOLUMEDOWN, KEY_KPMINUS
+KEY_MUTE = KEY_MUTE, KEY_M
+KEY_POWER = KEY_POWER, KEY_SLEEP, KEY_END
+
 [shortcuts]
 ### This is where is configured the shortcuts from the UI menus.
 ### You can add/modify shortcut manually if you know what you're doing.
