@@ -769,9 +769,9 @@ def install_repo(repo_name: str, repo_url: str, local_dir: Path, branch: str, mo
 
     if mode == "dev_mode":
         print(f"\n⚙️ Dev mode detected for {repo_name}. Choose config handling:")
-        print(" [1] Preserve all mergeable files (same as Patch Update)")
+        print(" [1] Skip merge files (same as Patch Update)")
         print(" [2] Merge .dist into existing mergeable files (same as Minor Update)")
-        print(" [3] Force-reset mergeable files (overwrite from .dist) (same as Major Update)")
+        print(" [3] Force-reset mergeable files (overwrite from .dist) (same as 'Force reset' choice if Major Update)")
         ans = input("Select [1-3] > ").strip()
         if ans not in ("1","2","3"):
             ans = "1"
