@@ -364,10 +364,10 @@ def show_help_window(lang):
                     "• KEY_RIGHT     → Next / Seek +10s (long press) or menu right\n"
                     "• KEY_OK        → Open menu / Tools menu (long press) / Confirm\n"
                     "• KEY_BACK      → Switch between ui_playing/ui_browser/ui_queue (short/long)\n"
-                    "• KEY_INFO      → Show context help\n"
                     "• KEY_CHANNELUP → Context action (e.g. add to favorites, multi-selection)\n"
                     "• KEY_CHANNELDOWN → Context action (e.g. remove from queue, unselect)\n"
-                    "• KEY_PLAY      → Play/Pause or Reboot (long press)\n\n"
+                    "• KEY_PLAY      → Play/Pause or Reboot (long press)\n"
+                    "• KEY_INFO      → Show context help\n\n"
                     "Optional keys (if available on remote):\n\n"
                     "• KEY_STOP      → Stop playback or Shutdown (long press)\n"
                     "• KEY_NEXT      → Next / Seek +10s & +30s (long press & more)\n"
@@ -390,11 +390,11 @@ def show_help_window(lang):
                     "• KEY_RIGHT     → Suivant / Seek +10s (appui long) ou menu droit\n"
                     "• KEY_OK        → Ouvrir menu / Menu Outils (appui long) / Validation\n"
                     "• KEY_BACK      → Basculer entre ui_playing/ui_browser/ui_queue (court/long)\n"
-                    "• KEY_INFO      → Afficher l'aide contextuelle\n"
                     "• KEY_CHANNELUP → Action contextuelle (ex: ajouter favoris)\n"
                     "• KEY_CHANNELDOWN → Action contextuelle (ex: retirer de la file)\n"
-                    "• KEY_PLAY      → Lecture/Pause ou Extinction (appui long)\n\n"
-                    "Touches optionnelles (si présentes sur la télécommande):\n"
+                    "• KEY_PLAY      → Lecture/Pause ou Extinction (appui long)\n"
+                    "• KEY_INFO      → Afficher l'aide contextuelle\n\n"
+                    "Touches optionnelles (si présentes sur la télécommande):\n\n"
                     "• KEY_STOP      → Arrêter lecture\n"
                     "• KEY_NEXT      → Suivant / Seek +10s (appui long)\n"
                     "• KEY_PREVIOUS  → Précédent / Seek -10s (appui long)\n"
@@ -959,14 +959,12 @@ def map_single_key(key_name, config, lang):
 def map_remote_keys(lang, edit_mode=False):
     print(MESSAGES["mapping_start"][lang])
     required_keys = [
-        "KEY_UP", "KEY_DOWN", "KEY_LEFT", "KEY_RIGHT",
-        "KEY_OK", "KEY_BACK", "KEY_INFO",
-        "KEY_CHANNELUP", "KEY_CHANNELDOWN", "KEY_PLAY"
+        "KEY_UP", "KEY_DOWN", "KEY_LEFT", "KEY_RIGHT", "KEY_OK", "KEY_BACK",
+        "KEY_CHANNELUP", "KEY_CHANNELDOWN", "KEY_PLAY", "KEY_INFO"
     ]
     optional_keys = [
-        "KEY_STOP", "KEY_NEXT", "KEY_PREVIOUS",
-        "KEY_FORWARD", "KEY_REWIND", "KEY_VOLUMEUP",
-        "KEY_VOLUMEDOWN", "KEY_MUTE", "KEY_POWER"
+        "KEY_STOP", "KEY_NEXT", "KEY_PREVIOUS", "KEY_FORWARD", "KEY_REWIND",
+        "KEY_VOLUMEUP", "KEY_VOLUMEDOWN", "KEY_MUTE", "KEY_POWER"
     ]
     config = configparser.ConfigParser()
     if os.path.exists(CONFIG_INI):
