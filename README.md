@@ -89,9 +89,12 @@ Latest updates:
 - [System requirements](#-system-requirements)
 - [Installation](#-installation)
 - [Services](#-services)
-- [IR remote configuration](#-ir-remote-configuration)
-- [GPIO and rotary encoder support](#-gpio-and-rotary-encoder-support)
-- [Key configuration](#-key-configuration)
+- [Controls management](#-controls-management)
+    - [IR remote configuration](#-ir-remote-configuration)
+    - [GPIO and rotary encoder support](#-gpio-and-rotary-encoder-support)
+    - [MPR121 capacitive touch support](#-mpr121-capacitive-touch-support)
+    - [Keyboard controls](#-keyboard-controls)
+    - [User Keys (Shortcuts)](#-user-keys)
 - [Configuration via display menu](#-configuration-via-menu-in-now-playing-ui)
 - [Uninstall](#-uninstall)
 - [Troubleshooting](#-troubleshooting-and-faq)
@@ -144,13 +147,13 @@ Latest updates:
 - **APT dependencies** (installed automatically if needed):
   
   ```
-  git python3-pil python3-venv python3-pip python3-tk libasound2-dev i2c-tools python3-rpi-lgpio python3-setuptools smbus2 evtest
+  git python3-pil python3-venv python3-pip python3-tk libasound2-dev i2c-tools python3-rpi-lgpio python3-setuptools smbus2
   ```
 
 - **Python dependencies (PIP)** (installed automatically with the virtual environment):
   
   ```
-  luma.oled luma_core Pillow python_mpd2 pyalsaaudio numpy scipy PyYAML Requests yt_dlp
+  luma.oled luma_core Pillow python_mpd2 pyalsaaudio numpy scipy PyYAML Requests yt_dlp evdev
   ```
 
 ---
@@ -218,54 +221,7 @@ Service `olipi-starting-wait` is enabled and launch ui_wait.py who play animatio
 
 Switch between the 3 main display scripts using the `KEY_BACK` button. 
 
-## 📡 IR remote configuration
-
-OliPi MoOde includes an interactive script to install and configure LIRC:
-
-```bash
-python3 ~/olipi-moode/install/install_lirc_remote.py
-```
-
-Features:
-
-- Install and configure LIRC for use with recever type TSOP*.
-- Hardware test (`mode2`, `irw`).
-- Download a configuration from `irdb-get`.
-- Learn a remote control (`irrecord`).
-- When finish learning or download it move *.lircd.conf files to /etc/lirc/lircd.conf.d/
-- Manage/edit *.lircd.conf stored in /etc/lirc/lircd.conf.d
-- Mapping editor (Useful if the names of your remote control buttons don't match the names expected by Olipy):
-  - Reassign all keys or individually.
-  - Conflict detection (confirmation if a key is already mapped).
-  - Warning if mapping a system key (e.g., `KEY_UP`).
-
-   Mappings are stored in `config.ini`:
-
-    ```ini
-    [remote]
-    #KEY_OLIPIMOODE = YOUR_REMOTE_KEY
-    # Required keys
-    KEY_PLAY = KEY_PLAYPAUSE
-    KEY_BACK = KEY_ESC
-    ...
-    # Optional keys
-    KEY_FORWARD = KEY_FASTFORWARD
-    KEY_NEXT = KEY_NEXTSONG
-    ```
-    
-If you need to change the button names or add new button in your remote control's .conf file, it's best to use names included in the namespace. You can list the valid names using the following command: `irrecord --list-namespace`
-
-## 🎛 GPIO and rotary encoder support
-
-OliPi MoOde uses `rpi-lgpio` which is a compatibility package intended to provide compatibility with the rpi.gpio, you can configure GPIO buttons or rotary encoders in `config.ini`. Be careful not to use pins that are used for other things. Check your hardware and wiring before enabling "use_buttons" and/or "use_rotary"". [See wiring guide](TROUBLESHOOTING.md#-wiring-push-buttons--rotary-encoder).
-
-
-## 🎹 MPR121 capacitive touch support
-
-[Wiring your MPR121](TROUBLESHOOTING.md#-wiring-mpr121--setting-pad-sensitivity), configure the address, INT(IRQ) pin and pads in config.ini and then activate it in the [input] section.
-
-
-## ⌨ Key configuration
+## ⌨ Controls management
 
 ### 🔑 Essential keys
 
@@ -288,7 +244,6 @@ These keys are **required** to navigate and control all interfaces:
 
 These keys must be configured either via LIRC install script (`python3 ~/olipi-moode/install/install_lirc_remote.py`) either for GPIO in `[buttons] & [rotary]` section in `config.ini`, for MPR121 in `[mpr121_pads]` section or for keyboard in `[keyboard]` section.
 
-
 ### 🎵 Optional media keys
 
 Recommended if available on your remote, but **not mandatory**:
@@ -306,6 +261,104 @@ Recommended if available on your remote, but **not mandatory**:
 | **KEY_POWER**      | Shutdown / Restart (long press)                 |
 
 > **Note:** In `ui_playing`, navigation keys (`UP`, `DOWN`, `LEFT`, `RIGHT`) can be used for volume +/- and previous/next (rewind/forward on long press).
+
+
+### 📡 IR remote configuration
+
+OliPi MoOde includes an interactive script to install and configure LIRC:
+
+```bash
+python3 ~/olipi-moode/install/install_lirc_remote.py
+```
+
+Features:
+
+- Install and configure LIRC for use with recever type TSOP*.
+- Hardware test (`mode2`, `irw`).
+- Download a configuration from `irdb-get`.
+- Learn a remote control (`irrecord`).
+- When finish learning or download it move *.lircd.conf files to /etc/lirc/lircd.conf.d/
+- Manage/edit *.lircd.conf stored in /etc/lirc/lircd.conf.d
+- Mapping editor (Useful if the names of your remote control buttons don't match the names expected by Olipy):
+  - Reassign all keys or individually.
+  - Conflict detection (confirmation if a key is already mapped).
+  - Warning if mapping a system key (e.g., `KEY_UP`).
+  - Save the mapping to config.ini
+
+   Mappings are stored like this in `config.ini`:
+
+    ```ini
+    [remote]
+    #KEY_OLIPIMOODE = YOUR_REMOTE_KEY
+    # Required keys
+    KEY_PLAY = KEY_PLAYPAUSE
+    KEY_BACK = KEY_ESC
+    ...
+    # Optional keys
+    KEY_FORWARD = KEY_FASTFORWARD
+    KEY_NEXT = KEY_NEXTSONG
+    ```
+    
+If you need to change the button names or add new button in your remote control's .conf file, it's best to use names included in the namespace. You can list the valid names using the following command: `irrecord --list-namespace`
+
+You can manually edit the mapping if you know the buttons names of your remote control.
+
+
+### 🎛 GPIO and rotary encoder support
+
+OliPi MoOde uses `rpi-lgpio` which is a compatibility package intended to provide compatibility with the rpi.gpio, you can configure GPIO buttons or rotary encoders in `config.ini`. Be careful not to use pins that are used for other things. Check your hardware and wiring before enabling "use_buttons" and/or "use_rotary"". [See wiring guide](TROUBLESHOOTING.md#-wiring-push-buttons--rotary-encoder).
+
+
+### 🎹 MPR121 capacitive touch support
+
+[Wiring your MPR121](TROUBLESHOOTING.md#-wiring-mpr121--setting-pad-sensitivity), configure the address, INT(IRQ) pin and pads in config.ini and then activate it in the [input] section.
+
+
+### ⌨ Keyboard controls
+
+OliPi MoOde also supports USB keyboard. It can be used to navigate the interfaces, control playback and enter text in the browser search or rename playlist.
+
+The keyboard layout is detected from the system configuration (`/etc/default/keyboard`), so characters and modifiers follow your configured layout.
+
+**Default key mappings:**
+
+| OliPi action      | Keyboard keys          |
+| ----------------- | ---------------------- |
+| `KEY_UP`          | ↑ / Numpad 8           |
+| `KEY_DOWN`        | ↓ / Numpad 2           |
+| `KEY_LEFT`        | ← / Numpad 4           |
+| `KEY_RIGHT`       | → / Numpad 6           |
+| `KEY_OK`          | Enter / Numpad Enter   |
+| `KEY_BACK`        | Home / Left Meta / Tab |
+| `KEY_CHANNELUP`   | Page Up / Numpad 9     |
+| `KEY_CHANNELDOWN` | Page Down / Numpad 3   |
+| `KEY_PLAY`        | Play/Pause / Space     |
+| `KEY_INFO`        | Info / I               |
+| `KEY_STOP`        | Stop / Stop CD / X / S |
+| `KEY_NEXT`        | Next Song / N          |
+| `KEY_PREVIOUS`    | Previous Song / P      |
+| `KEY_FORWARD`     | Forward / F            |
+| `KEY_REWIND`      | Rewind / R             |
+| `KEY_VOLUMEUP`    | Volume Up / Numpad +   |
+| `KEY_VOLUMEDOWN`  | Volume Down / Numpad - |
+| `KEY_MUTE`        | Mute / M               |
+| `KEY_POWER`       | Power / Sleep / End    |
+
+**Custom keyboard mapping**
+
+You can change the default mappings or assign multiple physical keys to the same OliPi action in the `[keyboard]` section of `config.ini`.
+Each line associates one OliPi action with one or more keyboard keys. Keys must be separated by commas and cannot be assigned to multiple controls.
+
+For example:
+
+```ini
+[keyboard]
+KEY_UP = KEY_UP, KEY_KP8, KEY_W
+KEY_DOWN = KEY_DOWN, KEY_KP2, KEY_S
+...
+KEY_STOP = KEY_STOP, KEY_X
+```
+
 
 ### 🆓 User Keys
 
@@ -358,7 +411,7 @@ And/or with GPIO button (If you use MPR121 and GPIO You can comment out all unus
   KEY_SHORTCUT = 25
   KEY_MYKEY = 22
   ```
-For Keyboard simply add your unused KEY_NAME and its action to the `[shortcuts]` section.
+For Keyboard, unused keys can also be assigned to custom shortcuts in the [shortcuts] section, using their corresponding KEY_NAME.
 
 Custom shortcuts are stored in the config.ini file under the **[shortcuts]** section. They can also be configured manually if you know the path (relative to the MPD library) or the name of the item you want to configure. Special characters and spaces are allowed.  
 
