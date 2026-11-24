@@ -22,7 +22,7 @@ from lang import SETUP
 
 APT_DEPENDENCIES = [
     "git", "python3-pil", "python3-venv", "python3-pip", "python3-tk", "libasound2-dev",
-    "i2c-tools", "python3-rpi-lgpio", "python3-setuptools", "evtest"
+    "i2c-tools", "python3-rpi-lgpio", "python3-setuptools", "libxkbcommon0"
 ]
 APT_REMOVED = [
     "libopenblas-dev", "libopenblas-pthread-dev", "libblas-dev", "liblapack-dev", "libopenblas0", "libopenblas0-pthread"
