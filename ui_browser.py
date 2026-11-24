@@ -157,28 +157,9 @@ def set_search_mode(active):
     global search_mode
     search_mode = active
     if active:
-        set_keyboard_context("text", search_text_input)
+        set_keyboard_context("text")
     else:
         set_keyboard_context(None)
-
-def search_text_input(value):
-    global search_input, search_cursor
-    if value == "KEY_BACKSPACE":
-        if search_cursor > 0:
-            search_input = (
-                search_input[:search_cursor - 1]
-                + search_input[search_cursor:]
-            )
-            search_cursor -= 1
-    elif value == "KEY_ESC":
-        nav_left_long()
-    elif isinstance(value, str) and value and value.isprintable():
-        search_input = (
-            search_input[:search_cursor]
-            + value
-            + search_input[search_cursor:]
-        )
-        search_cursor += len(value)
 
 mpd_results_cache = []
 radio_results_cache = []
@@ -2016,13 +1997,23 @@ def finish_press(key):
         return
 
     if search_mode:
-        if key == "KEY_LEFT" and search_cursor > 0:
-            search_cursor -= 1
+        if key == "KEY_BACKSPACE":
+            if search_cursor > 0:
+                search_input = (
+                    search_input[:search_cursor - 1]
+                    + search_input[search_cursor:]
+                )
+                search_cursor -= 1
+        elif key == "KEY_ESC":
+            nav_left_long()
+        elif key == "KEY_LEFT":
+            if search_cursor > 0:
+                search_cursor -= 1
         elif key == "KEY_RIGHT":
             if search_cursor < len(search_input) - 1:
                 search_cursor += 1
             elif search_cursor == len(search_input) - 1:
-                last_char = search_input[-1]
+                last_char = search_input[-1] if search_input else ""
                 if last_char == " ":
                     search_input += "a"
                 else:
@@ -2056,6 +2047,13 @@ def finish_press(key):
             if run_mpd_search(search_input, selected_grouping_mode):
                 search_mode = False
             return
+        elif isinstance(key, str) and key.isprintable():
+            search_input = (
+                search_input[:search_cursor]
+                + key
+                + search_input[search_cursor:]
+            )
+            search_cursor += len(key)
         return
 
     else:
