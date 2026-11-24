@@ -835,12 +835,14 @@ def manage_configs(lang):
 
 
 def save_remote_mapping(config, required_keys, optional_keys):
-    # Update only remote mapping entries, preserving other settings and comments.
-    mapping_keys = {key.upper() for key in required_keys + optional_keys}
+    mapping_keys = required_keys + optional_keys
+    mapping_keys_upper = {key.upper() for key in mapping_keys}
+    # Read existing config
     lines = []
     if os.path.exists(CONFIG_INI):
         with open(CONFIG_INI, "r", encoding="utf-8") as f:
             lines = f.readlines()
+    # Find [remote] section
     start_idx = None
     end_idx = None
     for i, line in enumerate(lines):
@@ -853,7 +855,7 @@ def save_remote_mapping(config, required_keys, optional_keys):
             if end_idx is None:
                 end_idx = len(lines)
             break
-    # Create the section if it does not exist.
+    # Create [remote] if it doesn't exist
     if start_idx is None:
         if lines and not lines[-1].endswith("\n"):
             lines[-1] += "\n"
@@ -862,34 +864,72 @@ def save_remote_mapping(config, required_keys, optional_keys):
         lines.append("[remote]\n")
         start_idx = len(lines) - 1
         end_idx = len(lines)
-    if end_idx is None:
-        end_idx = len(lines)
-    # Replace existing mapping entries only.
-    found_keys = set()
-    for i in range(start_idx + 1, end_idx):
-        line = lines[i]
-        stripped = line.strip()
-        if not stripped or stripped.startswith(("#", ";")) or "=" not in line:
+
+    # --------------------------------------------------------
+    # Read current mapping values
+    # --------------------------------------------------------
+    current_values = {}
+    for line in lines[start_idx + 1:end_idx]:
+        if "=" not in line:
             continue
-        key = line.split("=", 1)[0].strip().upper()
-        if key in mapping_keys:
-            value = config["remote"].get(key, "—")
-            lines[i] = f"{key} = {value}\n"
-            found_keys.add(key)
-    # Add mapping entries that were not already present.
-    missing_keys = mapping_keys - found_keys
-    if missing_keys:
-        new_lines = ["\n### Required keys (essential for OliPi MoOde navigation)\n"]
-        for key in required_keys:
-            if key.upper() in missing_keys:
-                value = config["remote"].get(key, "—")
-                new_lines.append(f"{key} = {value}\n")
-        new_lines.append("\n### Optional keys (additional multimedia controls)\n")
-        for key in optional_keys:
-            if key.upper() in missing_keys:
-                value = config["remote"].get(key, "—")
-                new_lines.append(f"{key} = {value}\n")
-        lines[end_idx:end_idx] = new_lines
+        key, value = line.split("=", 1)
+        key = key.strip().upper()
+        if key in mapping_keys_upper:
+            current_values[key] = value.strip()
+    # Values from ConfigParser take precedence
+    for key in mapping_keys:
+        value = config["remote"].get(key, "—").strip()
+        current_values[key.upper()] = value or "—"
+
+    # --------------------------------------------------------
+    # Preserve everything in [remote] that is NOT a mapping
+    # --------------------------------------------------------
+    preserved_lines = []
+    for line in lines[start_idx + 1:end_idx]:
+        stripped = line.strip()
+        # Remove mapping lines
+        if "=" in line:
+            key = line.split("=", 1)[0].strip().upper()
+            if key in mapping_keys_upper:
+                continue
+        # Remove our generated mapping section comments
+        if stripped.lower() in (
+            "### required keys (essential for olipi moode navigation)",
+            "### optional keys (additional multimedia controls)",
+        ):
+            continue
+        preserved_lines.append(line)
+    # Remove excessive trailing blank lines
+    while preserved_lines and not preserved_lines[-1].strip():
+        preserved_lines.pop()
+
+    # --------------------------------------------------------
+    # Rebuild mapping section in canonical order
+    # --------------------------------------------------------
+    new_section = []
+    if preserved_lines:
+        new_section.extend(preserved_lines)
+    new_section.append(
+        "### Required keys (essential for OliPi Moode navigation)\n"
+    )
+    for key in required_keys:
+        value = current_values.get(key.upper(), "—")
+        new_section.append(f"{key} = {value}\n")
+    new_section.append(
+        "### Optional keys (additional multimedia controls)\n"
+    )
+    for key in optional_keys:
+        value = current_values.get(key.upper(), "—")
+        new_section.append(f"{key} = {value}\n")
+
+    # --------------------------------------------------------
+    # Replace entire [remote] section
+    # --------------------------------------------------------
+    # Ensure a blank line before the next config section.
+    while new_section and not new_section[-1].strip():
+        new_section.pop()
+    new_section.append("\n")
+    lines = lines[:start_idx + 1] + new_section + lines[end_idx:]
     with open(CONFIG_INI, "w", encoding="utf-8") as f:
         f.writelines(lines)
 
