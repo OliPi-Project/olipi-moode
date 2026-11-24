@@ -65,10 +65,6 @@ use_mpr121 = False
 use_buttons = False
 use_rotary = False
 
-[lirc]
-### Change this value if your remote control has a problem with key repetition.
-lirc_bouncetime_s = 0.20
-
 [mpr121]
 i2c_address = 0x5A
 int_pin = 4
@@ -128,7 +124,9 @@ rotary_invert = False
 #pin_a = 17
 #pin_b = 16
 
-[remote_mapping]
+[remote]
+### Delay before processing a remote key event (seconds). Change this value if your remote control has a problem with key repetition.
+lirc_press_timeout_s = 0.20
 ### Use install_lirc_remote.py for remap your remote key or modify manualy here.
 ### KEY_OLIPIMOODE = YOUR_REMOTE_KEY
 ### Leave " — " if you don't need to remap KEY
@@ -154,7 +152,7 @@ KEY_VOLUMEDOWN = —
 KEY_MUTE = —
 KEY_POWER = —
 
-[keyboard_mapping]
+[keyboard]
 ### You can change the keyboard keys associated with the OliPi controls. (One or Multiple keys are possible.)
 KEY_UP = KEY_UP, KEY_KP8
 KEY_DOWN = KEY_DOWN, KEY_KP2
