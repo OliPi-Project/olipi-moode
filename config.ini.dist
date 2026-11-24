@@ -154,6 +154,7 @@ KEY_POWER = —
 
 [keyboard]
 ### You can change the keyboard keys associated with the OliPi controls. (One or Multiple keys are possible.)
+### Required keys (essential for OliPi MoOde navigation)
 KEY_UP = KEY_UP, KEY_KP8
 KEY_DOWN = KEY_DOWN, KEY_KP2
 KEY_LEFT = KEY_LEFT, KEY_KP4
