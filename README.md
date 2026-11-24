@@ -242,7 +242,7 @@ Features:
    Mappings are stored in `config.ini`:
 
     ```ini
-    [remote_mapping]
+    [remote]
     #KEY_OLIPIMOODE = YOUR_REMOTE_KEY
     # Required keys
     KEY_PLAY = KEY_PLAYPAUSE
