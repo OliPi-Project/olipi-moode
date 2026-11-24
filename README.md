@@ -279,14 +279,14 @@ These keys are **required** to navigate and control all interfaces:
 | **KEY_RIGHT**       | Move right                                          | Next / Seek +10s (long press) if outside menu      |
 | **KEY_OK**          | Open menu / Confirm / Tools menu (long press)       | Set shortcut if long press in some menus (see [User Keys](#-user-keys))|
 | **KEY_BACK**        | Switch to `ui_browser`/`ui_queue`/`ui_playing`      | Switch to `ui_browser` (short) / `ui_queue` (long) |
-| **KEY_INFO**        | Show contextual help                                |                                                    |
 | **KEY_CHANNELUP**   | Context action                                      | Add/Remove favorites, if radio: add to songlog     |
 | **KEY_CHANNELDOWN** | Context action                                      | Remove playing track from queue                    |
 | **KEY_PLAY**        | Play/Pause / Reboot (long press)                    |                                                    |
+| **KEY_INFO**        | Show contextual help                                |                                                    |
 
 **For more info, press `KEY_INFO` in each context.**
 
-These keys must be configured either via LIRC (`python3 ~/olipi-moode/install/install_lirc_remote.py`) either via GPIO in `[buttons] & [rotary]` section in `config.ini` or for MPR121 in `[mpr121_pads]` section.
+These keys must be configured either via LIRC install script (`python3 ~/olipi-moode/install/install_lirc_remote.py`) either for GPIO in `[buttons] & [rotary]` section in `config.ini`, for MPR121 in `[mpr121_pads]` section or for keyboard in `[keyboard]` section.
 
 
 ### 🎵 Optional media keys
@@ -358,6 +358,7 @@ And/or with GPIO button (If you use MPR121 and GPIO You can comment out all unus
   KEY_SHORTCUT = 25
   KEY_MYKEY = 22
   ```
+For Keyboard simply add your unused KEY_NAME and its action to the `[shortcuts]` section.
 
 Custom shortcuts are stored in the config.ini file under the **[shortcuts]** section. They can also be configured manually if you know the path (relative to the MPD library) or the name of the item you want to configure. Special characters and spaces are allowed.  
 
