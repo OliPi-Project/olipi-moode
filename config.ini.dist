@@ -64,6 +64,7 @@ use_lirc = False
 use_mpr121 = False
 use_buttons = False
 use_rotary = False
+use_keyboard = True
 
 [mpr121]
 i2c_address = 0x5A
