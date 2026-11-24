@@ -147,7 +147,7 @@ Latest updates:
 - **APT dependencies** (installed automatically if needed):
   
   ```
-  git python3-pil python3-venv python3-pip python3-tk libasound2-dev i2c-tools python3-rpi-lgpio python3-setuptools smbus2
+  git python3-pil python3-venv python3-pip python3-tk libasound2-dev i2c-tools python3-rpi-lgpio python3-setuptools smbus2 libxkbcommon0
   ```
 
 - **Python dependencies (PIP)** (installed automatically with the virtual environment):
