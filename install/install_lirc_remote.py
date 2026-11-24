@@ -833,41 +833,63 @@ def manage_configs(lang):
         else:
             print(MESSAGES["invalid_choice"][lang])
 
+
 def save_remote_mapping(config, required_keys, optional_keys):
-    # keep comments and structure
+    # Update only remote mapping entries, preserving other settings and comments.
+    mapping_keys = {key.upper() for key in required_keys + optional_keys}
     lines = []
     if os.path.exists(CONFIG_INI):
         with open(CONFIG_INI, "r", encoding="utf-8") as f:
             lines = f.readlines()
-    new_section = []
-    new_section.append("[remote_mapping]\n")
-    new_section.append("\n# Required keys (essential for OliPi MoOde navigation)\n")
-    for key in required_keys:
-        value = config["remote_mapping"].get(key, "—")
-        new_section.append(f"{key} = {value}\n")
-    new_section.append("\n# Optional keys (additional multimedia controls)\n")
-    for key in optional_keys:
-        value = config["remote_mapping"].get(key, "—")
-        new_section.append(f"{key} = {value}\n")
-
     start_idx = None
     end_idx = None
     for i, line in enumerate(lines):
-        if line.strip().lower() == "[remote_mapping]":
+        if line.strip().lower() == "[remote]":
             start_idx = i
             for j in range(i + 1, len(lines)):
-                if lines[j].strip().startswith("[") and j > i:
+                if lines[j].strip().startswith("["):
                     end_idx = j
                     break
             if end_idx is None:
                 end_idx = len(lines)
             break
-    if start_idx is not None:
-        lines = lines[:start_idx] + new_section + lines[end_idx:]
-    else:
+    # Create the section if it does not exist.
+    if start_idx is None:
         if lines and not lines[-1].endswith("\n"):
+            lines[-1] += "\n"
+        if lines and lines[-1].strip():
             lines.append("\n")
-        lines += ["\n"] + new_section
+        lines.append("[remote]\n")
+        start_idx = len(lines) - 1
+        end_idx = len(lines)
+    if end_idx is None:
+        end_idx = len(lines)
+    # Replace existing mapping entries only.
+    found_keys = set()
+    for i in range(start_idx + 1, end_idx):
+        line = lines[i]
+        stripped = line.strip()
+        if not stripped or stripped.startswith(("#", ";")) or "=" not in line:
+            continue
+        key = line.split("=", 1)[0].strip().upper()
+        if key in mapping_keys:
+            value = config["remote"].get(key, "—")
+            lines[i] = f"{key} = {value}\n"
+            found_keys.add(key)
+    # Add mapping entries that were not already present.
+    missing_keys = mapping_keys - found_keys
+    if missing_keys:
+        new_lines = ["\n### Required keys (essential for OliPi MoOde navigation)\n"]
+        for key in required_keys:
+            if key.upper() in missing_keys:
+                value = config["remote"].get(key, "—")
+                new_lines.append(f"{key} = {value}\n")
+        new_lines.append("\n### Optional keys (additional multimedia controls)\n")
+        for key in optional_keys:
+            if key.upper() in missing_keys:
+                value = config["remote"].get(key, "—")
+                new_lines.append(f"{key} = {value}\n")
+        lines[end_idx:end_idx] = new_lines
     with open(CONFIG_INI, "w", encoding="utf-8") as f:
         f.writelines(lines)
 
@@ -888,12 +910,18 @@ def map_single_key(key_name, config, lang):
             if len(parts) >= 3:
                 detected_key = parts[2].upper()
                 # conflict check
-                for action, assigned_key in config["remote_mapping"].items():
-                    if assigned_key == detected_key and action != key_name:
+                for action, assigned_key in config["remote"].items():
+                    action = action.upper()
+                    assigned_key = assigned_key.strip().upper()
+
+                    if not action.startswith("KEY_"):
+                        continue
+
+                    if assigned_key == detected_key and action != key_name.upper():
                         print(MESSAGES["mapping_conflict"][lang].format(detected_key, action))
                         choice = input(MESSAGES["mapping_override"][lang]).strip().lower()
                         if choice.startswith("o"):
-                            config["remote_mapping"][action] = ""
+                            config["remote"][action] = ""
                             print(MESSAGES["mapping_reassigned"][lang].format(detected_key, key_name))
                         else:
                             print(MESSAGES["mapping_cancelled"][lang])
@@ -915,7 +943,7 @@ def map_single_key(key_name, config, lang):
                         irw.terminate()
                         return
                 print(MESSAGES["mapping_detected"][lang].format(detected_key))
-                config["remote_mapping"][key_name] = detected_key
+                config["remote"][key_name] = detected_key
                 break
     except KeyboardInterrupt:
         print("\n" + MESSAGES["mapping_cancelled"][lang])
@@ -943,8 +971,8 @@ def map_remote_keys(lang, edit_mode=False):
     config = configparser.ConfigParser()
     if os.path.exists(CONFIG_INI):
         config.read(CONFIG_INI)
-    if "remote_mapping" not in config:
-        config["remote_mapping"] = {}
+    if "remote" not in config:
+        config["remote"] = {}
     stop_ui_playing(lang)
     try:
         if not edit_mode:
@@ -958,13 +986,13 @@ def map_remote_keys(lang, edit_mode=False):
         while True:
             print("\n" + ("📋 Required keys:" if lang == "en" else "📋 Touches indispensables :"))
             for idx, key in enumerate(required_keys, 1):
-                mapped = config["remote_mapping"].get(key, "—")
+                mapped = config["remote"].get(key, "—")
                 display_value = mapped if mapped != "—" else ("Not mapped" if lang == "en" else "Non mappée")
                 print(f"[{idx}] {key} → {display_value}")
 
             print("\n" + ("📋 Optional keys:" if lang == "en" else "📋 Touches optionnelles :"))
             for idx, key in enumerate(optional_keys, len(required_keys) + 1):
-                mapped = config["remote_mapping"].get(key, "—")
+                mapped = config["remote"].get(key, "—")
                 display_value = mapped if mapped != "—" else ("Not mapped" if lang == "en" else "Non mappée")
                 print(f"[{idx}] {key} → {display_value}")
 
