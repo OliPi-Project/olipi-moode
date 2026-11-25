@@ -161,14 +161,14 @@ def set_search_mode(active):
     else:
         set_keyboard_context(None)
 
+search_input_last = None
+grouping_mode_last = None
+
 mpd_results_cache = []
 radio_results_cache = []
 radio_virtual_folder = []
 artist_virtual_folder = {}
 album_virtual_folder = {}
-
-search_input_last = None
-grouping_mode_last = None
 
 sort_menu_active = False
 sort_menu_selection = 0
@@ -1252,43 +1252,33 @@ def build_shortcut_action(typ, val):
 
 def assign_shortcut_to_selected():
     global learning_mode, learning_callback, blocking_render
-
     typ, val = library_items[library_selection]
     action = build_shortcut_action(typ, val)
-
     if not action:
         core.show_message(core.t("info_invalid_item"))
         return
-
     core.message_permanent = True
     blocking_render = True
     core.message_text = core.t("info_press_key")
     render_screen()
-
     def on_key(key):
         global learning_mode, learning_callback, blocking_render
-
         core.message_permanent = False
         core.message_text = None
         blocking_render = False
         learning_mode = False
         learning_callback = None
-
         if is_key_reserved(key):
             core.show_message(core.t("info_key_reserved", key=key))
             return
-
         already_used = is_key_used(key)
-
         core.save_config(key, action, section="shortcuts", preserve_case=True)
         core.reload_config()
         load_shortcuts()
-
         if already_used:
             core.show_message(core.t("info_key_replaced", key=key))
         else:
             core.show_message(core.t("info_key_assigned", key=key))
-
     learning_mode = True
     learning_callback = on_key
 
