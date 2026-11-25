@@ -23,8 +23,6 @@ from key_actions import load_shortcuts, is_key_reserved, is_key_used, handle_aud
 
 font_title = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 10)
 font_item = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 11)
-font_search_input = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 12)
-font_search_info = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 10)
 
 core.load_translations(Path(__file__).stem)
 
@@ -141,28 +139,15 @@ previous_search_menu_active = False
 previous_search_menu_selection = 0
 
 search_mode = False
-search_input = ""
-search_cursor = 0
-valid_chars = string.ascii_lowercase + '-' + string.digits + " '"
-accent_variants = {
-    "a": ["a", "à", "â", "ä"],
-    "e": ["e", "é", "è", "ê", "ë"],
-    "i": ["i", "î", "ï"],
-    "o": ["o", "ô", "ö"],
-    "u": ["u", "ù", "û", "ü"],
-    "c": ["c", "ç"],
-}
-
-def set_search_mode(active):
-    global search_mode
-    search_mode = active
-    if active:
-        set_keyboard_context("text")
-    else:
-        set_keyboard_context(None)
-
+text_input = ""
+input_cursor = 0
 search_input_last = None
 grouping_mode_last = None
+
+def set_input_mode(active):
+    global search_mode
+    search_mode = active
+    set_keyboard_context("text" if active else None)
 
 mpd_results_cache = []
 radio_results_cache = []
@@ -745,7 +730,7 @@ def run_mpd_search(input_text, grouping_mode):
     global mpd_results_cache, radio_results_cache, search_input_last, grouping_mode_last
     global radio_virtual_folder, display_labels
     global library_items, current_path, nav_stack, library_selection
-    global search_input, selected_grouping_mode, search_results_active, search_mode, search_cursor
+    global text_input, selected_grouping_mode, search_results_active, input_cursor
 
     try:
         client = MPDClient()
@@ -768,11 +753,11 @@ def run_mpd_search(input_text, grouping_mode):
         client.disconnect()
 
         if not results and not radio_matches:
-            set_search_mode(True)
+            set_input_mode(True)
             search_results_active = False
-            search_input = input_text
+            text_input = input_text
             selected_grouping_mode = grouping_mode
-            search_cursor = max(0, len(search_input) - 1)
+            input_cursor = max(0, len(text_input) - 1)
             core.show_message(core.t("info_no_match_found"))
             return False
 
@@ -798,11 +783,11 @@ def run_mpd_search(input_text, grouping_mode):
         return True
 
     except Exception as e:
-        set_search_mode(True)
+        set_input_mode(True)
         search_results_active = False
-        search_input = input_text
+        text_input = input_text
         selected_grouping_mode = grouping_mode
-        search_cursor = max(0, len(search_input) - 1)
+        input_cursor = max(0, len(text_input) - 1)
         core.show_message(core.t('info_search_failed'))
         if core.DEBUG:
             print(f"Search error: {e}")
@@ -995,56 +980,8 @@ def draw_confirm_Box():
     core.draw_custom_menu([item["label"] for item in confirm_Box_options], confirm_Box_active_selection, title=confirm_Box_title)
 
 def draw_search_screen():
-    core.draw.rectangle((0, 0, core.width, core.height), fill=core.COLOR_BG)
-
-    padding_x = max(1, int(core.width * 0.02))
-
-    # --- Title → items spacing based on screen height ---
-    if core.height <= 64:
-        spacing_title_items = 2
-        padding_y = 1
-    else:
-        spacing_title_items = 10
-        padding_y = 6
-
-    # ─── Title (Search) ─────
-    title = core.t("title_search")
-    title_width = core.draw.textlength(title, font=font_title)
-    x_title = (core.width - title_width) // 2
-    y_title = padding_y
-    core.draw.text((x_title, y_title), title, font=font_title, fill=core.COLOR_TITLE)
-
-    # ─── Input box ──────
-    input_y = padding_y + font_title.getbbox("Ay")[3] + spacing_title_items
-    input_padding_x = 4
-    input_padding_y = 3
-    input_h = font_search_input.getbbox("Ay")[3] - font_search_input.getbbox("Ay")[1] + 2 * input_padding_y
-    input_bottom = input_y + input_h
-    core.draw.rectangle((0, input_y, core.width, input_bottom), fill=core.COLOR_INPUT_BG)
-
-    # ─── Calculation of horizontal scroll based on cursor position ──────
-    text_before_cursor = search_input[:search_cursor]
-    text_width_before_cursor = core.draw.textlength(text_before_cursor, font=font_search_input)
-    full_text_width = core.draw.textlength(search_input, font=font_search_input)
-
-    # Automatic scroll if cursor exceeds the visible display
-    visible_width = core.width - 2 * input_padding_x
-    scroll_offset = 0
-    if text_width_before_cursor > visible_width:
-        scroll_offset = text_width_before_cursor - visible_width + 10
-
-    display_text = search_input
-    core.draw.text((input_padding_x - scroll_offset, input_y + input_padding_y), display_text, font=font_search_input, fill=core.COLOR_INPUT_TEXT)
-
-    # Visual cursor: actual position
-    cursor_x = core.draw.textlength(search_input[:search_cursor], font=font_search_input) - scroll_offset + input_padding_x
-    cursor_y = input_y + input_padding_y
-    core.draw.line((cursor_x, cursor_y, cursor_x, cursor_y + font_search_input.getbbox("A")[3]), fill=core.COLOR_INPUT_CURSOR)
-
-    # ─── Option info: field ────────────────
-    info_centered = input_bottom + spacing_title_items
-    info1 = f"{core.t('show_search_by')}: {selected_grouping_mode}"
-    core.draw.text((padding_x, info_centered), info1, font=font_search_info, fill=core.COLOR_INPUT_INFO)
+    info = f"{core.t('show_search_by')}: {selected_grouping_mode}"
+    core.draw_text_input(core.t("title_search"), text_input, input_cursor, info_lines=[info])
 
 def draw_library():
     now = time.time()
@@ -1459,6 +1396,7 @@ def nav_ok_long():
     global tool_menu_active, tool_menu_selection, tool_menu_options
     global menu_search_screen_active, menu_search_screen_selection
     if any([menu_active, sort_menu_active, grouping_mode_active,
+            menu_search_screen_active, previous_search_menu_active,
             confirm_Box_active, copy_action_menu_active, help_active]):
         return
     if search_mode:
@@ -1479,7 +1417,7 @@ def nav_ok_long():
 
 def nav_left_short():
     global current_path, library_items, library_selection, nav_stack
-    global search_input_last, grouping_mode_last, search_mode, search_input, selected_grouping_mode, search_cursor, search_results_active
+    global search_input_last, grouping_mode_last, text_input, selected_grouping_mode, input_cursor, search_results_active
     global mpd_results_cache, radio_results_cache
 
     if not nav_stack:
@@ -1488,10 +1426,10 @@ def nav_left_short():
             if multi_selection:
                 core.show_message(core.t("error_cannot_modify_selection"))
                 return
-            set_search_mode(True)
-            search_input = search_input_last
+            set_input_mode(True)
+            text_input = search_input_last
             selected_grouping_mode = grouping_mode_last
-            search_cursor = max(0, len(search_input) - 1)
+            input_cursor = max(0, len(text_input) - 1)
             search_results_active = False
         return
 
@@ -1529,7 +1467,7 @@ def nav_left_short():
     core.reset_scroll("library_items", "menu_title", "menu_item")
 
 def nav_left_long():
-    global menu_active, nav_stack, search_mode, search_results_active
+    global menu_active, nav_stack, search_results_active
     global copy_mode_active, copy_source_items, sort_menu_active, grouping_mode_active
     global menu_search_screen_active, confirm_Box_active, copy_action_menu_active
     global help_active, multi_selection, selected_items
@@ -1550,7 +1488,7 @@ def nav_left_long():
     selected_items.clear()
     core.message_text = None
     menu_active = False
-    set_search_mode(False)
+    set_input_mode(False)
     search_results_active = False
     sort_menu_active = False
     grouping_mode_active = False
@@ -1619,21 +1557,7 @@ def nav_right_short():
         return
 
 def nav_right_long():
-    global search_input, search_cursor
-    if search_mode:
-        if 0 <= search_cursor < len(search_input):
-            char = search_input[search_cursor].lower()
-            for base, variants in accent_variants.items():
-                if char in variants:
-                    current_index = variants.index(char)
-                    next_variant = variants[(current_index + 1) % len(variants)]
-                    search_input = (
-                        search_input[:search_cursor]
-                        + next_variant
-                        + search_input[search_cursor + 1:]
-                    )
-                    print(f"→ Accent switch: {char} -> {next_variant}")
-                    break
+    print("not used")
 
 def nav_channelup():
     global selected_items, library_selection, library_items, multi_selection, current_path
@@ -1709,7 +1633,7 @@ def nav_back_long():
 
 def finish_press(key):
     global menu_active, menu_selection, library_items, library_selection, current_path
-    global search_mode, search_cursor, search_input, search_input_last, menu_search_screen_active, menu_search_screen_selection
+    global input_cursor, text_input, search_input_last, menu_search_screen_active, menu_search_screen_selection
     global previous_search_menu_active, previous_search_menu_selection, previous_search_options
     global mpd_results_cache, radio_results_cache, grouping_mode_last, grouping_mode_active, grouping_mode_selection
     global selected_grouping_mode, grouping_mode_from_tool_active
@@ -1759,6 +1683,23 @@ def finish_press(key):
     if core.message_text and not core.message_permanent:
         if key in ("KEY_LEFT", "KEY_OK"):
             core.message_text = None
+        return
+
+    # --------------------------------------------------------
+    # Text input
+    # --------------------------------------------------------
+    if search_mode:
+        text_input, input_cursor, action = core.handle_text_input(key, text_input, input_cursor, final_code)
+        if action == "confirm":
+            if run_mpd_search(text_input, selected_grouping_mode):
+                set_input_mode(False)
+        elif action == "cancel":
+            nav_left_long()
+        elif action == "ok_long":
+            nav_ok_long()
+            set_input_mode(False)
+        elif action == "left_long":
+            nav_left_long()
         return
 
     if final_code >= 4:
@@ -1865,9 +1806,9 @@ def finish_press(key):
             elif selected_id == "rescan":
                 rescan_library()
             elif selected_id == "search":
-                set_search_mode(True)
-                search_cursor = 0
-                search_input = ""
+                set_input_mode(True)
+                input_cursor = 0
+                text_input = ""
             elif selected_id == "save":
                 save_search_to_file()
             elif selected_id == "modify_by":
@@ -1881,10 +1822,10 @@ def finish_press(key):
                 if multi_selection:
                     core.show_message(core.t("error_cannot_modify_selection"))
                     return
-                search_input = search_input_last or ""
+                text_input = search_input_last or ""
                 selected_grouping_mode = grouping_mode_last or "Titles"
-                search_cursor = max(0, len(search_input) - 1)
-                set_search_mode(True)
+                input_cursor = max(0, len(text_input) - 1)
+                set_input_mode(True)
             elif selected_id == "previous":
                 if multi_selection:
                     core.show_message(core.t("error_cannot_modify_selection"))
@@ -1906,6 +1847,7 @@ def finish_press(key):
             menu_search_screen_selection += 1
         elif key == "KEY_LEFT":
             menu_search_screen_active = False
+            set_input_mode(True)
         elif key == "KEY_OK":
             selected_id = menu_search_screen_options[menu_search_screen_selection]["id"]
             menu_search_screen_active = False
@@ -1913,12 +1855,14 @@ def finish_press(key):
                 grouping_mode_active = True
                 grouping_mode_selection = next((i for i, e in enumerate(grouping_mode_options) if e["id"] == selected_grouping_mode), 0)
             elif selected_id == "erase_search":
-                search_input = ""
-                search_cursor = 0
+                text_input = ""
+                input_cursor = 0
+                set_input_mode(True)
             elif selected_id == "previous_search":
                 previous_search_options[:] = load_previous_searches()
                 if not previous_search_options:
                     core.show_message(core.t("info_no_previous_search"))
+                    set_input_mode(True)
                 else:
                     previous_search_menu_active = True
                     previous_search_menu_selection = 0
@@ -1932,6 +1876,8 @@ def finish_press(key):
             previous_search_menu_selection += 1
         elif key == "KEY_LEFT":
             previous_search_menu_active = False
+            if search_mode:
+                set_input_mode(True)
         elif key == "KEY_CHANNELDOWN":
             delete_search_history_entry(previous_search_menu_selection)
             previous_search_options.pop(previous_search_menu_selection)
@@ -1943,13 +1889,13 @@ def finish_press(key):
                 mode, value = selected.split("|", 1)
                 success = run_mpd_search(value.strip(), mode.strip())
                 previous_search_menu_active = False
-                set_search_mode(not success)
+                set_input_mode(not success)
             except Exception as e:
                 core.show_message(core.t("error_previous_search"))
                 if core.DEBUG:
                     print(f"Error handling previous search: {e}")
                 previous_search_menu_active = False
-                set_search_mode(True)
+                set_input_mode(True)
         core.reset_scroll("menu_item")
         return
 
@@ -1960,13 +1906,16 @@ def finish_press(key):
             grouping_mode_selection += 1
         elif key == "KEY_LEFT":
             grouping_mode_active = False
+            set_input_mode(True)
         elif key == "KEY_OK":
             selected_grouping_mode = grouping_mode_options[grouping_mode_selection]["id"]
             grouping_mode_active = False
             if grouping_mode_from_tool_active:
-                search_input = search_input_last or ""
+                text_input = search_input_last or ""
                 grouping_mode_from_tool_active = False
-                run_mpd_search(search_input, selected_grouping_mode)
+                run_mpd_search(text_input, selected_grouping_mode)
+            else:
+                set_input_mode(True)
         core.reset_scroll("menu_item")
         return
 
@@ -1984,66 +1933,6 @@ def finish_press(key):
             sort_menu_active = False
             update_items(current_path, library_selection)
         core.reset_scroll("menu_item")
-        return
-
-    if search_mode:
-        if key == "KEY_BACKSPACE":
-            if search_cursor > 0:
-                search_input = (
-                    search_input[:search_cursor - 1]
-                    + search_input[search_cursor:]
-                )
-                search_cursor -= 1
-        elif key == "KEY_ESC":
-            nav_left_long()
-        elif key == "KEY_LEFT":
-            if search_cursor > 0:
-                search_cursor -= 1
-        elif key == "KEY_RIGHT":
-            if search_cursor < len(search_input) - 1:
-                search_cursor += 1
-            elif search_cursor == len(search_input) - 1:
-                last_char = search_input[-1] if search_input else ""
-                if last_char == " ":
-                    search_input += "a"
-                else:
-                    search_input += " "
-                search_cursor += 1
-        elif key == "KEY_UP":
-            if not search_input:
-                search_input = "1"
-            elif search_input and 0 <= search_cursor < len(search_input):
-                ch = search_input[search_cursor]
-                if ch in valid_chars:
-                    new_index = (valid_chars.index(ch) + 1) % len(valid_chars)
-                    new_ch = valid_chars[new_index]
-                    search_input = search_input[:search_cursor] + new_ch + search_input[search_cursor + 1:]
-        elif key == "KEY_DOWN":
-            if not search_input:
-                search_input = "a"
-            elif search_input and 0 <= search_cursor < len(search_input):
-                ch = search_input[search_cursor]
-                if ch in valid_chars:
-                    new_index = (valid_chars.index(ch) - 1) % len(valid_chars)
-                    new_ch = valid_chars[new_index]
-                    search_input = search_input[:search_cursor] + new_ch + search_input[search_cursor + 1:]
-        elif key == "KEY_CHANNELUP":
-            search_input = search_input[:search_cursor] + " " + search_input[search_cursor:]
-        elif key == "KEY_CHANNELDOWN":
-            if 0 <= search_cursor < len(search_input):
-                search_input = search_input[:search_cursor] + search_input[search_cursor + 1:]
-            search_cursor = min(search_cursor, len(search_input) - 1 if search_input else 0)
-        elif key == "KEY_OK":
-            if run_mpd_search(search_input, selected_grouping_mode):
-                search_mode = False
-            return
-        elif isinstance(key, str) and key.isprintable():
-            search_input = (
-                search_input[:search_cursor]
-                + key
-                + search_input[search_cursor:]
-            )
-            search_cursor += len(key)
         return
 
     else:
@@ -2108,10 +1997,10 @@ if os.path.exists(override_path):
 
         if artist_override:
             launch_from_artist_override = True
-            search_input = artist_override
+            text_input = artist_override
             selected_grouping_mode = "Artists"
-            if run_mpd_search(search_input, selected_grouping_mode):
-                set_search_mode(False)
+            if run_mpd_search(text_input, selected_grouping_mode):
+                set_input_mode(False)
     except Exception as e:
         core.show_message(core.t("error_loading_artist_override"))
         if core.DEBUG:
