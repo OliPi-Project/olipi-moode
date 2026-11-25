@@ -94,7 +94,7 @@ def execute_shortcut(action, menu_context_flag=""):
             else:
                 show_message(msg.replace("ERR: ", ""))
         except Exception as e:
-            core.show_message(f"EQ error: {e}")
+            show_message(f"EQ error: {e}")
     
     elif typ == "playback":
         subprocess.run(["mpc", value], check=False)
@@ -232,4 +232,4 @@ def get_used_keys():
             keys.update(k.upper() for k in config[section].keys())
     return keys
 
-USED_MEDIA_KEYS = get_used_keys()
+USED_KEYS = get_used_keys()

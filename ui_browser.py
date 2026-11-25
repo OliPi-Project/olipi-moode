@@ -19,7 +19,7 @@ os.environ.setdefault("OLIPI_DIR", str(OLIPIMOODE_DIR))
 
 from olipi_core import core_common as core
 from olipi_core.input_manager import start_inputs, press_data, process_key, set_keyboard_context
-from media_key_actions import load_shortcuts, is_key_reserved, is_key_used, handle_audio_keys, handle_custom_key, USED_MEDIA_KEYS, set_hooks as set_custom_hooks
+from key_actions import load_shortcuts, is_key_reserved, is_key_used, handle_audio_keys, handle_custom_key, USED_KEYS, set_hooks as set_custom_hooks
 
 font_title = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 10)
 font_item = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 11)

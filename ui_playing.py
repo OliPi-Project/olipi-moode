@@ -30,7 +30,7 @@ os.environ.setdefault("OLIPI_DIR", str(OLIPIMOODE_DIR))
 
 from olipi_core import core_common as core
 from olipi_core.input_manager import start_inputs, press_data, process_key
-from media_key_actions import load_shortcuts, is_key_reserved, is_key_used, handle_audio_keys, handle_custom_key, USED_MEDIA_KEYS, set_hooks as set_custom_hooks
+from key_actions import load_shortcuts, is_key_reserved, is_key_used, handle_audio_keys, handle_custom_key, USED_KEYS, set_hooks as set_custom_hooks
 
 DB_PATH = "/var/local/www/db/moode-sqlite3.db"
 BTMeta_Path = "/var/local/www/btmeta.json"
@@ -4195,7 +4195,7 @@ def finish_press(key):
                 if core.DEBUG:
                     print(f"Renderer active → key '{key}' blocked (now_playing_mode)")
                 return
-        elif key in USED_MEDIA_KEYS:
+        elif key in USED_KEYS:
             core.show_message(core.t("info_action_blocked"))
             if core.DEBUG:
                 print(f"Renderer active → key '{key}' blocked")
@@ -4223,7 +4223,7 @@ def finish_press(key):
             if core.DEBUG:
                 print(f"key '{key}' used in sleep mode")
             pass
-        elif key in USED_MEDIA_KEYS and global_state.get("state", "unknown") != "stop":
+        elif key in USED_KEYS and global_state.get("state", "unknown") != "stop":
             if core.DEBUG:
                 print(f"Media key '{key}' ignored in sleep mode (no wake)")
             pass
