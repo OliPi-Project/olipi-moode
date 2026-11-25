@@ -84,7 +84,7 @@ info_action_blocked: "Vous ne pouvez pas effectuer cette action"
 
 # Other traduction
 show_error_read_playlist: "Erreur playlist"
-show_search_by: "Recherche par: "
+show_search_by: "Recherche par"
 
 # Titles
 title_play_selection: "✓ Lecture sélection"
