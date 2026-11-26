@@ -44,6 +44,7 @@ And follow instructions.
 
 Latest updates:
 
+    - Add keyboard controls
     - Now support screen SSD1305 128x32 2.2"
     - Add a VU meter in addition to the existing peak meter
     - Add new options in the UI configuration menu or via config.ini:
