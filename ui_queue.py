@@ -22,8 +22,8 @@ from olipi_core import core_common as core
 from olipi_core.input_manager import start_inputs, press_data, process_key, set_keyboard_context
 from key_actions import load_shortcuts, handle_audio_keys, handle_custom_key, USED_KEYS, set_hooks as set_custom_hooks
 
-font_title = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 10)
-font_item = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 11)
+font_title = core.font_title_menu
+font_item = core.font_item_menu
 font_cover_date = core.screen.ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 20)
 font_cover_count = core.screen.ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 22)
 

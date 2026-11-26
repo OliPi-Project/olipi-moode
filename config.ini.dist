@@ -48,6 +48,13 @@ show_meters_alt = False
 #font_size_stop_clock = 24
 #font_size_extra_info = 9
 
+[other_fonts]
+#font_title_menu = 10
+#font_item_menu = 11
+#font_message = 11
+#font_text_input = 12
+#font_input_info = 10
+
 [spectrum]
 num_bars = 21
 peak_soft_correct = True
