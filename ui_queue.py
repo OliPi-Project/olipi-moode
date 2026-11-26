@@ -19,15 +19,13 @@ OLIPIMOODE_DIR = Path(__file__).resolve().parent
 os.environ.setdefault("OLIPI_DIR", str(OLIPIMOODE_DIR))
 
 from olipi_core import core_common as core
-from olipi_core.input_manager import start_inputs, press_data, process_key
+from olipi_core.input_manager import start_inputs, press_data, process_key, set_keyboard_context
 from key_actions import load_shortcuts, handle_audio_keys, handle_custom_key, USED_KEYS, set_hooks as set_custom_hooks
 
 font_title = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 10)
 font_item = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 11)
-font_rename_input = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 12)
-font_rename_info = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 10)
-font_date = core.screen.ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 20)
-font_count = core.screen.ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 22)
+font_cover_date = core.screen.ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 20)
+font_cover_count = core.screen.ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 22)
 
 core.load_translations(Path(__file__).stem)
 
@@ -102,23 +100,18 @@ rename_prompt_options = [
 ]
 
 rename_mode = False
-rename_input = ""
-rename_cursor = 0
+text_input = ""
+input_cursor = 0
 rename_original_name = ""
-valid_chars = string.ascii_lowercase + '-' + string.digits + " '"
-accent_variants = {
-    "a": ["a", "à", "â", "ä"],
-    "e": ["e", "é", "è", "ê", "ë"],
-    "i": ["i", "î", "ï"],
-    "o": ["o", "ô", "ö"],
-    "u": ["u", "ù", "û", "ü"],
-    "c": ["c", "ç"],
-}
+
+def set_input_mode(active):
+    global rename_mode
+    rename_mode = active
+    set_keyboard_context("text" if active else None)
 
 help_active = False
 help_lines = []
 help_selection = 0
-
 
 def run_active_loop():
     if not blocking_render and not is_sleeping:
@@ -545,71 +538,8 @@ def draw_help_screen():
     core.draw_custom_menu(help_lines, help_selection, core.t("title_contextual_help"))
 
 def draw_rename_screen():
-    core.draw.rectangle((0, 0, core.width, core.height), fill=core.COLOR_BG)
-
-    padding_x = max(1, int(core.width * 0.02))
-
-    # --- Title → items spacing based on screen height ---
-    if core.height <= 64:
-        spacing_title_items = 2
-        padding_y = 1
-    else:
-        spacing_title_items = 10
-        padding_y = 6
-
-    # ─── Title ───
-    title = core.t("title_rename_playlist")
-    title_width = core.draw.textlength(title, font=font_title)
-    x_title = (core.width - title_width) // 2
-    y_title = padding_y
-    core.draw.text((x_title, y_title), title, font=font_title, fill=core.COLOR_TITLE)
-
-    # ─── Input area ───
-    input_y = padding_y + font_title.getbbox("Ay")[3] + spacing_title_items
-    input_padding_x = 4
-    input_padding_y = 3
-    input_h = font_rename_input.getbbox("Ay")[3] - font_rename_input.getbbox("Ay")[1] + 2 * input_padding_y
-    input_bottom = input_y + input_h
-    core.draw.rectangle((0, input_y, core.width, input_bottom), fill=core.COLOR_INPUT_BG)
-
-    # ─── Scroll horizontal ───
-    text_before_cursor = rename_input[:rename_cursor]
-    text_width_before_cursor = core.draw.textlength(text_before_cursor, font=font_rename_input)
-    full_text_width = core.draw.textlength(rename_input, font=font_rename_input)
-
-    # Automatic scroll if cursor exceeds the visible display
-    visible_width = core.width - 2 * input_padding_x
-    scroll_offset = 0
-    if text_width_before_cursor > visible_width:
-        scroll_offset = text_width_before_cursor - visible_width + 10
-
-    display_text = rename_input
-    core.draw.text((input_padding_x - scroll_offset, input_y + input_padding_y), display_text, font=font_rename_input, fill=core.COLOR_INPUT_TEXT)
-
-    # Visual cursor: actual position
-    cursor_x = core.draw.textlength(rename_input[:rename_cursor], font=font_rename_input) - scroll_offset + input_padding_x
-    cursor_y = input_y + input_padding_y
-    core.draw.line((cursor_x, cursor_y, cursor_x, cursor_y + font_rename_input.getbbox("A")[3]), fill=core.COLOR_INPUT_CURSOR)
-
-    # ─── Multiline genre display ───
-    if genre_selected:
-        genre_text = core.t("show_label_genres") + " " + ", ".join(genre_selected)
-        lines = []
-        current_line = ""
-        for word in genre_text.split(", "):
-            test_line = current_line + (", " if current_line else "") + word
-            if core.draw.textlength(test_line, font=font_rename_info) > core.width - 6:
-                if current_line:
-                    lines.append(current_line)
-                current_line = word
-            else:
-                current_line = test_line
-        if current_line:
-            lines.append(current_line)
-
-        max_lines = 3
-        for i, line in enumerate(lines[:max_lines]):
-            core.draw.text((padding_x, core.height - (max_lines - i) * 10), line, font=font_rename_info, fill=core.COLOR_INPUT_INFO)
+    info = core.t("show_label_genres") + " " + ", ".join(genre_selected)
+    core.draw_text_input(core.t("title_rename_playlist"), text_input, input_cursor, info_lines=[info])
 
 def draw_queue():
     now = time.time()
@@ -692,9 +622,9 @@ def draw_queue():
         core.draw.text((x_notice, start_y + 8), notice, font=font_item, fill=core.COLOR_TEXT)
 
         notice2 = core.t("show_queue_empty_notice_2")
-        b2 = core.draw.textbbox((0, 0), notice2, font=font_rename_info)
+        b2 = core.draw.textbbox((0, 0), notice2, font=font_title)
         x_notice2 = (core.width - (b2[2] - b2[0])) // 2
-        core.draw.text((x_notice2, start_y + 10 + line_h), notice2, font=font_rename_info, fill=core.COLOR_TEXT)
+        core.draw.text((x_notice2, start_y + 10 + line_h), notice2, font=font_title, fill=core.COLOR_TEXT)
         return
 
     # -------------------------------
@@ -835,9 +765,9 @@ def add_default_cover(playlist_name):
         draw = core.screen.ImageDraw.Draw(img)
 
         date_str = format_localized_date(datetime.now())
-        bbox_date = draw.textbbox((0, 0), date_str, font=font_date)
+        bbox_date = draw.textbbox((0, 0), date_str, font=font_cover_date)
         x_date = (img.width - (bbox_date[2] - bbox_date[0])) // 2
-        draw.text((x_date, 8), date_str, fill=core.COLOR_TEXT, font=font_date)
+        draw.text((x_date, 8), date_str, fill=core.COLOR_TEXT, font=font_cover_date)
 
         client = MPDClient()
         client.timeout = 10
@@ -853,9 +783,9 @@ def add_default_cover(playlist_name):
         else:
             count_str = f"{track_count} {track_label}s"
 
-        bbox_count = draw.textbbox((0, 0), count_str, font=font_count)
+        bbox_count = draw.textbbox((0, 0), count_str, font=font_cover_count)
         x_count = (img.width - (bbox_count[2] - bbox_count[0])) // 2
-        draw.text((x_count, img.height - bbox_count[3] - 8), count_str, fill=core.COLOR_TEXT, font=font_count)
+        draw.text((x_count, img.height - bbox_count[3] - 8), count_str, fill=core.COLOR_TEXT, font=font_cover_count)
 
         img.save(src_tmp, "JPEG")
         subprocess.call(["sudo", "cp", src_tmp, dest])
@@ -868,11 +798,11 @@ def add_default_cover(playlist_name):
             print(f"Cover creation error: {e}")
 
 def playlist_rename():
-    global rename_mode, rename_input, rename_original_name
+    global text_input, rename_original_name
 
-    if not all(c in valid_chars for c in rename_input):
+    if not all(c in core.valid_chars for c in text_input):
         core.show_message(core.t("error_invalid_char"))
-        rename_mode = False
+        set_input_mode(False)
         return
 
     try:
@@ -881,19 +811,19 @@ def playlist_rename():
         client.connect("localhost", 6600)
 
         existing_playlists = [pl["playlist"] for pl in client.listplaylists()]
-        if rename_input in existing_playlists:
+        if text_input in existing_playlists:
             core.show_message(core.t("error_name_in_use"))
             client.close()
             client.disconnect()
-            rename_mode = False
+            set_input_mode(False)
             return
 
-        client.rename(rename_original_name, rename_input)
+        client.rename(rename_original_name, text_input)
         client.close()
         client.disconnect()
 
         old_cover = f"/var/local/www/imagesw/playlist-covers/{rename_original_name}.jpg"
-        new_cover = f"/var/local/www/imagesw/playlist-covers/{rename_input}.jpg"
+        new_cover = f"/var/local/www/imagesw/playlist-covers/{text_input}.jpg"
         if os.path.exists(old_cover):
             try:
                 subprocess.call(["sudo", "mv", old_cover, new_cover])
@@ -903,14 +833,14 @@ def playlist_rename():
                 if core.DEBUG:
                     print(f"Cover rename error (sudo mv): {e}")
 
-        core.show_message(core.t("info_playlist_renamed_to", name=rename_input))
+        core.show_message(core.t("info_playlist_renamed_to", name=text_input))
 
     except Exception as e:
         core.show_message(core.t("error_rename_playlist"))
         if core.DEBUG:
             print(f"Playlist renaming error: {e}")
 
-    rename_mode = False
+    set_input_mode(False)
 
 def confirm_playlist_choice(menu_option_id):
     global playlist_mode, menu_active, genre_menu_active, genre_menu_selection, genre_selected, m3u_path
@@ -1106,7 +1036,7 @@ def nav_left_short():
     queue_selection = current_playing
 
 def nav_left_long():
-    global menu_active, empty_queue_menu_active, recent_albums_menu_active, playlist_mode, playlist_view_mode, genre_menu_active, rename_prompt_active, rename_mode
+    global menu_active, empty_queue_menu_active, recent_albums_menu_active, playlist_mode, playlist_view_mode, genre_menu_active, rename_prompt_active
 
     if rename_mode or rename_prompt_active:
         core.show_message(core.t("info_rename_cancelled"))
@@ -1122,28 +1052,14 @@ def nav_left_long():
     playlist_view_mode = False
     genre_menu_active = False
     rename_prompt_active = False
-    rename_mode = False
+    set_input_mode(False)
     fetch_queue()
 
 def nav_right_short():
     print("Not implemented")
 
 def nav_right_long():
-    global rename_input, rename_cursor
-    if rename_mode:
-        if 0 <= rename_cursor < len(rename_input):
-            char = rename_input[rename_cursor].lower()
-            for base, variants in accent_variants.items():
-                if char in variants:
-                    current_index = variants.index(char)
-                    next_variant = variants[(current_index + 1) % len(variants)]
-                    rename_input = (
-                        rename_input[:rename_cursor]
-                        + next_variant
-                        + rename_input[rename_cursor + 1:]
-                    )
-                    print(f"→ Accent switch: {char} -> {next_variant}")
-                    break
+    print("Not implemented")
 
 def nav_info():
     global help_active, help_lines, help_selection
@@ -1151,7 +1067,6 @@ def nav_info():
     if not help_base_path.exists():
         help_base_path = OLIPIMOODE_DIR / "assets/help_texts/help_ui_queue_en.txt"
     context = "queue"
-
     if playlist_view_mode:
         context = "playlist_view"
     elif playlist_mode:
@@ -1166,11 +1081,9 @@ def nav_info():
         context = "random_menu"
     elif menu_active or recent_albums_menu_active or empty_queue_menu_active or rename_prompt_active:
         context = "menu"
-
     try:
         with open(help_base_path, "r", encoding="utf-8") as f:
             lines = f.readlines()
-
         help_lines = []
         in_section = False
         for line in lines:
@@ -1180,13 +1093,11 @@ def nav_info():
                 continue
             if in_section:
                 help_lines.append(line)
-
         if help_lines:
             help_selection = 0
             help_active = True
         else:
             core.show_message(core.t("info_no_help"))
-
     except Exception as e:
         core.show_message(core.t("error_load_help", err=str(e)))
         if core.DEBUG:
@@ -1224,7 +1135,7 @@ def trigger_menu(index):
 def finish_press(key):
     global menu_active, menu_selection, empty_queue_menu_active, empty_queue_menu_selection, genre_menu_active, genre_menu_selection, genre_selected
     global playlist_mode, playlist_selection, playlist_view_mode, playlist_view_selection
-    global rename_prompt_active, rename_prompt_selection, rename_mode, rename_cursor, rename_input, rename_original_name, m3u_path, current_playlist_name
+    global rename_prompt_active, rename_prompt_selection, input_cursor, text_input, rename_original_name, m3u_path, current_playlist_name
     global recent_albums_menu_active, recent_albums_menu_selection, recent_albums_options, help_active, help_selection
     global screen_on, idle_timer, is_sleeping, last_wake_time, custom_days, track_count, radio_count
 
@@ -1264,6 +1175,18 @@ def finish_press(key):
             core.message_text = None
         return
     
+    # Text input
+    if rename_mode:
+        text_input, input_cursor, action = core.handle_text_input(key, text_input, input_cursor, final_code)
+        if action == "confirm":
+            playlist_rename()
+            set_input_mode(False)
+        elif action == "cancel":
+            nav_left_long()
+        elif action == "left_long":
+            nav_left_long()
+        return
+
     if final_code >= 4:
         if key == "KEY_LEFT": nav_left_long()
         elif key == "KEY_BACK": nav_back_long()
@@ -1462,53 +1385,12 @@ def finish_press(key):
         elif key == "KEY_OK":
             rename_prompt_active = False
             if rename_prompt_options[rename_prompt_selection]["id"] == "yes":
-                rename_mode = True
+                set_input_mode(True)
                 rename_original_name = current_playlist_name
-                rename_input = "new"
-                rename_cursor = 0
+                text_input = "new"
+                input_cursor = 0
             else:
                 core.show_message(core.t("info_added_genre"))
-        return
-
-    if rename_mode:
-        if key == "KEY_LEFT" and rename_cursor > 0:
-            rename_cursor -= 1
-        elif key == "KEY_RIGHT":
-            if rename_cursor < len(rename_input) - 1:
-                rename_cursor += 1
-            elif rename_cursor == len(rename_input) - 1:
-                last_char = rename_input[-1]
-                if last_char == " ":
-                    rename_input += "a"
-                else:
-                    rename_input += " "
-                rename_cursor += 1
-        elif key == "KEY_UP":
-            if not rename_input:
-                rename_input = "1"
-            elif rename_input and 0 <= rename_cursor < len(rename_input):
-                ch = rename_input[rename_cursor]
-                if ch in valid_chars:
-                    new_index = (valid_chars.index(ch) + 1) % len(valid_chars)
-                    new_ch = valid_chars[new_index]
-                    rename_input = rename_input[:rename_cursor] + new_ch + rename_input[rename_cursor + 1:]
-        elif key == "KEY_DOWN":
-            if not rename_input:
-                rename_input = "a"
-            elif rename_input and 0 <= rename_cursor < len(rename_input):
-                ch = rename_input[rename_cursor]
-                if ch in valid_chars:
-                    new_index = (valid_chars.index(ch) - 1) % len(valid_chars)
-                    new_ch = valid_chars[new_index]
-                    rename_input = rename_input[:rename_cursor] + new_ch + rename_input[rename_cursor + 1:]
-        elif key == "KEY_CHANNELUP":
-            rename_input = rename_input[:rename_cursor] + " " + rename_input[rename_cursor:]
-        elif key == "KEY_CHANNELDOWN":
-            if 0 <= rename_cursor < len(rename_input):
-                rename_input = rename_input[:rename_cursor] + rename_input[rename_cursor + 1:]
-            rename_cursor = min(rename_cursor, len(rename_input) - 1 if rename_input else 0)
-        elif key == "KEY_OK":
-            playlist_rename()
         return
 
     else:
