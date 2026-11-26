@@ -617,9 +617,9 @@ def draw_queue():
     # -------------------------------
     if not queue_items:
         notice = core.t("show_queue_empty_notice_1")
-        b = core.draw.textbbox((0, 0), notice, font=font_item)
+        b = core.draw.textbbox((0, 0), notice, font=font_item if core.height > 64 else font_title)
         x_notice = (core.width - (b[2] - b[0])) // 2
-        core.draw.text((x_notice, start_y + 8), notice, font=font_item, fill=core.COLOR_TEXT)
+        core.draw.text((x_notice, start_y + 8), notice, font=font_item if core.height > 64 else font_title, fill=core.COLOR_TEXT)
 
         notice2 = core.t("show_queue_empty_notice_2")
         b2 = core.draw.textbbox((0, 0), notice2, font=font_title)
