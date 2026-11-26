@@ -61,8 +61,8 @@ if core.height < 64 and core.diag_inch >= 2.0:
     font_meters_label = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", core.get_config("nowplaying", "font_meters_label", fallback=6, type=int))
 else:
     font_artist = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", core.get_config("nowplaying", "font_size_artist", fallback=14, type=int))
-    font_vol_clock = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", core.get_config("nowplaying", "font_size_artist", fallback=10, type=int))
-    font_stop_clock = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", core.get_config("nowplaying", "font_size_vol_clock", fallback=24, type=int))
+    font_vol_clock = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", core.get_config("nowplaying", "font_size_vol_clock", fallback=10, type=int))
+    font_stop_clock = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", core.get_config("nowplaying", "font_stop_clock", fallback=24, type=int))
     font_extra_info = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", core.get_config("nowplaying", "font_size_extra_info", fallback=9, type=int))
     font_meters_label = core.get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", core.get_config("nowplaying", "font_meters_label", fallback=7, type=int))
 
@@ -3067,7 +3067,7 @@ def draw_spectrum(y_top, height, levels, attack=0.9, release=0.80, width_spec=co
 METER_DB_MIN = -42.0
 METER_DB_GAMMA = 1.4
 METER_DB_STEPS = (3, 6, 8, 10, 12, 18)
-marker_color = tuple(int(c * 0.65) for c in core.COLOR_ARTIST)
+marker_color = tuple(int(c * 0.65) for c in core.COLOR_ARTIST) if core.display_format != "MONO" else core.COLOR_ARTIST
 
 def get_meter_db_marks(length_px, font, min_label_gap=4, label_axis="x", start_padding=0,):
     if length_px <= 0:
@@ -3488,7 +3488,7 @@ def draw_nowplaying():
         top_bar_h = spacing if core.height > 64 else 0
 
     # Text background mask
-    text_mask_bg = (0, 0, 0, 120) if show_cover and not show_cover_alt and state != "stop" else None
+    text_mask_bg = (0, 0, 0, 120) if show_cover and not show_cover_alt and state != "stop" and core.display_format != "MONO" else None
 
     # Background
     if text_mask_bg is not None:
@@ -3796,7 +3796,7 @@ def draw_nowplaying():
 
         meter_height = (meter_count * meter_bar_h + scale_extra_h + max(0, meter_count - 1) * padding_peak)
 
-        total_peak = meter_height + (padding_y if show_meters_alt else spacing) + (padding_mask * 2 if text_mask_bg is not None or show_cover_alt else 0)
+        total_peak = meter_height + (padding_y if show_meters_alt else spacing) + (padding_mask * 2 if text_mask_bg is not None or (show_cover_alt and core.display_format != "MONO") else 0)
 
         if show_cover_alt:
             if horizontal_meters:
@@ -3807,15 +3807,16 @@ def draw_nowplaying():
         # --- Spectrum ---
         if has_spectrum:
             levels = spectrum.get_levels()
+            padding_meters_h = padding_y if core.height > 64 else padding_peak
             if show_meters_alt:
                 spectrum_bottom = (
-                    (core.height - total_peak - padding_y)
+                    (core.height - total_peak - padding_meters_h)
                     if horizontal_meters
                     else core.height - (pad_meters_v if not show_vol_bar else padding_y)
                 ) - (padding_mask if text_mask_bg is not None else 0)
             else:
                 spectrum_bottom = (
-                    y_vol_bar - (total_peak + padding_y)
+                    (y_vol_bar - total_peak - padding_meters_h)
                     if horizontal_meters
                     else y_vol_bar - pad_meters_v
                 ) - (padding_mask if text_mask_bg is not None else 0)
@@ -3859,7 +3860,7 @@ def draw_nowplaying():
             right_x0 = spectrum_x1 + padding_x
             right_x1 = core.width - padding_x
 
-            y_meter_h = (core.height - meter_height - padding_y if show_meters_alt else y_vol_bar - meter_height - spacing) - (padding_mask if text_mask_bg is not None or show_cover_alt else 0)
+            y_meter_h = (core.height - meter_height - padding_y if show_meters_alt else y_vol_bar - meter_height - spacing) - (padding_mask if text_mask_bg is not None or (show_cover_alt and core.display_format != "MONO") else 0)
 
             peaks = spectrum.get_channel_peaks(
                 volume_state=global_state.get("volume"),
@@ -3874,7 +3875,7 @@ def draw_nowplaying():
                 x0 = (core.width - int(meters_w)) // 2 + pad_x
                 x1 = (core.width + int(meters_w)) // 2 - pad_x
 
-            if text_mask_bg is not None or show_cover_alt:
+            if text_mask_bg is not None or (show_cover_alt and core.display_format != "MONO"):
                 if horizontal_meters:
                     draw_mask(
                         (x0 - padding_mask, y_meter_h - padding_mask,
