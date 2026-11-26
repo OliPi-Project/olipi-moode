@@ -1685,9 +1685,7 @@ def finish_press(key):
             core.message_text = None
         return
 
-    # --------------------------------------------------------
     # Text input
-    # --------------------------------------------------------
     if search_mode:
         text_input, input_cursor, action = core.handle_text_input(key, text_input, input_cursor, final_code)
         if action == "confirm":
