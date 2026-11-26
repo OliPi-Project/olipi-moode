@@ -29,7 +29,7 @@ OLIPIMOODE_DIR = Path(__file__).resolve().parent
 os.environ.setdefault("OLIPI_DIR", str(OLIPIMOODE_DIR))
 
 from olipi_core import core_common as core
-from olipi_core.input_manager import start_inputs, press_data, process_key
+from olipi_core.input_manager import start_inputs, press_data, process_key, set_keyboard_context
 from key_actions import load_shortcuts, is_key_reserved, is_key_used, handle_audio_keys, handle_custom_key, USED_KEYS, set_hooks as set_custom_hooks
 
 DB_PATH = "/var/local/www/db/moode-sqlite3.db"
