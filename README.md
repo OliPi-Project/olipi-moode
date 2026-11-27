@@ -345,6 +345,8 @@ The keyboard layout is detected from the system configuration (`/etc/default/key
 | `KEY_MUTE`        | Mute / M               |
 | `KEY_POWER`       | Power / Sleep / End    |
 
+The F12 key (KEY_F12) is used to release the keyboard's exclusive control to OliPi, which allows you to type in the terminal or, conversely, to prevent anything from being typed in the terminal while using controls or shortcuts. It should not be used in mapping or as a shortcut.
+
 **Custom keyboard mapping**
 
 You can change the default mappings or assign multiple physical keys to the same OliPi action in the `[keyboard]` section of `config.ini`.
