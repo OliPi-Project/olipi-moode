@@ -3064,8 +3064,8 @@ def draw_spectrum(y_top, height, levels, attack=0.9, release=0.80, width_spec=co
             color = global_gradient[idx]
             core.draw.rectangle((x0, y_start + y, x1, y_start + y), fill=color)
 
-METER_DB_MIN = -42.0
-METER_DB_GAMMA = 1.4
+METER_DB_MIN = -42.0 if peak_correct else -72.0
+METER_DB_GAMMA = 1.0
 METER_DB_STEPS = (3, 6, 8, 10, 12, 18)
 marker_color = tuple(int(c * 0.65) for c in core.COLOR_ARTIST) if core.display_format != "MONO" else core.COLOR_ARTIST
 
@@ -3477,7 +3477,7 @@ def draw_nowplaying():
     elif core.height <= 160:
         spacing = 6 if show_spectrum or show_peak or show_cover_alt else 16
         top_bar_h = icon_width + 8 if show_spectrum or show_peak else icon_width + 16
-    elif core.height == 170:
+    elif core.SCREEN_TYPE == "ST7789V" and core.height == 170:
         spacing = 4 if show_spectrum or show_peak or show_cover_alt else 8
         top_bar_h = icon_width + 5 if show_spectrum or show_peak else icon_width + 12
     else:
@@ -3542,7 +3542,7 @@ def draw_nowplaying():
         core.draw.text((x, y), clock_text, font=font_stop_clock, fill=core.COLOR_STOP_CLOCK)
 
         # Volume barre
-        vol_bar_h = font_vol_clock.getbbox("vol 100")[3]
+        vol_bar_h = font_vol_clock.getbbox("vol Mute")[3]
         y_vol_bar = core.height - vol_bar_h - padding_y
 
         core.draw.text((3, y_vol_bar), volume_display, font=font_vol_clock, fill=core.COLOR_VOL_CLOCK)
@@ -3626,9 +3626,9 @@ def draw_nowplaying():
                     # Mask only if the cover is background
                     if text_mask_bg is not None:
                         draw_mask(
-                            (0, y - 3, display_width, y + text_h + 3),
+                            (0, y - padding_mask, display_width, y + text_h + padding_mask),
                             text_mask_bg,
-                            radius=2
+                            radius=radius_mask
                         )
 
                     # Pre-rendered text with transparency
@@ -3643,9 +3643,9 @@ def draw_nowplaying():
 
                 if text_mask_bg is not None:
                     draw_mask(
-                        (x - 3, y - 3, x + text_width + 3, y + text_h + 3),
+                        (x - padding_mask, y - padding_mask, x + text_width + padding_mask, y + text_h + padding_mask),
                         text_mask_bg,
-                        radius=2
+                        radius=radius_mask
                     )
 
                 if render_img.mode == "RGBA":
@@ -3665,7 +3665,7 @@ def draw_nowplaying():
             y_artist = top_bar_h
             draw_scrolling(artist_album, scroll_artist, y_artist, core.COLOR_ARTIST)
             # --- Title ---
-            y_title = y_artist + text_h + spacing
+            y_title = y_artist + text_h + spacing + (padding_mask if text_mask_bg is not None else 0)
             draw_scrolling(title, scroll_title, y_title, core.COLOR_TRACK_TITLE)
             y_extra_info = y_title + text_h + spacing
 
@@ -3746,7 +3746,7 @@ def draw_nowplaying():
                     clock_text = f"{elapsed_str}"
                 else:
                     clock_text = f"{remaining_str}" if show_meters_alt or show_cover_alt else f"{elapsed_str}/{duration_str}"
-            vol_w = core.draw.textlength("vol 100", font=font_vol_clock)
+            vol_w = core.draw.textlength("vol Mute", font=font_vol_clock)
             clock_w = core.draw.textlength(clock_text, font=font_vol_clock)
             avaible_w = core.width - vol_w - clock_w - (padding_x * 4) - (padding_x * 2) - (padding_mask * 4 if text_mask_bg is not None else 0)
         else:
